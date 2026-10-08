@@ -1,0 +1,13 @@
+{
+  "name": "maze-ghost",
+  "version": "1.0.0",
+  "description": "Turn-based maze escape where the ghost uses adversarial search (minimax + alpha-beta) and looks further ahead each level.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "play": "node demo/terminal.js",
+    "check-levels": "node demo/check-levels.js",
+    "3d": "node demo/serve.js"
+  }
+}
