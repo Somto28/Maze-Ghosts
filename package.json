@@ -1,0 +1,9 @@
+{
+  "name": "maze-ghosts",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node maze-ghost/demo/serve.js"
+  }
+}

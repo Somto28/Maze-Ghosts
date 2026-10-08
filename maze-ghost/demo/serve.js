@@ -12,12 +12,16 @@ const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/cs
 
 http
   .createServer(async (req, res) => {
-    let file = path.join(root, decodeURIComponent(new URL(req.url, "http://x").pathname));
+    const pathname = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    if (pathname === "/") return res.writeHead(302, { location: "/examples/" }).end();
+
+    let file = path.join(root, pathname);
     if (!file.startsWith(root)) return res.writeHead(403).end();
     try {
       if ((await fs.stat(file)).isDirectory()) file = path.join(file, "index.html");
+      const body = await fs.readFile(file);
       res.writeHead(200, { "content-type": types[path.extname(file)] ?? "application/octet-stream" });
-      res.end(await fs.readFile(file));
+      res.end(body);
     } catch {
       res.writeHead(404).end("Not found");
     }
