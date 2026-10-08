@@ -46,7 +46,7 @@ export const LEVELS = Object.freeze([
       "#.......#.E",
       "###########",
     ],
-    theme: { wallHeight: 1.4, wallColor: "#4f6a8a", floorColor: "#172030", ghostColor: "#ff3b6b", fog: 0.02, light: 0.92 },
+    theme: { wallHeight: 1.4, wallColor: "#4f6a8a", floorColor: "#172030", ghostColor: "#ff3b6b", fog: 0.02, light: 1.0 },
   },
   {
     id: 3,
@@ -67,6 +67,6 @@ export const LEVELS = Object.freeze([
       "#.....#.....E",
       "#############",
     ],
-    theme: { wallHeight: 1.8, wallColor: "#46557a", floorColor: "#121826", ghostColor: "#ff1f3d", fog: 0.028, light: 0.85 },
+    theme: { wallHeight: 1.8, wallColor: "#46557a", floorColor: "#121826", ghostColor: "#ff1f3d", fog: 0.028, light: 1.0 },
   },
 ]);
