@@ -3,9 +3,12 @@
 
 import * as THREE from "three";
 import { MazeGame, buildLayout3D, gridToWorld } from "../src/index.js";
+import { buildBasement } from "./basement.js";
 
 const TILE = 1;
 const STEP_MS = 220; // pause between your move and the ghost's, so the turns are visible
+const LOOKS = { basement: buildBasement }; // theme.style -> custom art for that level
+const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const game = new MazeGame();
 const $ = (id) => document.getElementById(id);
@@ -17,8 +20,21 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 $("view").appendChild(renderer.domElement);
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 300);
-let scene, layout, player, ghost, ghostLight, planDots;
+let scene, layout, look, player, ghost, ghostLight, planDots;
 let busy = false;
+
+// The plain look: soft sky light plus a sun that casts shadows.
+function defaultLights(t, c, span) {
+  const sun = new THREE.DirectionalLight(0xffffff, 2.0 * t.light);
+  sun.position.set(c.x - span * 0.4, span * 1.2, c.z - span * 0.3);
+  sun.target.position.set(c.x, 0, c.z);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -span, right: span, top: span, bottom: -span, near: 0.5, far: span * 4 });
+  const lights = new THREE.Group();
+  lights.add(new THREE.HemisphereLight(0xc8dcff, 0x1a2030, 1.4 * t.light), sun, sun.target);
+  return lights;
+}
 
 // ---------- Scene from the level's 3D layout ----------
 function buildScene() {
@@ -26,24 +42,18 @@ function buildScene() {
   const t = layout.theme;
   const c = layout.floor.position;
   const span = Math.max(layout.floor.size.x, layout.floor.size.z);
+  look = LOOKS[t.style]?.(THREE, layout, { still });
+  document.body.dataset.style = t.style ?? ""; // lets the page restyle the HUD to match
 
   scene = new THREE.Scene();
   const bg = new THREE.Color(t.floorColor).multiplyScalar(0.6);
   scene.background = bg;
   scene.fog = new THREE.FogExp2(bg, t.fog);
-
-  scene.add(new THREE.HemisphereLight(0xc8dcff, 0x1a2030, 1.4 * t.light));
-  const sun = new THREE.DirectionalLight(0xffffff, 2.0 * t.light);
-  sun.position.set(c.x - span * 0.4, span * 1.2, c.z - span * 0.3);
-  sun.target.position.set(c.x, 0, c.z);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -span, right: span, top: span, bottom: -span, near: 0.5, far: span * 4 });
-  scene.add(sun, sun.target);
+  scene.add(look ? look.group : defaultLights(t, c, span));
 
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(layout.floor.size.x, layout.floor.size.z),
-    new THREE.MeshStandardMaterial({ color: t.floorColor, roughness: 0.95 }),
+    look?.floorMaterial ?? new THREE.MeshStandardMaterial({ color: t.floorColor, roughness: 0.95 }),
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(c.x, 0, c.z);
@@ -53,7 +63,7 @@ function buildScene() {
   // One InstancedMesh draws every wall in a single call (fast on school Chromebooks).
   const walls = new THREE.InstancedMesh(
     new THREE.BoxGeometry(TILE, t.wallHeight, TILE),
-    new THREE.MeshStandardMaterial({ color: t.wallColor, roughness: 0.7 }),
+    look?.wallMaterial ?? new THREE.MeshStandardMaterial({ color: t.wallColor, roughness: 0.7 }),
     layout.walls.length,
   );
   const m = new THREE.Matrix4();
@@ -180,7 +190,8 @@ function updateHud(message) {
 }
 
 let overlayAction = null;
-function showOverlay(title, text, button, action) {
+function showOverlay(kind, title, text, button, action) {
+  $("overlay").dataset.kind = kind; // "lose" or "win", for styling
   $("overlay-title").textContent = title;
   $("overlay-text").textContent = text;
   $("overlay-btn").textContent = button;
@@ -227,12 +238,12 @@ function takeTurn(dir) {
 function finish() {
   const n = game.level.lookahead;
   if (game.status === "caught") {
-    showOverlay("Caught!", `The ghost predicted your moves ${n} step${n > 1 ? "s" : ""} ahead.`, "Try again", () => restart("Try again!"));
+    showOverlay("lose", "Caught!", `The ghost predicted your moves ${n} step${n > 1 ? "s" : ""} ahead.`, "Try again", () => restart("Try again!"));
   } else if (game.status === "levelComplete") {
     const next = game.levels[game.levelIndex + 1];
-    showOverlay("Escaped!", `On Level ${next.id} the ghost looks ${next.lookahead} moves ahead.`, `Start Level ${next.id}`, goToNextLevel);
+    showOverlay("win", "Escaped!", `On Level ${next.id} the ghost looks ${next.lookahead} moves ahead.`, `Start Level ${next.id}`, goToNextLevel);
   } else if (game.status === "gameComplete") {
-    showOverlay("You beat the ghost!", "You escaped every level.", "Play again", playAgain);
+    showOverlay("win", "You beat the ghost!", "You escaped every level.", "Play again", playAgain);
   }
 }
 
@@ -261,6 +272,7 @@ renderer.setAnimationLoop(() => {
   for (const mesh of [player, ghost]) mesh.position.lerp(mesh.userData.target, 0.22);
   ghost.position.y = 0.45 + Math.sin(time * 3) * 0.05; // gentle hover
   ghostLight.position.copy(ghost.position);
+  look?.update(time, player.position);
   renderer.render(scene, camera);
 });
 
