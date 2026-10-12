@@ -1,0 +1,120 @@
+/* basement.css — Level 1's HUD: grimy riveted metal, hazard tape, typewriter labels, a paper memo for results.
+   Applies only while three-view.js sets <body data-style="basement">. Gameplay colours (you, ghost, predictions) stay the same. */
+
+:root {
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --rivet: radial-gradient(circle, #8a7358 0 1.5px, #2a211a 2.2px, transparent 2.8px);
+  --type: "Special Elite", "Courier New", Courier, monospace;
+}
+
+/* ---------- Darkness over the 3D view: vignette and film grain ---------- */
+#mood { position: fixed; inset: 0; pointer-events: none; display: none; overflow: hidden; }
+body[data-style="basement"] #mood {
+  display: block;
+  background: radial-gradient(ellipse 70% 65% at 58% 52%, transparent 40%, rgba(0, 0, 0, 0.78) 100%);
+}
+body[data-style="basement"] #mood::after {
+  content: ""; position: absolute; inset: -50%;
+  background: var(--grain); opacity: 0.35;
+  animation: grain 0.8s steps(4) infinite;
+}
+@keyframes grain {
+  0% { transform: translate(0, 0); } 25% { transform: translate(-4%, 3%); }
+  50% { transform: translate(3%, -5%); } 75% { transform: translate(-2%, -2%); } 100% { transform: translate(0, 0); }
+}
+
+/* ---------- Palette ---------- */
+body[data-style="basement"] {
+  --ink: #ece0cc;
+  --muted: #a8967e;
+  --line: rgba(242, 165, 65, 0.16);
+  --amber: #f2a541;
+  background: #0b0908;
+}
+
+/* ---------- Panels: dark riveted metal ---------- */
+body[data-style="basement"] .panel {
+  border-radius: 5px;
+  border-color: rgba(242, 165, 65, 0.14);
+  background:
+    var(--rivet) 3px 3px / 12px 12px no-repeat,
+    var(--rivet) calc(100% - 3px) 3px / 12px 12px no-repeat,
+    var(--rivet) 3px calc(100% - 3px) / 12px 12px no-repeat,
+    var(--rivet) calc(100% - 3px) calc(100% - 3px) / 12px 12px no-repeat,
+    var(--grain),
+    linear-gradient(180deg, rgba(36, 28, 21, 0.92), rgba(15, 11, 8, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 220, 170, 0.06), inset 0 0 0 1px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.65);
+  backdrop-filter: none;
+}
+
+/* HUD: hazard tape across the top, then a stencilled sub-level label above the title. */
+body[data-style="basement"] #hud { padding-top: 0; overflow: hidden; }
+body[data-style="basement"] #hud::before {
+  content: ""; display: block; height: 7px; margin: 0 -14px 10px;
+  background: repeating-linear-gradient(-45deg, #b9822c 0 9px, #17110c 9px 18px);
+  opacity: 0.85;
+}
+body[data-style="basement"] #level-name {
+  font-family: var(--type); font-weight: 400; font-size: 21px; letter-spacing: 0.01em;
+  color: #f3e4c9; text-shadow: 0 0 14px rgba(255, 170, 80, 0.3);
+}
+body[data-style="basement"] #level-name::before {
+  content: "Sub-level B1 · Restricted";
+  display: block; margin-bottom: 3px;
+  font: 600 10px/1.2 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--amber); text-shadow: none;
+}
+body[data-style="basement"] #message { font-family: var(--type); color: #e3d3b8; }
+body[data-style="basement"] #thinking { border-top: 1px dashed rgba(242, 165, 65, 0.22); }
+body[data-style="basement"] #thinking .opt { border-radius: 3px; }
+
+/* Controls: worn metal keys that press down. */
+body[data-style="basement"] #pad button {
+  border-radius: 7px;
+  border: 1px solid rgba(242, 165, 65, 0.2);
+  background: var(--grain), linear-gradient(180deg, #2e251d, #16110d);
+  color: #e6b878;
+  box-shadow: inset 0 1px 0 rgba(255, 220, 170, 0.1), 0 3px 0 #070504, 0 8px 16px rgba(0, 0, 0, 0.55);
+  transition: transform 60ms, box-shadow 60ms;
+}
+body[data-style="basement"] #pad button:active {
+  transform: translateY(2px);
+  background: var(--grain), linear-gradient(180deg, #45331f, #23190f);
+  color: #ffd391;
+  box-shadow: inset 0 1px 0 rgba(255, 220, 170, 0.1), 0 1px 0 #070504, 0 0 18px rgba(242, 165, 65, 0.25);
+}
+body[data-style="basement"] #pad button[data-dir="wait"] { color: var(--muted); font-family: var(--type); }
+body[data-style="basement"] #help { font-family: var(--type); }
+
+/* ---------- Result card: a memo taped up under the bulb ---------- */
+body[data-style="basement"] #overlay { background: radial-gradient(ellipse at center, rgba(10, 7, 4, 0.5), rgba(3, 2, 1, 0.9)); }
+body[data-style="basement"] #overlay .card {
+  position: relative;
+  border: 0; border-radius: 2px;
+  background: var(--grain), linear-gradient(170deg, #e6d8b8, #cbb88f);
+  color: #2a2017;
+  transform: rotate(-1.3deg);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75), 0 0 90px rgba(255, 170, 80, 0.14);
+}
+body[data-style="basement"] #overlay .card::before { /* tape */
+  content: ""; position: absolute; top: -11px; left: 50%; width: 96px; height: 24px;
+  transform: translateX(-50%) rotate(2.5deg);
+  background: rgba(238, 230, 200, 0.6); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+body[data-style="basement"] #overlay h2 {
+  display: inline-block; margin-bottom: 10px; padding: 2px 12px;
+  font-family: var(--type); font-weight: 400; font-size: 30px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: #9b1f1f; border: 3px solid currentColor; border-radius: 4px; transform: rotate(-3deg);
+  opacity: 0.88;
+}
+body[data-style="basement"] #overlay[data-kind="win"] h2 { color: #1f6b3a; }
+body[data-style="basement"] #overlay p { color: #4a3b2b; font-family: var(--type); }
+body[data-style="basement"] #overlay button {
+  font-family: var(--type); font-weight: 400; letter-spacing: 0.05em;
+  border-radius: 3px; background: #2a2017; color: #f3e6cc;
+}
+body[data-style="basement"] #overlay button:focus-visible { outline: 2px solid #9b6a22; outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-style="basement"] #mood::after { animation: none; }
+}
