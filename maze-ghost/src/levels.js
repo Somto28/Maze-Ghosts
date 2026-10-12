@@ -10,6 +10,7 @@
 // Every maze is checked by tests/levels.test.js: it must be winnable against its own ghost,
 // and running straight for the exit must get you caught on Levels 2 and 3.
 // `theme` is read by the 3D layout (src/layout3d.js); the game logic ignores it.
+// An optional `theme.style` picks custom art and HUD styling in the 3D example.
 
 export const LEVELS = Object.freeze([
   {
@@ -27,7 +28,8 @@ export const LEVELS = Object.freeze([
       "#.......E",
       "#########",
     ],
-    theme: { wallHeight: 1.0, wallColor: "#64748b", floorColor: "#1e2633", ghostColor: "#ff5a5a", fog: 0.012, light: 1.0 },
+    // style "basement": brick, damp concrete and one swinging bulb (examples/basement.js + basement.css).
+    theme: { style: "basement", wallHeight: 1.0, wallColor: "#4a2e24", floorColor: "#17120e", ghostColor: "#ff5a5a", fog: 0.03, light: 1.0 },
   },
   {
     id: 2,
