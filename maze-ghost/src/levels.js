@@ -1,16 +1,24 @@
-// levels.js — the three levels. The ghost's LOOKAHEAD is the difficulty setting.
+// levels.js — the three levels. The ghosts' LOOKAHEAD and how many there are set the difficulty.
 //
-//   lookahead = how many of its own moves the ghost plans, each followed by your best reply.
-//   Level 1: 1 move  (2 half-moves searched)  — reacts to where you are right now
-//   Level 2: 3 moves (6 half-moves searched)  — starts cutting you off
-//   Level 3: 5 moves (10 half-moves searched) — predicts your route and blocks it
+//   lookahead = how many of their own moves the ghosts plan, each followed by your best reply.
+//   Level 1: 1 ghost,   1 move  — reacts to where you are right now
+//   Level 2: 1 ghost,   3 moves — starts cutting you off
+//   Level 3: 2 wardens, 3 moves — plan together as a team: one chases while the other cuts you off
 //
-// Map key:  #  wall    .  floor    E  exit (the ghost can't enter)    P  player    G  ghost
+// Map key:  #  wall    .  floor    E  exit (ghosts can't enter)    P  player    G  ghost (one per ghost)
 //
-// Every maze is checked by tests/levels.test.js: it must be winnable against its own ghost,
-// and running straight for the exit must get you caught on Levels 2 and 3.
-// `theme` is read by the 3D layout (src/layout3d.js); the game logic ignores it.
-// An optional `theme.style` picks custom art and HUD styling in the 3D example.
+// Every maze is checked by tests/levels.test.js: it must be winnable against its own ghosts, running
+// straight for the exit must get you caught, and simulated players (src/playtest.js) must find each
+// level harder than the last but never impossible. `npm run check-levels` prints the numbers:
+//
+//                  escape rate for simulated players:  beginner · average · strong
+//   Level 1                                                56%       82%     100%
+//   Level 2                                                20%       44%      99%
+//   Level 3 (old maze, 1 ghost, lookahead 5, was easier)   27%       68%      99%
+//   Level 3                                                 4%       35%      87%
+//
+// `enemy` is what the HUD calls them (default "ghost"). `theme` is read by the 3D layout
+// (src/layout3d.js); the game logic ignores it. An optional `theme.style` picks custom art and HUD styling.
 
 export const LEVELS = Object.freeze([
   {
@@ -54,22 +62,26 @@ export const LEVELS = Object.freeze([
   {
     id: 3,
     name: "The Core",
-    lookahead: 5,
+    enemy: "warden",
+    // Two AI wardens being field-tested, starting on both sides of you. The maze is more open than
+    // before (more loops and side routes), because two wardens in the old maze won 90%+ of games.
+    lookahead: 3,
     maze: [
       "#############",
-      "#P..#.......#",
-      "#.#.#.#####.#",
-      "#.#...#...#.#",
+      "#P....#.G...#",
+      "#.#.#.###.#.#",
+      "#.........#.#",
+      "#.##.######.#",
+      "#.....#.....#",
       "#.###.#.#.#.#",
-      "#.....#.#...#",
-      "#.#.#####.#.#",
-      "#.#...G...#.#",
-      "#.###.#.###.#",
-      "#...#.#...#.#",
-      "###.#.###.#.#",
-      "#.....#.....E",
+      "#.........#.#",
+      "#G###.###.#.#",
+      "#.#.#.......#",
+      "#.#...###.#.#",
+      "#...#.......E",
       "#############",
     ],
-    theme: { wallHeight: 1.8, wallColor: "#46557a", floorColor: "#121826", ghostColor: "#ff1f3d", fog: 0.028, light: 1.0 },
+    // style "core": glass offices on the executive floor (examples/core.js + core.css).
+    theme: { style: "core", wallHeight: 1.8, wallColor: "#e4e2dd", floorColor: "#17141d", ghostColor: "#ff1f3d", fog: 0.02, light: 1.0 },
   },
 ]);

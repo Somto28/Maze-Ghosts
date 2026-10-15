@@ -24,7 +24,7 @@
     #thinking { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
     #thinking { min-height: 96px; }
     #thinking .title { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
-    #thinking .opt { display: grid; grid-template-columns: 70px 1fr auto; gap: 8px; padding: 2px 6px; border-radius: 6px; color: var(--muted); }
+    #thinking .opt { display: grid; grid-template-columns: minmax(70px, auto) 1fr auto; gap: 8px; padding: 2px 6px; border-radius: 6px; color: var(--muted); }
     #thinking .opt.chosen { color: var(--ink); background: rgba(255, 90, 110, 0.18); }
 
     #help { bottom: 16px; left: 50%; transform: translateX(-50%); padding: 8px 14px; color: var(--muted); font-size: 13px; white-space: nowrap; }
@@ -46,15 +46,16 @@
     @media (max-width: 820px) {
       #hud { left: 12px; right: 12px; top: 12px; width: auto; padding: 10px 12px; font-size: 13px; }
       #hud h1 { font-size: 15px; }
-      #thinking .opt { grid-template-columns: 58px 1fr auto; }
+      #thinking .opt { grid-template-columns: minmax(58px, auto) 1fr auto; }
       #help { display: none; }
       #pad { left: 50%; right: auto; transform: translateX(-50%); bottom: 12px; }
     }
   </style>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Special+Elite&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Manrope:wght@600;700;800&family=Special+Elite&display=swap" />
   <link rel="stylesheet" href="./basement.css" />
   <link rel="stylesheet" href="./server-halls.css" />
+  <link rel="stylesheet" href="./core.css" />
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js" } }
   </script>
@@ -66,12 +67,12 @@
 
   <div id="hud" class="panel">
     <h1 id="level-name">Level 1</h1>
-    <div id="depth">Ghost looks <b id="lookahead">1</b> <span id="moves-word">move</span> ahead</div>
+    <div id="depth">Ghost looks <b>1 move</b> ahead</div>
     <div id="message">Reach the green exit. The ghost moves after you.</div>
     <div class="legend">
       <span><span class="dot" style="background:var(--accent)"></span>You</span>
-      <span><span class="dot" style="background:var(--danger)"></span>Ghost's plan</span>
-      <span><span class="dot" style="background:var(--gold)"></span>Moves it predicts you'll make</span>
+      <span><span class="dot" style="background:var(--danger)"></span><span id="legend-enemy">Ghost's plan</span></span>
+      <span><span class="dot" style="background:var(--gold)"></span>Moves they predict you'll make</span>
     </div>
     <div id="thinking"></div>
   </div>
