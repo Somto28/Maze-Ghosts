@@ -8,9 +8,9 @@
 // Or call game.takeTurn("up") to do both at once.
 
 import { legalMoves } from "./maze.js";
-import { chooseGhostMove } from "./ai.js";
+import { chooseGhostMoves } from "./ai.js";
 import { LEVELS } from "./levels.js";
-import { moveGhost, movePlayer, outcome } from "./rules.js";
+import { moveGhosts, movePlayer, outcome } from "./rules.js";
 import { stateFromLevel } from "./solver.js";
 
 /** @typedef {import("./maze.js").Dir} Dir */
@@ -30,6 +30,10 @@ export class MazeGame {
   }
 
   get level() { return this.levels[this.levelIndex]; }
+  /** Everything chooseGhostMoves needs for the ghosts' current turn (to run it somewhere else). */
+  get ghostSearch() {
+    return { state: this.state, lookahead: this.level.lookahead, options: { ...this.searchOptions, weights: this.level.weights } };
+  }
   get isLastLevel() { return this.levelIndex === this.levels.length - 1; }
   /** Directions the player can move right now (for disabling buttons, or hints). */
   get availableMoves() {
@@ -78,23 +82,27 @@ export class MazeGame {
   }
 
   /**
-   * The ghost's turn: it runs adversarial search with this level's lookahead.
-   * `thinking` holds every option it considered, its scores and the future it predicted.
+   * The ghosts' turn: they run adversarial search with this level's lookahead and move together.
+   * `thinking` holds every team move they considered, its score and the future they predicted.
+   * `dirs`, `from` and `to` have one entry per ghost; `dir` is a label like "left" or "left + up".
+   * @param {ReturnType<typeof chooseGhostMoves>} [decision] the search result, if it was already worked out
+   *   elsewhere (e.g. in a Web Worker so the page stays smooth). See `ghostSearch` for its inputs.
    */
-  ghostMove() {
-    const from = this.state.ghost;
+  ghostMove(decision) {
+    const from = this.state.ghosts;
     if (this.status !== "playing" || this.state.turn !== "ghost") {
       return { event: "notYourTurn", from, to: from, thinking: null, status: this.status };
     }
-    const { move, thinking } = chooseGhostMove(this.state, this.level.lookahead, this.searchOptions);
-    this.state = moveGhost(this.state, move);
+    const { move, thinking } = decision ?? chooseGhostMoves(this.state, this.level.lookahead, this.ghostSearch.options);
+    this.state = moveGhosts(this.state, move.to);
     this.lastThinking = thinking;
     if (outcome(this.state) === "caught") this.status = "caught";
     return {
       event: this.status === "caught" ? "caught" : "moved",
       dir: move.dir,
+      dirs: move.dirs,
       from,
-      to: this.state.ghost,
+      to: this.state.ghosts,
       thinking,
       status: this.status,
     };

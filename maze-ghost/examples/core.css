@@ -1,0 +1,85 @@
+/* core.css — Level 3's HUD: the executive floor. After two dark levels, a bright, polished corporate
+   dashboard: frosted-white cards, a violet company accent, and the warden program's own test console
+   ("WARDEN FIELD TEST · LIVE"). Results arrive as a corporate notice.
+   Applies only while three-view.js sets <body data-style="core">. Gameplay colours stay the same. */
+
+body[data-style="core"] {
+  --ink: #1d1b26;
+  --muted: #6a6778;
+  --line: rgba(29, 27, 38, 0.1);
+  --violet: #6d4dff;
+  --sans: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #110f16;
+}
+
+/* ---------- Over the 3D view: a soft warm vignette ---------- */
+body[data-style="core"] #mood {
+  display: block;
+  background: radial-gradient(ellipse 75% 70% at 58% 52%, transparent 55%, rgba(10, 6, 14, 0.55) 100%);
+}
+
+/* ---------- Panels: frosted-white cards ---------- */
+body[data-style="core"] .panel {
+  color: var(--ink);
+  font-family: var(--sans);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: linear-gradient(180deg, rgba(252, 251, 255, 0.97), rgba(240, 238, 246, 0.96));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 #fff;
+}
+
+/* HUD header: the warden program's status pill. */
+body[data-style="core"] #hud { padding-top: 14px; }
+body[data-style="core"] #hud::before {
+  content: "WARDEN FIELD TEST · LIVE";
+  display: inline-block; margin-bottom: 8px; padding: 3px 10px 3px 22px; border-radius: 999px;
+  font: 800 10px/1.4 var(--sans); letter-spacing: 0.12em; color: var(--violet);
+  background: radial-gradient(circle at 11px 50%, var(--violet) 0 3.5px, transparent 4.5px), rgba(109, 77, 255, 0.1);
+}
+body[data-style="core"] #level-name { font: 800 20px/1.2 var(--sans); letter-spacing: -0.02em; color: #15131d; }
+body[data-style="core"] #level-name::before {
+  content: "Executive floor";
+  display: block; margin-bottom: 2px;
+  font: 600 11px/1.3 var(--sans); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted);
+}
+body[data-style="core"] #depth { color: var(--muted); }
+body[data-style="core"] #depth b { color: #e0193a; }
+body[data-style="core"] #message { font-weight: 600; }
+body[data-style="core"] .legend { color: var(--muted); }
+
+body[data-style="core"] #thinking {
+  margin-top: 12px; padding: 8px; border: 0; border-radius: 10px; background: rgba(29, 27, 38, 0.05);
+}
+body[data-style="core"] #thinking .title { color: var(--muted); }
+body[data-style="core"] #thinking .opt { color: #4a4757; grid-template-columns: minmax(70px, auto) 1fr auto; }
+body[data-style="core"] #thinking .opt.chosen { color: #15131d; background: rgba(224, 25, 58, 0.1); font-weight: 600; }
+
+/* Controls: white keys. */
+body[data-style="core"] #pad button {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: linear-gradient(180deg, #ffffff, #e9e7f0);
+  color: #2a2735;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35), inset 0 -2px 0 rgba(0, 0, 0, 0.06);
+}
+body[data-style="core"] #pad button:active { background: var(--violet); color: #fff; box-shadow: 0 0 18px rgba(109, 77, 255, 0.5); }
+body[data-style="core"] #pad button[data-dir="wait"] { color: var(--muted); font-family: var(--sans); font-weight: 700; }
+body[data-style="core"] #help { color: var(--muted); }
+
+/* ---------- Result: a corporate notice ---------- */
+body[data-style="core"] #overlay { background: rgba(14, 10, 22, 0.6); }
+body[data-style="core"] #overlay .card { padding: 24px 28px 26px; max-width: 400px; }
+body[data-style="core"] #overlay .card::before {
+  display: block; margin-bottom: 12px;
+  font: 800 10px/1.4 var(--sans); letter-spacing: 0.14em; color: var(--muted);
+}
+body[data-style="core"] #overlay[data-kind="lose"] .card::before { content: "INCIDENT REPORT · WARDEN TEST #0042"; }
+body[data-style="core"] #overlay[data-kind="win"] .card::before { content: "NOTICE · SECURITY PERIMETER BREACHED"; }
+body[data-style="core"] #overlay h2 { font: 800 30px/1.15 var(--sans); letter-spacing: -0.02em; color: #e0193a; }
+body[data-style="core"] #overlay[data-kind="win"] h2 { color: #15803d; }
+body[data-style="core"] #overlay p { color: var(--muted); }
+body[data-style="core"] #overlay button {
+  font: 700 14px/1 var(--sans); border-radius: 10px; padding: 12px 20px;
+  background: var(--violet); color: #fff; box-shadow: 0 8px 20px rgba(109, 77, 255, 0.35);
+}
+body[data-style="core"] #overlay button:focus-visible { outline: 3px solid rgba(109, 77, 255, 0.4); outline-offset: 3px; }

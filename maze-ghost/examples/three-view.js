@@ -2,15 +2,16 @@
 // All rules and AI come from ../src; this file only draws and handles input.
 
 import * as THREE from "three";
-import { MazeGame, buildLayout3D, gridToWorld } from "../src/index.js";
+import { MazeGame, buildLayout3D, chooseGhostMoves, gridToWorld } from "../src/index.js";
 import { floorDecal } from "./art-kit.js";
 import { buildBasement } from "./basement.js";
+import { buildCore } from "./core.js";
 import { buildServerHalls } from "./server-halls.js";
 import { createQuality } from "./quality.js";
 
 const TILE = 1;
-const STEP_MS = 220; // pause between your move and the ghost's, so the turns are visible
-const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls }; // theme.style -> custom art for that level
+const STEP_MS = 220; // pause between your move and the ghosts', so the turns are visible
+const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core: buildCore }; // theme.style -> custom art
 const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 // ?level=2 starts on Level 2, ?fps shows the frame rate, ?res=1 pins the render resolution (testing).
 const params = new URLSearchParams(location.search);
@@ -39,9 +40,39 @@ const quality = createQuality({
 quality.start();
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 300);
-let scene, layout, look, player, ghost, ghostGlow, blobs, planDots;
+let scene, layout, look, player, ghosts, ghostGlows, blobs, planDots;
 let builtLevel = -1;
 let busy = false;
+let turnToken = 0; // bumped on restart so a late answer from the worker is ignored
+
+// What the HUD calls the enemies on this level ("ghost" unless the level says otherwise).
+function enemy(level = game.level, count = game.state.ghosts.length) {
+  const one = level.enemy ?? "ghost";
+  return { one, many: `${one}s`, name: count > 1 ? `${one}s` : one, Name: (count > 1 ? `${one}s` : one).replace(/^./, (ch) => ch.toUpperCase()) };
+}
+
+// ---------- The ghosts think in a Web Worker, so the animation never stalls while they plan ----------
+let worker = null;
+try {
+  worker = new Worker(new URL("./ghost-worker.js", import.meta.url), { type: "module" });
+} catch {
+  worker = null; // no workers: think on the main thread instead
+}
+const waiting = new Map();
+let nextId = 0;
+worker?.addEventListener("message", ({ data }) => { waiting.get(data.id)?.(data.decision); waiting.delete(data.id); });
+worker?.addEventListener("error", () => { worker = null; for (const done of waiting.values()) done(null); waiting.clear(); });
+
+/** Ask for the ghosts' decision; resolves to null if it has to be worked out on the main thread. */
+function thinkInBackground() {
+  if (!worker) return Promise.resolve(null);
+  const { state, lookahead, options } = game.ghostSearch;
+  const id = nextId++;
+  return new Promise((done) => {
+    waiting.set(id, done);
+    worker.postMessage({ type: "think", id, state, lookahead, options: { pruning: options.pruning, weights: options.weights } });
+  });
+}
 
 // Free the GPU memory held by the previous level.
 function disposeScene() {
@@ -67,6 +98,14 @@ function defaultLights(t, c, span) {
   const lights = new THREE.Group();
   lights.add(new THREE.HemisphereLight(0xc8dcff, 0x1a2030, 1.4 * t.light), sun, sun.target);
   return lights;
+}
+
+// The plain ghost: a glowing sphere. A look can supply its own model with makeGhost(color).
+function defaultGhost(color) {
+  return new THREE.Mesh(
+    new THREE.SphereGeometry(0.3, 24, 16),
+    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.6, transparent: true, opacity: 0.9 }),
+  );
 }
 
 // ---------- Scene from the level's 3D layout ----------
@@ -129,19 +168,19 @@ function buildScene() {
     new THREE.MeshStandardMaterial({ color: 0x5ab0ff, emissive: 0x1d4ed8, emissiveIntensity: 0.4 }),
   );
   player.castShadow = true;
-  ghost = new THREE.Mesh(
-    new THREE.SphereGeometry(0.3, 24, 16),
-    new THREE.MeshStandardMaterial({ color: t.ghostColor, emissive: t.ghostColor, emissiveIntensity: 0.6, transparent: true, opacity: 0.9 }),
-  );
-  ghost.castShadow = true;
-  ghostGlow = floorDecal(THREE, { color: t.ghostColor, size: 3, opacity: 0.5, y: 0.015 });
-  blobs = renderer.shadowMap.enabled ? [] : [player, ghost].map((actor) => {
+  ghosts = layout.ghostStarts.map(() => {
+    const g = look?.makeGhost?.(t.ghostColor) ?? defaultGhost(t.ghostColor);
+    g.traverse((o) => { o.castShadow = true; });
+    return g;
+  });
+  ghostGlows = ghosts.map(() => floorDecal(THREE, { color: t.ghostColor, size: 3, opacity: 0.5, y: 0.015 }));
+  blobs = renderer.shadowMap.enabled ? [] : [player, ...ghosts].map((actor) => {
     const blob = floorDecal(THREE, { color: 0x000000, size: 0.9, opacity: 0.6, additive: false, y: 0.02 });
     blob.userData.actor = actor;
     return blob;
   });
-  planDots = { ghost: makeDots(0xff5a6e), player: makeDots(0xffd166) };
-  scene.add(player, ghost, ghostGlow, ...blobs, planDots.ghost, planDots.player);
+  planDots = { ghost: makeDots(0xff5a6e, ghosts.length), player: makeDots(0xffd166, 1) };
+  scene.add(player, ...ghosts, ...ghostGlows, ...blobs, planDots.ghost, planDots.player);
 
   resetActors();
   resize();
@@ -150,8 +189,10 @@ function buildScene() {
 }
 
 function resetActors() {
+  turnToken++;
+  busy = false;
   placeAt(player, game.state.player, 0.37, true);
-  placeAt(ghost, game.state.ghost, 0.45, true);
+  game.state.ghosts.forEach((g, i) => placeAt(ghosts[i], g, 0.45, true));
   drawPlan(null);
   renderer.shadowMap.needsUpdate = true;
 }
@@ -215,15 +256,16 @@ function resize() {
 }
 window.addEventListener("resize", resize);
 
-// ---------- The ghost's predicted future, drawn on the floor ----------
+// ---------- The ghosts' predicted future, drawn on the floor ----------
 // Two instanced meshes (one per colour) draw every dot in two calls, and they're created with the
 // level, so the first ghost move doesn't stall while a new shader compiles.
-const MAX_DOTS = 2 * Math.max(...game.levels.map((l) => l.lookahead)) + 2;
+const MAX_STEPS = 2 * Math.max(...game.levels.map((l) => l.lookahead)) + 2;
 
-function makeDots(color) {
-  const dots = new THREE.InstancedMesh(new THREE.SphereGeometry(0.1, 12, 8), new THREE.MeshBasicMaterial(), MAX_DOTS);
+function makeDots(color, perStep) {
+  const count = MAX_STEPS * perStep;
+  const dots = new THREE.InstancedMesh(new THREE.SphereGeometry(0.1, 12, 8), new THREE.MeshBasicMaterial(), count);
   dots.userData.color = new THREE.Color(color);
-  for (let i = 0; i < MAX_DOTS; i++) dots.setColorAt(i, dots.userData.color);
+  for (let i = 0; i < count; i++) dots.setColorAt(i, dots.userData.color);
   dots.count = 0;
   dots.frustumCulled = false;
   return dots;
@@ -235,16 +277,19 @@ const dotSpot = new THREE.Vector3(), dotScale = new THREE.Vector3(), noTurn = ne
 function drawPlan(thinking) {
   const chosen = thinking?.options.find((o) => o.chosen);
   for (const dots of Object.values(planDots)) dots.count = 0;
-  // plan[0] is the move it just made; the rest is what it expects to happen next.
+  // plan[0] is the move they just made; the rest is what they expect to happen next.
+  // A ghosts' step lists every ghost's tile; a player step is one tile.
   (chosen?.plan.slice(1) ?? []).forEach((step, i) => {
     const isGhost = step.who === "ghost";
     const dots = isGhost ? planDots.ghost : planDots.player;
-    const { x, z } = gridToWorld(step.at, TILE);
-    dotSpot.set(x + (isGhost ? 0.14 : -0.14), 0.12, z);
-    dotScale.setScalar(Math.max(0.5, 1 - i * 0.06)); // further into the future = smaller and dimmer
-    dots.setMatrixAt(dots.count, dotMatrix.compose(dotSpot, noTurn, dotScale));
-    dots.setColorAt(dots.count, dotColor.copy(dots.userData.color).multiplyScalar(Math.max(0.3, 0.95 - i * 0.07)));
-    dots.count++;
+    for (const at of isGhost ? step.at : [step.at]) {
+      const { x, z } = gridToWorld(at, TILE);
+      dotSpot.set(x + (isGhost ? 0.14 : -0.14), 0.12, z);
+      dotScale.setScalar(Math.max(0.5, 1 - i * 0.06)); // further into the future = smaller and dimmer
+      dots.setMatrixAt(dots.count, dotMatrix.compose(dotSpot, noTurn, dotScale));
+      dots.setColorAt(dots.count, dotColor.copy(dots.userData.color).multiplyScalar(Math.max(0.3, 0.95 - i * 0.07)));
+      dots.count++;
+    }
   });
   for (const dots of Object.values(planDots)) {
     dots.instanceMatrix.needsUpdate = true;
@@ -255,19 +300,26 @@ function drawPlan(thinking) {
 // ---------- HUD ----------
 function updateHud(message) {
   const { id, name, lookahead } = game.level;
+  const n = game.state.ghosts.length;
+  const e = enemy();
+  const moves = `${lookahead} move${lookahead === 1 ? "" : "s"}`;
   $("level-name").textContent = `Level ${id} · ${name}`;
-  $("lookahead").textContent = lookahead;
-  $("moves-word").textContent = lookahead === 1 ? "move" : "moves";
+  $("depth").innerHTML = n > 1
+    ? `<b>${n}</b> ${e.many} plan together, <b>${moves}</b> ahead`
+    : `${e.Name} looks <b>${moves}</b> ahead`;
+  $("legend-enemy").textContent = `${possessive(e.Name)} plan`;
   if (message !== undefined) $("message").textContent = message;
 
   const t = game.lastThinking;
   $("thinking").innerHTML = t
-    ? `<div class="title">Ghost checked ${t.futuresConsidered} possible futures (${t.branchesPruned} skipped by pruning)</div>` +
+    ? `<div class="title">${e.Name} checked ${t.futuresConsidered} possible futures (${t.branchesPruned} skipped by pruning)</div>` +
       t.options.slice(0, 3).map((o) =>
         `<div class="opt${o.chosen ? " chosen" : ""}"><span>${o.chosen ? "▶ " : ""}${o.dir}</span>` +
         `<span>expects you: ${o.predictedPlayerReply ?? "–"}</span><span>${o.score}</span></div>`).join("")
-    : `<div class="title">After your first move, the ghost's options and scores show up here.</div>`;
+    : `<div class="title">After your first move, the ${possessive(e.name)} options and scores show up here.</div>`;
 }
+
+const possessive = (word) => (word.endsWith("s") ? `${word}'` : `${word}'s`); // "ghost's", "wardens'"
 
 let overlayAction = null;
 function showOverlay(kind, title, text, button, action) {
@@ -290,13 +342,13 @@ function restart(message = "Restarted.") {
   game.restartLevel(); hideOverlay(); showLevel(message);
 }
 function goToNextLevel() {
-  game.nextLevel(); hideOverlay(); showLevel("The ghost is thinking further ahead now…");
+  game.nextLevel(); hideOverlay(); showLevel(game.state.ghosts.length > 1 ? `Careful: there are ${game.state.ghosts.length} ${enemy().many} now.` : "The ghost is thinking further ahead now…");
 }
 function playAgain() {
   game.startLevel(0); hideOverlay(); showLevel("Back to Level 1.");
 }
 
-function takeTurn(dir) {
+async function takeTurn(dir) {
   if (busy || game.status !== "playing") return;
   const result = game.playerMove(dir);
   if (result.event === "blocked") return updateHud("That's a wall.");
@@ -304,26 +356,35 @@ function takeTurn(dir) {
   if (result.event !== "moved") return finish();
 
   busy = true;
-  updateHud("Ghost is thinking…");
-  setTimeout(() => {
-    const g = game.ghostMove();
-    placeAt(ghost, game.state.ghost, 0.45);
-    drawPlan(g.thinking);
-    updateHud(g.event === "caught" ? "" : `Ghost moved ${g.dir}.`);
-    busy = false;
-    if (g.event === "caught") finish();
-  }, STEP_MS);
+  const token = turnToken;
+  updateHud(`${enemy().Name} ${game.state.ghosts.length > 1 ? "are" : "is"} thinking…`);
+  // Think while the player's move animates; wait at least STEP_MS so the turns stay readable.
+  const [decision] = await Promise.all([thinkInBackground(), new Promise((r) => setTimeout(r, STEP_MS))]);
+  if (token !== turnToken) return; // restarted while they were thinking
+
+  const g = game.ghostMove(decision ?? chooseGhostMoves(game.ghostSearch.state, game.ghostSearch.lookahead, game.ghostSearch.options));
+  g.to.forEach((pos, i) => placeAt(ghosts[i], pos, 0.45));
+  drawPlan(g.thinking);
+  updateHud(g.event === "caught" ? "" : `${enemy().Name} moved ${g.dir}.`);
+  busy = false;
+  if (g.event === "caught") finish();
 }
 
 function finish() {
   const n = game.level.lookahead;
+  const e = enemy();
   if (game.status === "caught") {
-    showOverlay("lose", "Caught!", `The ghost predicted your moves ${n} step${n > 1 ? "s" : ""} ahead.`, "Try again", () => restart("Try again!"));
+    showOverlay("lose", "Caught!", `The ${e.name} predicted your moves ${n} step${n > 1 ? "s" : ""} ahead.`, "Try again", () => restart("Try again!"));
   } else if (game.status === "levelComplete") {
     const next = game.levels[game.levelIndex + 1];
-    showOverlay("win", "Escaped!", `On Level ${next.id} the ghost looks ${next.lookahead} moves ahead.`, `Start Level ${next.id}`, goToNextLevel);
+    const count = (next.maze.join("").match(/G/g) ?? []).length;
+    const ne = enemy(next, count);
+    const text = count > 1
+      ? `On Level ${next.id}, ${count} ${ne.many} plan together, ${next.lookahead} moves ahead.`
+      : `On Level ${next.id} the ${ne.one} looks ${next.lookahead} moves ahead.`;
+    showOverlay("win", "Escaped!", text, `Start Level ${next.id}`, goToNextLevel);
   } else if (game.status === "gameComplete") {
-    showOverlay("win", "You beat the ghost!", "You escaped every level.", "Play again", playAgain);
+    showOverlay("win", `You beat the ${e.many}!`, "You escaped every level.", "Play again", playAgain);
   }
 }
 
@@ -356,14 +417,17 @@ renderer.setAnimationLoop((now) => {
   const time = clock.getElapsedTime();
 
   let moved = false;
-  for (const mesh of [player, ghost]) {
+  for (const mesh of [player, ...ghosts]) {
     const to = mesh.userData.target;
     if (Math.abs(mesh.position.x - to.x) + Math.abs(mesh.position.z - to.z) > 0.002) moved = true;
     mesh.position.lerp(to, 0.22);
   }
-  ghost.position.y = 0.45 + Math.sin(time * 3) * 0.05; // gentle hover
-  ghostGlow.position.x = ghost.position.x;
-  ghostGlow.position.z = ghost.position.z;
+  ghosts.forEach((g, i) => {
+    g.position.y = 0.45 + Math.sin(time * 3 + i * 1.7) * 0.05; // gentle hover, out of step with each other
+    g.userData.spin?.(time + i);
+    ghostGlows[i].position.x = g.position.x;
+    ghostGlows[i].position.z = g.position.z;
+  });
   for (const blob of blobs) {
     blob.position.x = blob.userData.actor.position.x;
     blob.position.z = blob.userData.actor.position.z;
@@ -380,4 +444,4 @@ renderer.setAnimationLoop((now) => {
 });
 
 buildScene();
-updateHud();
+updateHud(`Reach the green exit. The ${enemy().name} move${game.state.ghosts.length > 1 ? "" : "s"} after you.`);

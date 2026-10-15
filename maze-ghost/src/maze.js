@@ -1,6 +1,6 @@
 // maze.js — how a maze is represented: tiles, legal moves and walking distance.
 //
-// Map key:  #  wall    .  floor    E  exit    P  player start    G  ghost start
+// Map key:  #  wall    .  floor    E  exit    P  player start    G  ghost start (one G per ghost)
 //
 // The grid only holds terrain. The player and ghost positions are stored separately,
 // so the grid never changes during a level.
@@ -23,10 +23,13 @@ export const DIRS = Object.freeze([
 /** @param {Pos} a @param {Pos} b */
 export const samePos = (a, b) => a.r === b.r && a.c === b.c;
 
+/** Ghosts plan their moves together, and the work grows ×5 per ghost, so keep teams small. */
+export const MAX_GHOSTS = 3;
+
 /**
  * Turn a text map into grid + start positions.
  * @param {readonly string[]} lines
- * @returns {{ grid: Grid, exits: Pos[], player: Pos, ghost: Pos }}
+ * @returns {{ grid: Grid, exits: Pos[], player: Pos, ghosts: Pos[] }}
  */
 export function parseMaze(lines) {
   const width = lines[0]?.length ?? 0;
@@ -53,10 +56,11 @@ export function parseMaze(lines) {
   );
 
   if (players.length !== 1) throw new Error("Maze needs exactly one P (player)");
-  if (ghosts.length !== 1) throw new Error("Maze needs exactly one G (ghost)");
+  if (ghosts.length === 0) throw new Error("Maze needs at least one G (ghost)");
+  if (ghosts.length > MAX_GHOSTS) throw new Error(`Maze can have at most ${MAX_GHOSTS} ghosts`);
   if (exits.length === 0) throw new Error("Maze needs at least one E (exit)");
 
-  return { grid: Object.freeze(grid), exits, player: players[0], ghost: ghosts[0] };
+  return { grid: Object.freeze(grid), exits, player: players[0], ghosts };
 }
 
 /** Can this actor stand on (r, c)? The ghost can't pass through exit doors. */
