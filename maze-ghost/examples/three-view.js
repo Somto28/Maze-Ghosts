@@ -3,25 +3,58 @@
 
 import * as THREE from "three";
 import { MazeGame, buildLayout3D, gridToWorld } from "../src/index.js";
+import { floorDecal } from "./art-kit.js";
 import { buildBasement } from "./basement.js";
+import { buildServerHalls } from "./server-halls.js";
+import { createQuality } from "./quality.js";
 
 const TILE = 1;
 const STEP_MS = 220; // pause between your move and the ghost's, so the turns are visible
-const LOOKS = { basement: buildBasement }; // theme.style -> custom art for that level
+const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls }; // theme.style -> custom art for that level
 const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+// ?level=2 starts on Level 2, ?fps shows the frame rate, ?res=1 pins the render resolution (testing).
+const params = new URLSearchParams(location.search);
 
 const game = new MazeGame();
+const startAt = Number(params.get("level")) - 1;
+if (startAt > 0 && startAt < game.levels.length) game.startLevel(startAt);
 const $ = (id) => document.getElementById(id);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// Smoothness: drawing cost is mostly pixels, so on sharp (high-DPI) screens skip multisampling,
+// which costs a lot there and adds little, and let quality.js pick the resolution.
+const dpr = window.devicePixelRatio || 1;
+const renderer = new THREE.WebGLRenderer({ antialias: dpr < 1.5, powerPreference: "high-performance" });
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.autoUpdate = false; // redrawn only when something that casts a shadow moves
 $("view").appendChild(renderer.domElement);
 
+const quality = createQuality({
+  maxRatio: Math.min(dpr, 2),
+  fixed: Number(params.get("res")) || undefined,
+  onChange(ratio) {
+    renderer.setPixelRatio(ratio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  },
+});
+quality.start();
+
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 300);
-let scene, layout, look, player, ghost, ghostLight, planDots;
+let scene, layout, look, player, ghost, ghostGlow, blobs, planDots;
+let builtLevel = -1;
 let busy = false;
+
+// Free the GPU memory held by the previous level.
+function disposeScene() {
+  look?.dispose?.();
+  scene?.traverse((o) => {
+    o.geometry?.dispose();
+    for (const m of [o.material].flat()) {
+      if (!m) continue;
+      for (const v of Object.values(m)) if (v?.isTexture) v.dispose();
+      m.dispose();
+    }
+  });
+}
 
 // The plain look: soft sky light plus a sun that casts shadows.
 function defaultLights(t, c, span) {
@@ -38,12 +71,16 @@ function defaultLights(t, c, span) {
 
 // ---------- Scene from the level's 3D layout ----------
 function buildScene() {
+  disposeScene();
+  builtLevel = game.levelIndex;
   layout = buildLayout3D(game.level, { tileSize: TILE });
   const t = layout.theme;
   const c = layout.floor.position;
   const span = Math.max(layout.floor.size.x, layout.floor.size.z);
   look = LOOKS[t.style]?.(THREE, layout, { still });
   document.body.dataset.style = t.style ?? ""; // lets the page restyle the HUD to match
+  // Looks without real shadows paint their shade into textures; actors then get soft blob shadows.
+  renderer.shadowMap.enabled = look?.shadows ?? true;
 
   scene = new THREE.Scene();
   const bg = new THREE.Color(t.floorColor).multiplyScalar(0.6);
@@ -60,25 +97,30 @@ function buildScene() {
   floor.receiveShadow = true;
   scene.add(floor);
 
-  // One InstancedMesh draws every wall in a single call (fast on school Chromebooks).
-  const walls = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(TILE, t.wallHeight, TILE),
-    look?.wallMaterial ?? new THREE.MeshStandardMaterial({ color: t.wallColor, roughness: 0.7 }),
-    layout.walls.length,
-  );
-  const m = new THREE.Matrix4();
-  layout.walls.forEach((w, i) => walls.setMatrixAt(i, m.makeTranslation(w.position.x, w.position.y, w.position.z)));
-  walls.castShadow = walls.receiveShadow = true;
-  scene.add(walls);
+  if (look?.walls) {
+    scene.add(look.walls);
+  } else {
+    // One InstancedMesh draws every wall in a single call (fast on school Chromebooks).
+    const walls = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(TILE, t.wallHeight, TILE),
+      look?.wallMaterial ?? new THREE.MeshStandardMaterial({ color: t.wallColor, roughness: 0.7 }),
+      layout.walls.length,
+    );
+    const m = new THREE.Matrix4();
+    layout.walls.forEach((w, i) => walls.setMatrixAt(i, m.makeTranslation(w.position.x, w.position.y, w.position.z)));
+    walls.castShadow = walls.receiveShadow = true;
+    scene.add(walls);
+  }
 
+  // Glows are soft patches on the floor rather than point lights: a real light costs every pixel on screen.
   for (const e of layout.exits) {
     const pad = new THREE.Mesh(
       new THREE.BoxGeometry(TILE * 0.9, 0.04, TILE * 0.9),
-      new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x22c55e, emissiveIntensity: 0.9 }),
+      new THREE.MeshBasicMaterial({ color: 0x2bd36a }),
     );
     pad.position.set(e.position.x, 0.02, e.position.z);
-    const glow = new THREE.PointLight(0x4ade80, 2, 3);
-    glow.position.set(e.position.x, 0.6, e.position.z);
+    const glow = floorDecal(THREE, { color: 0x4ade80, size: 2.6, opacity: 0.55 });
+    glow.position.set(e.position.x, 0.05, e.position.z);
     scene.add(pad, glow);
   }
 
@@ -92,14 +134,33 @@ function buildScene() {
     new THREE.MeshStandardMaterial({ color: t.ghostColor, emissive: t.ghostColor, emissiveIntensity: 0.6, transparent: true, opacity: 0.9 }),
   );
   ghost.castShadow = true;
-  ghostLight = new THREE.PointLight(t.ghostColor, 2.5, 3.5);
-  planDots = new THREE.Group();
-  scene.add(player, ghost, ghostLight, planDots);
+  ghostGlow = floorDecal(THREE, { color: t.ghostColor, size: 3, opacity: 0.5, y: 0.015 });
+  blobs = renderer.shadowMap.enabled ? [] : [player, ghost].map((actor) => {
+    const blob = floorDecal(THREE, { color: 0x000000, size: 0.9, opacity: 0.6, additive: false, y: 0.02 });
+    blob.userData.actor = actor;
+    return blob;
+  });
+  planDots = { ghost: makeDots(0xff5a6e), player: makeDots(0xffd166) };
+  scene.add(player, ghost, ghostGlow, ...blobs, planDots.ghost, planDots.player);
 
+  resetActors();
+  resize();
+  renderer.compile(scene, camera); // compile every shader now, not mid-move
+  quality.reset();
+}
+
+function resetActors() {
   placeAt(player, game.state.player, 0.37, true);
   placeAt(ghost, game.state.ghost, 0.45, true);
-  resize();
-  updateHud();
+  drawPlan(null);
+  renderer.shadowMap.needsUpdate = true;
+}
+
+// Builds the scene only when the level changes; restarting the same level just resets the actors.
+function showLevel(message) {
+  if (game.levelIndex === builtLevel) resetActors();
+  else buildScene();
+  updateHud(message);
 }
 
 // Actors glide toward their target tile each frame instead of jumping.
@@ -155,21 +216,40 @@ function resize() {
 window.addEventListener("resize", resize);
 
 // ---------- The ghost's predicted future, drawn on the floor ----------
+// Two instanced meshes (one per colour) draw every dot in two calls, and they're created with the
+// level, so the first ghost move doesn't stall while a new shader compiles.
+const MAX_DOTS = 2 * Math.max(...game.levels.map((l) => l.lookahead)) + 2;
+
+function makeDots(color) {
+  const dots = new THREE.InstancedMesh(new THREE.SphereGeometry(0.1, 12, 8), new THREE.MeshBasicMaterial(), MAX_DOTS);
+  dots.userData.color = new THREE.Color(color);
+  for (let i = 0; i < MAX_DOTS; i++) dots.setColorAt(i, dots.userData.color);
+  dots.count = 0;
+  dots.frustumCulled = false;
+  return dots;
+}
+
+const dotMatrix = new THREE.Matrix4(), dotColor = new THREE.Color();
+const dotSpot = new THREE.Vector3(), dotScale = new THREE.Vector3(), noTurn = new THREE.Quaternion();
+
 function drawPlan(thinking) {
-  planDots.clear();
   const chosen = thinking?.options.find((o) => o.chosen);
-  if (!chosen) return;
+  for (const dots of Object.values(planDots)) dots.count = 0;
   // plan[0] is the move it just made; the rest is what it expects to happen next.
-  chosen.plan.slice(1).forEach((step, i) => {
-    const color = step.who === "ghost" ? 0xff5a6e : 0xffd166;
-    const dot = new THREE.Mesh(
-      new THREE.SphereGeometry(Math.max(0.05, 0.1 - i * 0.006), 12, 8),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: Math.max(0.3, 0.95 - i * 0.07) }),
-    );
+  (chosen?.plan.slice(1) ?? []).forEach((step, i) => {
+    const isGhost = step.who === "ghost";
+    const dots = isGhost ? planDots.ghost : planDots.player;
     const { x, z } = gridToWorld(step.at, TILE);
-    dot.position.set(x + (step.who === "ghost" ? 0.14 : -0.14), 0.12, z);
-    planDots.add(dot);
+    dotSpot.set(x + (isGhost ? 0.14 : -0.14), 0.12, z);
+    dotScale.setScalar(Math.max(0.5, 1 - i * 0.06)); // further into the future = smaller and dimmer
+    dots.setMatrixAt(dots.count, dotMatrix.compose(dotSpot, noTurn, dotScale));
+    dots.setColorAt(dots.count, dotColor.copy(dots.userData.color).multiplyScalar(Math.max(0.3, 0.95 - i * 0.07)));
+    dots.count++;
   });
+  for (const dots of Object.values(planDots)) {
+    dots.instanceMatrix.needsUpdate = true;
+    dots.instanceColor.needsUpdate = true;
+  }
 }
 
 // ---------- HUD ----------
@@ -207,13 +287,13 @@ $("overlay-btn").addEventListener("click", () => overlayAction?.());
 
 // ---------- Actions ----------
 function restart(message = "Restarted.") {
-  game.restartLevel(); hideOverlay(); planDots.clear(); buildScene(); updateHud(message);
+  game.restartLevel(); hideOverlay(); showLevel(message);
 }
 function goToNextLevel() {
-  game.nextLevel(); hideOverlay(); buildScene(); updateHud("The ghost is thinking further ahead now…");
+  game.nextLevel(); hideOverlay(); showLevel("The ghost is thinking further ahead now…");
 }
 function playAgain() {
-  game.startLevel(0); hideOverlay(); buildScene(); updateHud("Back to Level 1.");
+  game.startLevel(0); hideOverlay(); showLevel("Back to Level 1.");
 }
 
 function takeTurn(dir) {
@@ -267,13 +347,37 @@ for (const btn of document.querySelectorAll("#pad button")) {
 
 // ---------- Render loop ----------
 const clock = new THREE.Clock();
-renderer.setAnimationLoop(() => {
+const fpsLabel = params.has("fps") ? $("fps") : null;
+if (fpsLabel) fpsLabel.hidden = false;
+let frame = 0;
+
+renderer.setAnimationLoop((now) => {
+  quality.frame(now);
   const time = clock.getElapsedTime();
-  for (const mesh of [player, ghost]) mesh.position.lerp(mesh.userData.target, 0.22);
+
+  let moved = false;
+  for (const mesh of [player, ghost]) {
+    const to = mesh.userData.target;
+    if (Math.abs(mesh.position.x - to.x) + Math.abs(mesh.position.z - to.z) > 0.002) moved = true;
+    mesh.position.lerp(to, 0.22);
+  }
   ghost.position.y = 0.45 + Math.sin(time * 3) * 0.05; // gentle hover
-  ghostLight.position.copy(ghost.position);
-  look?.update(time, player.position);
+  ghostGlow.position.x = ghost.position.x;
+  ghostGlow.position.z = ghost.position.z;
+  for (const blob of blobs) {
+    blob.position.x = blob.userData.actor.position.x;
+    blob.position.z = blob.userData.actor.position.z;
+  }
+
+  // Shadows are only redrawn when something moves. A swinging light redraws every frame,
+  // or every other frame once the quality has had to drop.
+  const lightMoved = look?.update(time, player.position);
+  if (moved || (lightMoved && (!quality.low || frame % 2 === 0))) renderer.shadowMap.needsUpdate = true;
+  frame++;
+
   renderer.render(scene, camera);
+  if (fpsLabel && frame % 30 === 0) fpsLabel.textContent = `${quality.fps || "…"} fps · ${quality.ratio}× res`;
 });
 
 buildScene();
+updateHud();

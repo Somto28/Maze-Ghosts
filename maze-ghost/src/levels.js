@@ -48,7 +48,8 @@ export const LEVELS = Object.freeze([
       "#.......#.E",
       "###########",
     ],
-    theme: { wallHeight: 1.4, wallColor: "#4f6a8a", floorColor: "#172030", ghostColor: "#ff3b6b", fog: 0.02, light: 1.0 },
+    // style "server-halls": racks, raised floor and security cameras (examples/server-halls.js + server-halls.css).
+    theme: { style: "server-halls", wallHeight: 1.4, wallColor: "#1a2230", floorColor: "#0b121c", ghostColor: "#ff3b6b", fog: 0.02, light: 1.0 },
   },
   {
     id: 3,
