@@ -13,14 +13,10 @@ body[data-style="basement"] #mood {
   display: block;
   background: radial-gradient(ellipse 70% 65% at 58% 52%, transparent 40%, rgba(0, 0, 0, 0.78) 100%);
 }
+/* Static grain: an animated layer this size forces extra compositing work every frame. */
 body[data-style="basement"] #mood::after {
-  content: ""; position: absolute; inset: -50%;
+  content: ""; position: absolute; inset: 0;
   background: var(--grain); opacity: 0.35;
-  animation: grain 0.8s steps(4) infinite;
-}
-@keyframes grain {
-  0% { transform: translate(0, 0); } 25% { transform: translate(-4%, 3%); }
-  50% { transform: translate(3%, -5%); } 75% { transform: translate(-2%, -2%); } 100% { transform: translate(0, 0); }
 }
 
 /* ---------- Palette ---------- */
@@ -114,7 +110,3 @@ body[data-style="basement"] #overlay button {
   border-radius: 3px; background: #2a2017; color: #f3e6cc;
 }
 body[data-style="basement"] #overlay button:focus-visible { outline: 2px solid #9b6a22; outline-offset: 3px; }
-
-@media (prefers-reduced-motion: reduce) {
-  body[data-style="basement"] #mood::after { animation: none; }
-}

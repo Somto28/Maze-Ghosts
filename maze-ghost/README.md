@@ -66,6 +66,10 @@ The rules stay on a flat grid; only the drawing is 3D. `buildLayout3D(level)` re
 
 Use `gridToWorld({ r, c })` to place a model on a tile and `worldToGrid({ x, z })` to turn a click on the floor back into a tile. `examples/three-view.js` is a complete Three.js version with keyboard and on-screen buttons.
 
+A level's `theme.style` gives it custom art and a matching HUD: `"basement"` (Level 1, `examples/basement.*`) and `"server-halls"` (Level 2, `examples/server-halls.*`). `examples/quality.js` keeps the frame rate smooth by lowering the render resolution on slower devices.
+
+Handy URL options for the 3D example: `?level=2` starts on Level 2, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance).
+
 ## Level guarantees (`tests/levels.test.js`)
 
 Because the ghost is predictable, `solveLevel()` can search every situation and prove a level is beatable. The tests check that:

@@ -1,0 +1,116 @@
+/* server-halls.css — Level 2's HUD: the company's security console. Dark glass panels with cyan
+   corner brackets, monospace system labels, a recording indicator (you're on camera), and a
+   system-alert dialog for results. Applies only while three-view.js sets <body data-style="server-halls">.
+   Gameplay colours (you, ghost, predictions) stay the same. Nothing here animates except one tiny dot. */
+
+body[data-style="server-halls"] {
+  --ink: #dcebf8;
+  --muted: #7f97b2;
+  --line: rgba(80, 200, 255, 0.2);
+  --cyan: #39d0ff;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bracket: linear-gradient(var(--cyan), var(--cyan));
+  background: #050a12;
+}
+
+/* ---------- Over the 3D view: a cool vignette and faint scanlines, like a camera feed ---------- */
+body[data-style="server-halls"] #mood {
+  display: block;
+  background: radial-gradient(ellipse 72% 68% at 58% 52%, transparent 50%, rgba(0, 6, 14, 0.7) 100%);
+}
+body[data-style="server-halls"] #mood::after {
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(to bottom, rgba(120, 200, 255, 0.035) 0 1px, transparent 1px 3px);
+}
+
+/* ---------- Panels: dark glass with corner brackets ---------- */
+body[data-style="server-halls"] .panel {
+  border-radius: 3px;
+  border-color: var(--line);
+  background:
+    var(--bracket) top left / 14px 2px no-repeat, var(--bracket) top left / 2px 14px no-repeat,
+    var(--bracket) top right / 14px 2px no-repeat, var(--bracket) top right / 2px 14px no-repeat,
+    var(--bracket) bottom left / 14px 2px no-repeat, var(--bracket) bottom left / 2px 14px no-repeat,
+    var(--bracket) bottom right / 14px 2px no-repeat, var(--bracket) bottom right / 2px 14px no-repeat,
+    linear-gradient(180deg, rgba(11, 20, 33, 0.93), rgba(5, 10, 18, 0.95));
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 14px 34px rgba(0, 0, 0, 0.55), inset 0 0 30px rgba(57, 208, 255, 0.04);
+}
+
+/* HUD header: a camera-feed status bar with a blinking REC light. */
+body[data-style="server-halls"] #hud { position: fixed; padding-top: 0; overflow: hidden; }
+body[data-style="server-halls"] #hud::before {
+  content: "REC   CAM 02 · SERVER FLOOR";
+  display: block; margin: 0 -14px 10px; padding: 5px 14px 5px 30px;
+  font: 600 10px/1.3 var(--mono); letter-spacing: 0.14em; white-space: pre;
+  color: #ff8a9c; background: rgba(255, 59, 107, 0.08); border-bottom: 1px solid rgba(255, 59, 107, 0.22);
+}
+body[data-style="server-halls"] #hud::after {
+  content: ""; position: absolute; top: 8px; left: 14px; width: 8px; height: 8px; border-radius: 50%;
+  background: #ff3b6b; box-shadow: 0 0 8px #ff3b6b;
+  animation: rec 1.6s steps(1) infinite;
+}
+@keyframes rec { 50% { opacity: 0.15; } }
+
+body[data-style="server-halls"] #level-name {
+  font: 700 18px/1.25 var(--mono); letter-spacing: -0.01em; color: #eef7ff;
+  text-shadow: 0 0 14px rgba(57, 208, 255, 0.35);
+}
+body[data-style="server-halls"] #level-name::before {
+  content: "sys://floor-02/racks";
+  display: block; margin-bottom: 3px;
+  font: 400 10px/1.2 var(--mono); letter-spacing: 0.08em; color: var(--cyan); text-shadow: none;
+}
+body[data-style="server-halls"] #message::before { content: "> "; color: var(--cyan); font-family: var(--mono); }
+
+/* The ghost's search, shown as a terminal log. */
+body[data-style="server-halls"] #thinking {
+  margin-top: 10px; padding: 8px 8px 6px; border: 1px solid var(--line); border-radius: 2px;
+  background: rgba(0, 8, 18, 0.55); font: 12px/1.45 var(--mono);
+}
+body[data-style="server-halls"] #thinking .title { color: #6fb6d8; font-size: 11px; }
+body[data-style="server-halls"] #thinking .opt { border-radius: 0; border-left: 2px solid transparent; }
+body[data-style="server-halls"] #thinking .opt.chosen { background: rgba(255, 59, 107, 0.14); border-left-color: #ff3b6b; }
+
+/* Controls: backlit keycaps. */
+body[data-style="server-halls"] #pad button {
+  border-radius: 4px;
+  border: 1px solid rgba(57, 208, 255, 0.3);
+  background: linear-gradient(180deg, #13223a, #0a1322);
+  color: #a6e9ff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 14px rgba(57, 208, 255, 0.08);
+}
+body[data-style="server-halls"] #pad button:active {
+  background: rgba(57, 208, 255, 0.25); color: #fff;
+  box-shadow: 0 0 18px rgba(57, 208, 255, 0.45);
+}
+body[data-style="server-halls"] #pad button[data-dir="wait"] { font-family: var(--mono); color: var(--muted); }
+body[data-style="server-halls"] #help { font: 12px/1.4 var(--mono); }
+
+/* ---------- Result: a system alert dialog ---------- */
+body[data-style="server-halls"] #overlay { background: rgba(2, 6, 12, 0.72); }
+body[data-style="server-halls"] #overlay .card { padding-top: 0; overflow: hidden; }
+body[data-style="server-halls"] #overlay .card::before {
+  display: block; margin: 0 -26px 18px; padding: 7px 14px; text-align: left;
+  font: 700 11px/1.3 var(--mono); letter-spacing: 0.14em;
+}
+body[data-style="server-halls"] #overlay[data-kind="lose"] .card::before {
+  content: "⚠ SECURITY ALERT · INTRUDER CONTAINED"; color: #ffd6dd; background: rgba(255, 59, 107, 0.28);
+}
+body[data-style="server-halls"] #overlay[data-kind="win"] .card::before {
+  content: "✓ ACCESS GRANTED · ROUTE CLEAR"; color: #d3ffe6; background: rgba(60, 240, 140, 0.2);
+}
+body[data-style="server-halls"] #overlay h2 {
+  font: 700 28px/1.2 var(--mono); text-transform: uppercase; letter-spacing: 0.04em;
+  color: #ff5a7a; text-shadow: 0 0 16px rgba(255, 59, 107, 0.45);
+}
+body[data-style="server-halls"] #overlay[data-kind="win"] h2 { color: #4cf59a; text-shadow: 0 0 16px rgba(60, 240, 140, 0.4); }
+body[data-style="server-halls"] #overlay p { font-family: var(--mono); font-size: 13px; }
+body[data-style="server-halls"] #overlay button {
+  font: 700 13px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
+  border-radius: 3px; background: var(--cyan); color: #03121f; padding: 11px 18px;
+}
+body[data-style="server-halls"] #overlay button:focus-visible { outline: 2px solid #a6e9ff; outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-style="server-halls"] #hud::after { animation: none; }
+}

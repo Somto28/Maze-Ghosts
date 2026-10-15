@@ -1,6 +1,10 @@
 // basement.js — Level 1's look: a dark, damp secret basement lit by one swinging bulb.
-// Every texture is painted in code on a <canvas>, so there are no image files to load.
 // three-view.js picks this up when a level's theme has `style: "basement"`.
+//
+// Kept cheap: two lights in total (dim ambience + the bulb), matte Lambert surfaces, and the
+// player's phone light and other glows are floor decals rather than real lights.
+
+import { canvasTexture, drawGlow, exitSigns, floorDecal, seededRandom, wrapped } from "./art-kit.js";
 
 const BULB_POWER = 30;
 const BULB_HEIGHT = 2.6;
@@ -8,7 +12,8 @@ const CORD_LENGTH = 6;
 
 /**
  * Builds the basement set for one level.
- * @returns {{ group, wallMaterial, floorMaterial, update(time: number, playerPos: {x, z}): void }}
+ * @returns {{ group, wallMaterial, floorMaterial, shadows: true, update(time: number, playerPos: {x, z}): boolean }}
+ *   update() returns true when the bulb moved, i.e. the shadows need redrawing.
  */
 export function buildBasement(THREE, layout, { still = false } = {}) {
   const rnd = seededRandom(1);
@@ -19,13 +24,14 @@ export function buildBasement(THREE, layout, { still = false } = {}) {
   // ---------- Surfaces ----------
   const bricks = canvasTexture(THREE, 256, (g, s) => drawBricks(g, s, rnd));
   const cap = canvasTexture(THREE, 128, (g, s) => drawConcrete(g, s, rnd, { base: "#24201c", cracks: 1, joints: false }));
-  const wallMaterial = new THREE.MeshStandardMaterial({ map: bricks, bumpMap: bricks, bumpScale: 3, roughness: 0.9 });
+  // No bump map: it cost ~15% of the frame, and the bricks already have painted edges.
+  const wallMaterial = new THREE.MeshLambertMaterial({ map: bricks });
 
   // Concrete caps laid on top of the brick. They're separate meshes because a multi-material
   // InstancedMesh breaks the shadow pass.
   const caps = new THREE.InstancedMesh(
     new THREE.PlaneGeometry(layout.tileSize, layout.tileSize).rotateX(-Math.PI / 2),
-    new THREE.MeshStandardMaterial({ map: cap, roughness: 0.95 }),
+    new THREE.MeshLambertMaterial({ map: cap }),
     layout.walls.length,
   );
   const m = new THREE.Matrix4();
@@ -37,9 +43,9 @@ export function buildBasement(THREE, layout, { still = false } = {}) {
   const concrete = canvasTexture(THREE, 512, (g, s) => drawConcrete(g, s, rnd, { base: "#34302a", cracks: 5, joints: true }), {
     repeat: [layout.floor.size.x / 3, layout.floor.size.z / 3],
   });
-  const floorMaterial = new THREE.MeshStandardMaterial({ map: concrete, bumpMap: concrete, bumpScale: 1.5, roughness: 0.92 });
+  const floorMaterial = new THREE.MeshLambertMaterial({ map: concrete });
 
-  // ---------- Light: dim cellar ambience, one bare bulb, and the player's phone light ----------
+  // ---------- Light: dim cellar ambience and one bare bulb ----------
   group.add(new THREE.HemisphereLight(0x8a7660, 0x1a130d, 1.5 * t.light));
 
   // The bulb hangs on a long cord from a pivot above the frame, so it can swing.
@@ -73,7 +79,8 @@ export function buildBasement(THREE, layout, { still = false } = {}) {
   pendulum.add(cord, socket, glass, halo, bulb, bulb.target);
   group.add(pendulum);
 
-  const phoneLight = new THREE.PointLight(0xcfe0ff, 1.6, 2.4, 1.5);
+  // The player's phone light: a cool glow on the floor that follows them.
+  const phoneLight = floorDecal(THREE, { color: 0xbcd4ff, size: 2.6, opacity: 0.4, y: 0.012 });
   group.add(phoneLight);
 
   // ---------- Props ----------
@@ -103,16 +110,7 @@ export function buildBasement(THREE, layout, { still = false } = {}) {
     group.add(puddle);
   }
 
-  // A glowing EXIT sign over the way out, turned toward the camera.
-  const signTexture = canvasTexture(THREE, 256, drawExitSign);
-  signTexture.repeat.set(1, 0.375);
-  signTexture.offset.set(0, 0.3125);
-  for (const e of layout.exits) {
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.27), new THREE.MeshBasicMaterial({ map: signTexture, transparent: true }));
-    sign.position.set(e.position.x, t.wallHeight + 0.45, e.position.z);
-    sign.lookAt(layout.camera.position.x, layout.camera.position.y, layout.camera.position.z);
-    group.add(sign);
-  }
+  for (const sign of exitSigns(THREE, layout, t.wallHeight + 0.45)) group.add(sign);
 
   // Dust drifting through the light.
   const DUST = 220;
@@ -135,8 +133,9 @@ export function buildBasement(THREE, layout, { still = false } = {}) {
   let nextFlicker = 4;
 
   function update(time, playerPos) {
-    phoneLight.position.set(playerPos.x, 0.6, playerPos.z);
-    if (still) return;
+    phoneLight.position.x = playerPos.x;
+    phoneLight.position.z = playerPos.z;
+    if (still) return false;
 
     // A slow, uneven swing.
     pendulum.rotation.z = Math.sin(time * 0.9) * 0.05;
@@ -157,29 +156,13 @@ export function buildBasement(THREE, layout, { still = false } = {}) {
       dust[i * 3 + 1] += Math.cos(time * 0.2 + drift[i]) * 0.0008;
     }
     dustGeometry.attributes.position.needsUpdate = true;
+    return true; // the bulb swung, so its shadows moved
   }
 
-  return { group, wallMaterial, floorMaterial, update };
+  return { group, wallMaterial, floorMaterial, shadows: true, update };
 }
 
 // ---------- Canvas painting ----------
-
-function canvasTexture(THREE, size, draw, { repeat = [1, 1] } = {}) {
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = size;
-  draw(canvas.getContext("2d"), size);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(...repeat);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
-  return tex;
-}
-
-// Draw something at (x, y) and at its copies one canvas-width away, so the texture tiles without seams.
-function wrapped(s, x, y, draw) {
-  for (const dx of [-s, 0, s]) for (const dy of [-s, 0, s]) draw(x + dx, y + dy);
-}
 
 function speckle(g, s, rnd, count, alpha) {
   for (let i = 0; i < count; i++) {
@@ -273,40 +256,4 @@ function drawConcrete(g, s, rnd, { base, cracks, joints }) {
     g.fillRect(0, 0, s, 2);
     g.fillRect(0, 0, 2, s);
   }
-}
-
-function drawGlow(g, s) {
-  const grad = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  grad.addColorStop(0, "rgba(255,255,255,1)");
-  grad.addColorStop(0.25, "rgba(255,255,255,0.35)");
-  grad.addColorStop(1, "rgba(255,255,255,0)");
-  g.fillStyle = grad;
-  g.fillRect(0, 0, s, s);
-}
-
-// Painted in the middle band of a square canvas (the texture's offset/repeat crop to it).
-function drawExitSign(g, s) {
-  const y = s * 0.3125, h = s * 0.375;
-  g.fillStyle = "#06170c";
-  g.fillRect(0, y, s, h);
-  g.strokeStyle = "#1f6b3a";
-  g.lineWidth = 6;
-  g.strokeRect(5, y + 5, s - 10, h - 10);
-  g.font = "bold 58px 'Arial Black', Arial, sans-serif";
-  g.textAlign = "center";
-  g.textBaseline = "middle";
-  g.shadowColor = "#4ade80";
-  g.shadowBlur = 16;
-  g.fillStyle = "#86f7ad";
-  g.fillText("EXIT", s / 2, y + h / 2 + 3);
-}
-
-// Same art every time you load the level.
-function seededRandom(seed) {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
-    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
-  };
 }
