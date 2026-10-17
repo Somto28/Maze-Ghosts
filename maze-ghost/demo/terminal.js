@@ -12,28 +12,31 @@ let message = "Reach the exit (E). The ghost (G) moves after you.";
 const KEYS = { up: "up", down: "down", left: "left", right: "right", w: "up", s: "down", a: "left", d: "right", space: "wait" };
 
 function draw() {
-  const { grid, player, ghost } = game.state;
+  const { grid, player, ghosts } = game.state;
   const rows = grid.map((row, r) =>
     row.map((tile, c) => {
       const here = { r, c };
-      if (samePos(here, player) && samePos(here, ghost)) return "\x1b[41m X \x1b[0m";
+      const ghostHere = ghosts.some((g) => samePos(here, g));
+      if (samePos(here, player) && ghostHere) return "\x1b[41m X \x1b[0m";
       if (samePos(here, player)) return "\x1b[44m P \x1b[0m";
-      if (samePos(here, ghost)) return "\x1b[31m G \x1b[0m";
+      if (ghostHere) return "\x1b[31m G \x1b[0m";
       if (tile === "#") return "\x1b[100m   \x1b[0m";
       if (tile === "E") return "\x1b[42m E \x1b[0m";
       return " · ";
     }).join(""),
   );
   console.clear();
-  const { id, name, lookahead } = game.level;
-  console.log(`Level ${id}: ${name}  |  Ghost looks ${lookahead} move${lookahead > 1 ? "s" : ""} ahead  |  Turn ${game.turnNumber}\n`);
+  const { id, name, lookahead, enemy = "ghost" } = game.level;
+  const n = ghosts.length;
+  const who = n > 1 ? `${n} ${enemy}s plan together` : `${enemy[0].toUpperCase()}${enemy.slice(1)} looks`;
+  console.log(`Level ${id}: ${name}  |  ${who} ${lookahead} move${lookahead > 1 ? "s" : ""} ahead  |  Turn ${game.turnNumber}\n`);
   console.log(rows.join("\n"));
   console.log(`\n${message}`);
   const t = game.lastThinking;
   if (showThinking && t) {
-    console.log(`\nGhost considered ${t.futuresConsidered} futures (${t.branchesPruned} branches pruned):`);
-    for (const o of t.options) {
-      console.log(`  ${o.chosen ? "->" : "  "} ${o.dir.padEnd(5)} score ${String(o.score).padStart(5)}   expects you to go: ${o.predictedPlayerReply ?? "-"}`);
+    console.log(`\n${n > 1 ? "They" : "It"} considered ${t.futuresConsidered} futures (${t.branchesPruned} branches pruned):`);
+    for (const o of t.options.slice(0, 8)) {
+      console.log(`  ${o.chosen ? "->" : "  "} ${o.dir.padEnd(n > 1 ? 15 : 5)} score ${String(o.score).padStart(5)}   expects you to go: ${o.predictedPlayerReply ?? "-"}`);
     }
   }
   console.log("\nArrows/WASD move · space wait · r restart · q quit");
@@ -58,7 +61,7 @@ process.stdin.on("keypress", (_str, key) => {
   else if (game.status === "caught") message = "CAUGHT! Press r to try again.";
   else if (game.status === "levelComplete") message = "ESCAPED! Press any key for the next level.";
   else if (game.status === "gameComplete") message = "You escaped every level! Press any key to quit.";
-  else message = `Ghost moved ${ghost.dir}.`;
+  else message = `${game.state.ghosts.length > 1 ? "They" : "It"} moved ${ghost.dir}.`;
   draw();
 });
 
