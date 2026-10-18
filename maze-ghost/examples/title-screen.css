@@ -1,0 +1,92 @@
+/* title-screen.css — the home screen (examples/title-screen.js).
+   A 16:9 stage as large as fits on screen. The pixel art is a canvas scaled up without smoothing;
+   the menu and panels are real buttons laid over it, sized in container units so they scale with the art. */
+
+.title-screen {
+  --ts-teal: #3fd0c9; --ts-teal-dim: #1f8f87; --ts-red: #ff4656; --ts-amber: #ffb347; --ts-ink: #e8eef8; --ts-muted: #8891a6;
+  --ts-pixel: "Silkscreen", ui-monospace, "Courier New", monospace;
+  --ts-body: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  position: fixed; inset: 0; z-index: 60;
+  display: grid; place-items: center;
+  background: #000; color: var(--ts-ink);
+  transition: opacity 0.4s ease;
+}
+.title-screen.ts-out { opacity: 0; pointer-events: none; }
+
+.ts-stage {
+  position: relative; container-type: inline-size;
+  width: min(100vw, calc(100vh * 16 / 9)); aspect-ratio: 16 / 9; max-width: 100%;
+  overflow: hidden; background: #0a0d13;
+}
+.ts-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: crisp-edges; image-rendering: pixelated; }
+.ts-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); margin: 0; }
+
+/* "Press any key": the prompt is drawn on the canvas; this invisible button makes the whole screen clickable. */
+.ts-press { position: absolute; inset: 0; border: 0; background: transparent; cursor: pointer; }
+.ts-press[hidden], .ts-menu[hidden], .ts-panel[hidden] { display: none; }
+
+/* ---------- main menu (left column, under the logo) ---------- */
+.ts-menu {
+  position: absolute; left: 3.6%; top: 51%; width: 40%;
+  display: grid; gap: 0.5cqw;
+}
+.ts-menu button {
+  display: flex; align-items: center; gap: 1cqw;
+  width: 100%; padding: 0.9cqw 1.4cqw; text-align: left;
+  font: clamp(11px, 2.25cqw, 26px)/1.1 var(--ts-pixel); letter-spacing: 0.06em; text-transform: uppercase;
+  color: #b9c2d3; background: transparent; border: 0; border-left: 2px solid transparent; cursor: pointer;
+}
+.ts-menu button::before { content: "▸"; color: var(--ts-amber); opacity: 0; transform: translateX(-4px); transition: opacity 0.12s, transform 0.12s; }
+.ts-menu button:hover, .ts-menu button:focus-visible { color: #ffffff; background: rgba(63, 208, 201, 0.12); border-left-color: var(--ts-teal); outline: none; }
+.ts-menu button:hover::before, .ts-menu button:focus-visible::before { opacity: 1; transform: none; }
+.ts-menu [data-act="story"] { color: var(--ts-ink); }
+.ts-menu [data-act="sound"] { font-size: clamp(9px, 1.6cqw, 18px); color: var(--ts-muted); }
+
+.ts-keys {
+  position: absolute; right: 3%; bottom: 0.4%; margin: 0;
+  font: clamp(9px, 1.15cqw, 14px)/1.4 var(--ts-body); color: #4d5a6e;
+}
+
+/* ---------- panels (level select, how the Wardens think) ---------- */
+.ts-panel {
+  position: absolute; left: 4%; right: 4%; top: 6%; bottom: 7%;
+  display: flex; flex-direction: column; gap: 1.4cqw;
+  padding: 2.2cqw 2.6cqw; overflow: auto;
+  background: rgba(4, 12, 13, 0.95); border: 2px solid var(--ts-teal); box-shadow: 0 0 0 2px #000, 0 0 40px rgba(57, 245, 196, 0.12);
+  font: clamp(12px, 1.55cqw, 18px)/1.5 var(--ts-body);
+}
+.ts-panel h2 { margin: 0; font: clamp(14px, 2.6cqw, 30px)/1.1 var(--ts-pixel); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ts-teal); text-wrap: balance; }
+.ts-note { margin: -0.6cqw 0 0; color: var(--ts-muted); }
+
+.ts-levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 1.2cqw; }
+.ts-level {
+  display: grid; grid-template-columns: auto 1fr; gap: 0.3cqw 1.2cqw; align-content: start;
+  padding: 1.4cqw; text-align: left; cursor: pointer;
+  color: var(--ts-ink); background: #0a1a1a; border: 1px solid #1d3b3a; font: inherit;
+}
+.ts-level:hover, .ts-level:focus-visible { border-color: var(--ts-amber); background: #11201f; outline: none; }
+.ts-num { grid-row: span 2; font: clamp(20px, 4.2cqw, 48px)/1 var(--ts-pixel); color: var(--ts-red); }
+.ts-lname { font: clamp(11px, 1.8cqw, 20px)/1.2 var(--ts-pixel); text-transform: uppercase; letter-spacing: 0.04em; min-width: 0; }
+.ts-ldetail { color: var(--ts-muted); min-width: 0; }
+
+.ts-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 1.4cqw; }
+.ts-cards article { padding: 1.4cqw; background: #0a1a1a; border: 1px solid #1d3b3a; min-width: 0; }
+.ts-cards h3 { display: flex; align-items: center; gap: 0.8cqw; margin: 0 0 0.6cqw; font: clamp(11px, 1.8cqw, 20px)/1.2 var(--ts-pixel); text-transform: uppercase; letter-spacing: 0.04em; }
+.ts-cards h3 span { display: inline-grid; place-items: center; width: 1.6em; height: 1.6em; background: var(--ts-teal); color: #04121f; }
+.ts-cards article:last-child h3 span { background: var(--ts-red); }
+.ts-cards p { margin: 0; color: #c3ccdb; }
+.ts-cards b { color: var(--ts-ink); font-weight: 600; }
+.ts-cards b.red { color: var(--ts-red); } .ts-cards b.amber { color: var(--ts-amber); }
+.ts-tip { margin: 0; padding-left: 1.2cqw; border-left: 2px solid var(--ts-amber); color: var(--ts-amber); }
+
+.ts-back {
+  align-self: flex-start; margin-top: auto; padding: 0.9cqw 1.6cqw; cursor: pointer;
+  font: clamp(10px, 1.5cqw, 16px)/1 var(--ts-pixel); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ts-ink); background: transparent; border: 1px solid #2c3d48;
+}
+.ts-back:hover, .ts-back:focus-visible { border-color: var(--ts-teal); outline: none; background: rgba(63, 208, 201, 0.1); }
+.title-screen button:focus-visible { outline: 2px solid var(--ts-amber); outline-offset: 2px; }
+.ts-menu button:focus-visible { outline: none; }
+
+@media (max-width: 600px) { .ts-keys { display: none; } }
+@media (prefers-reduced-motion: reduce) { .title-screen, .ts-menu button::before { transition: none; } }
