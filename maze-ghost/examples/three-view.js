@@ -8,12 +8,14 @@ import { buildBasement } from "./basement.js";
 import { buildCore } from "./core.js";
 import { buildServerHalls } from "./server-halls.js";
 import { createQuality } from "./quality.js";
+import { cutsceneActive, playCutscene } from "./cutscene.js";
 
 const TILE = 1;
 const STEP_MS = 220; // pause between your move and the ghosts', so the turns are visible
 const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core: buildCore }; // theme.style -> custom art
 const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-// ?level=2 starts on Level 2, ?fps shows the frame rate, ?res=1 pins the render resolution (testing).
+// ?level=2 starts on Level 2, ?fps shows the frame rate, ?res=1 pins the render resolution (testing),
+// ?intro=0 skips the opening cutscene.
 const params = new URLSearchParams(location.search);
 
 const game = new MazeGame();
@@ -413,6 +415,7 @@ if (fpsLabel) fpsLabel.hidden = false;
 let frame = 0;
 
 renderer.setAnimationLoop((now) => {
+  if (cutsceneActive()) return; // the cutscene covers the screen; give the device's time to it instead of the maze
   quality.frame(now);
   const time = clock.getElapsedTime();
 
@@ -445,3 +448,6 @@ renderer.setAnimationLoop((now) => {
 
 buildScene();
 updateHud(`Reach the green exit. The ${enemy().name} move${game.state.ghosts.length > 1 ? "" : "s"} after you.`);
+
+// The opening cutscene plays before Level 1 (not when ?level= starts later, or with ?intro=0).
+if (game.levelIndex === 0 && params.get("intro") !== "0") playCutscene();

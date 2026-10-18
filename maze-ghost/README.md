@@ -74,7 +74,16 @@ Use `gridToWorld({ r, c })` to place a model on a tile and `worldToGrid({ x, z }
 
 A level's `theme.style` gives it custom art and a matching HUD: `"basement"` (Level 1, `examples/basement.*`), `"server-halls"` (Level 2, `examples/server-halls.*`) and `"core"` (Level 3, `examples/core.*`). `examples/quality.js` keeps the frame rate smooth by lowering the render resolution on slower devices, and `examples/ghost-worker.js` does the ghosts' thinking off the main thread.
 
-Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance).
+Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance), `?intro=0` skips the opening cutscene.
+
+## Opening cutscene (`examples/cutscene.js`)
+
+Before Level 1, a 1:44 pixel-art cutscene ("After Hours") tells the story: a Clearpath employee takes the elevator down to a secret sub-level, finds Dr. Voss feeding private data into the Wardens, and has to run. It ends with a Warden's view of its minimax search and predicted escape routes, which sets up the levels.
+
+- Drawn in code on a 320 × 180 canvas and scaled up without smoothing (no image files); sound is synthesized with the Web Audio API.
+- `playCutscene()` returns a promise that resolves when it ends or is skipped. While it's on screen it swallows every key, and `three-view.js` pauses the 3D rendering.
+- Players can pause (Space), skip (Esc or the Skip button) and mute it. It waits for a click or key press first because browsers only allow sound after one.
+- Each shot in `SHOTS` has its length, dialogue lines, sound cues and a `draw(t)` function. Character and place names are placeholders.
 
 ## Level guarantees and difficulty (`tests/levels.test.js`, `src/playtest.js`)
 
