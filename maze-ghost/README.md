@@ -1,4 +1,6 @@
-# Maze Ghost
+# Clearpath
+
+*(Prototype name: Maze Ghost. The folder and package names still use it.)*
 
 A turn-based maze escape. You move, then the ghosts move. They use **adversarial search** (minimax with alpha-beta pruning) to predict your moves, and **each level they get stronger**: they look further ahead, and on the last level there are two of them, planning as a team.
 
@@ -74,7 +76,15 @@ Use `gridToWorld({ r, c })` to place a model on a tile and `worldToGrid({ x, z }
 
 A level's `theme.style` gives it custom art and a matching HUD: `"basement"` (Level 1, `examples/basement.*`), `"server-halls"` (Level 2, `examples/server-halls.*`) and `"core"` (Level 3, `examples/core.*`). `examples/quality.js` keeps the frame rate smooth by lowering the render resolution on slower devices, and `examples/ghost-worker.js` does the ghosts' thinking off the main thread.
 
-Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance), `?intro=0` skips the opening cutscene.
+Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance), `?intro=0` skips the opening cutscene, `?title=0` skips the home screen.
+
+## Home screen (`examples/title-screen.js`)
+
+The game, **Clearpath**, opens on a pixel-art home screen with its own chiptune theme ("Lookahead", A minor, 96 BPM). The menu has **Start story** (cutscene, then Level 1), **Choose level**, **How the Wardens think** (minimax, lookahead, and the data-consent question in kid-friendly language) and a sound toggle. Press **M** during the game to come back to it.
+
+The monitor on the home screen is a live demo, not a recording: a simple bot plays Level 1 or 2 against the real Warden AI from `src/`, and the red dots are the future the Warden predicts. It skips Level 3 because two wardens take too long to think for a background animation on a Chromebook.
+
+`showTitleScreen({ levels })` resolves with `{ mode: "story" }` or `{ mode: "level", index }`. Like the cutscene, it swallows every key while it's open and `three-view.js` pauses the 3D rendering.
 
 ## Opening cutscene (`examples/cutscene.js`)
 
