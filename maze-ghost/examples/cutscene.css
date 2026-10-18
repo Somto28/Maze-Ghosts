@@ -1,0 +1,54 @@
+/* cutscene.css — the full-screen opening cutscene (examples/cutscene.js).
+   The 16:9 stage is as large as fits on screen; the canvas is scaled up without smoothing to keep the pixels sharp. */
+
+.cutscene {
+  --cs-teal: #3fd0c9; --cs-red: #ff4656; --cs-amber: #ffb347; --cs-ink: #e8eef8; --cs-muted: #8891a6;
+  position: fixed; inset: 0; z-index: 50;
+  display: grid; grid-template-rows: 1fr auto; place-items: center;
+  background: #000; color: var(--cs-ink);
+  font: 13px/1.4 "JetBrains Mono", ui-monospace, Consolas, monospace;
+  transition: opacity 0.3s ease;
+}
+.cutscene.cs-out { opacity: 0; pointer-events: none; }
+
+.cs-stage {
+  position: relative; container-type: inline-size;
+  width: min(100vw, calc((100vh - 48px) * 16 / 9)); aspect-ratio: 16 / 9; max-width: 100%;
+  background: #000; overflow: hidden;
+}
+.cs-stage canvas { display: block; width: 100%; height: 100%; image-rendering: crisp-edges; image-rendering: pixelated; }
+
+.cs-dlg {
+  position: absolute; left: 5%; right: 5%; bottom: 7.5%; min-height: 7.5cqw;
+  padding: 1cqw 1.8cqw 1.2cqw; background: rgba(5, 7, 12, 0.9);
+  border: 2px solid var(--cs-teal); box-shadow: 0 0 0 2px #000;
+  font: clamp(14px, 3.2cqw, 30px)/1 "VT323", ui-monospace, "Courier New", monospace; color: #eef3ff;
+}
+.cs-dlg[hidden] { display: none; }
+.cs-dlg.cs-top { top: 7.5%; bottom: auto; }
+.cs-who { display: block; margin-bottom: 0.5cqw; font: max(9px, 1.7cqw)/1.2 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.1em; color: var(--cs-teal); }
+.cs-dlg.cs-villain { border-color: var(--cs-red); }
+.cs-dlg.cs-villain .cs-who { color: var(--cs-red); }
+
+.cs-start {
+  position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px;
+  border: 0; cursor: pointer; color: var(--cs-ink);
+  background: radial-gradient(ellipse at center, rgba(5, 6, 11, 0.3), rgba(5, 6, 11, 0.8));
+  font-family: "Silkscreen", ui-monospace, monospace;
+}
+.cs-start[hidden] { display: none; }
+.cs-start > span:nth-child(2) { font-size: clamp(14px, 2.6cqw, 24px); letter-spacing: 0.08em; text-transform: uppercase; }
+.cs-start small { font: 12px/1.4 "JetBrains Mono", ui-monospace, monospace; color: var(--cs-muted); }
+.cs-tri { width: 0; height: 0; margin-left: 8px; border-left: 28px solid var(--cs-teal); border-top: 18px solid transparent; border-bottom: 18px solid transparent; }
+.cs-start:hover .cs-tri { border-left-color: var(--cs-amber); }
+
+.cs-bar { display: flex; align-items: center; gap: 12px; width: min(100vw, calc((100vh - 48px) * 16 / 9)); padding: 8px 12px; }
+.cs-hint { flex: 1; text-align: center; color: var(--cs-muted); font-size: 12px; }
+.cs-btn {
+  font: 11px/1 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--cs-ink); background: #11151f; border: 1px solid #252c40; padding: 9px 12px; cursor: pointer;
+}
+.cs-btn:hover { border-color: var(--cs-teal); }
+.cutscene button:focus-visible { outline: 2px solid var(--cs-amber); outline-offset: 2px; }
+
+@media (max-width: 520px) { .cs-hint { display: none; } .cs-bar { justify-content: space-between; } }
