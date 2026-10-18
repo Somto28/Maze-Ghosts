@@ -83,7 +83,6 @@ body[data-style="server-halls"] #pad button:active {
   background: rgba(57, 208, 255, 0.25); color: #fff;
   box-shadow: 0 0 18px rgba(57, 208, 255, 0.45);
 }
-body[data-style="server-halls"] #pad button[data-dir="wait"] { font-family: var(--mono); color: var(--muted); }
 body[data-style="server-halls"] #help { font: 12px/1.4 var(--mono); }
 
 /* ---------- Result: a system alert dialog ---------- */

@@ -79,7 +79,6 @@ body[data-style="basement"] #pad button:active {
   color: #ffd391;
   box-shadow: inset 0 1px 0 rgba(255, 220, 170, 0.1), 0 1px 0 #070504, 0 0 18px rgba(242, 165, 65, 0.25);
 }
-body[data-style="basement"] #pad button[data-dir="wait"] { color: var(--muted); font-family: var(--type); }
 body[data-style="basement"] #help { font-family: var(--type); }
 
 /* ---------- Result card: a memo taped up under the bulb ---------- */

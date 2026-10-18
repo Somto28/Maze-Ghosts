@@ -1,5 +1,5 @@
 // Play in the terminal:  npm run play
-// Arrow keys or WASD to move, space to wait, r to restart, q to quit.
+// Arrow keys or WASD to move, r to restart, q to quit.
 // Add --think to see the ghost's options and scores after each move.
 
 import readline from "node:readline";
@@ -9,7 +9,7 @@ const showThinking = process.argv.includes("--think");
 const game = new MazeGame();
 let message = "Reach the exit (E). The ghost (G) moves after you.";
 
-const KEYS = { up: "up", down: "down", left: "left", right: "right", w: "up", s: "down", a: "left", d: "right", space: "wait" };
+const KEYS = { up: "up", down: "down", left: "left", right: "right", w: "up", s: "down", a: "left", d: "right" };
 
 function draw() {
   const { grid, player, ghosts } = game.state;
@@ -39,7 +39,7 @@ function draw() {
       console.log(`  ${o.chosen ? "->" : "  "} ${o.dir.padEnd(n > 1 ? 15 : 5)} score ${String(o.score).padStart(5)}   expects you to go: ${o.predictedPlayerReply ?? "-"}`);
     }
   }
-  console.log("\nArrows/WASD move · space wait · r restart · q quit");
+  console.log("\nArrows/WASD move · r restart · q quit");
 }
 
 readline.emitKeypressEvents(process.stdin);

@@ -32,8 +32,7 @@
     #pad { position: fixed; right: 16px; bottom: 16px; display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(3, 52px); gap: 6px; }
     #pad button { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); font-size: 20px; cursor: pointer; touch-action: manipulation; }
     #pad button:active { background: rgba(90, 176, 255, 0.3); }
-    #pad button[data-dir="wait"] { font-size: 12px; color: var(--muted); }
-    #pad [data-dir="up"] { grid-area: 1 / 2; } #pad [data-dir="left"] { grid-area: 2 / 1; } #pad [data-dir="wait"] { grid-area: 2 / 2; }
+    #pad [data-dir="up"] { grid-area: 1 / 2; } #pad [data-dir="left"] { grid-area: 2 / 1; }
     #pad [data-dir="right"] { grid-area: 2 / 3; } #pad [data-dir="down"] { grid-area: 3 / 2; }
 
     #overlay { position: fixed; inset: 0; display: none; place-items: center; background: rgba(4, 6, 10, 0.55); padding: 16px; }
@@ -77,12 +76,11 @@
     <div id="thinking"></div>
   </div>
 
-  <div id="help" class="panel">Arrows / WASD move · Space wait · R restart</div>
+  <div id="help" class="panel">Arrows / WASD move · R restart</div>
 
   <div id="pad" aria-label="Move controls">
     <button data-dir="up" aria-label="Up">↑</button>
     <button data-dir="left" aria-label="Left">←</button>
-    <button data-dir="wait" aria-label="Wait">wait</button>
     <button data-dir="right" aria-label="Right">→</button>
     <button data-dir="down" aria-label="Down">↓</button>
   </div>

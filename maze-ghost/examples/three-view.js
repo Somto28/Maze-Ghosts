@@ -389,7 +389,7 @@ function finish() {
 }
 
 // ---------- Input: keyboard and on-screen buttons ----------
-const KEYS = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right", " ": "wait" };
+const KEYS = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right" };
 
 window.addEventListener("keydown", (e) => {
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
