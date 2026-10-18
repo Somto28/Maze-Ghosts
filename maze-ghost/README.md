@@ -80,11 +80,25 @@ Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows
 
 ## Home screen (`examples/title-screen.js`)
 
-The game, **Clearpath**, opens on a pixel-art home screen with its own chiptune theme ("Lookahead", A minor, 96 BPM). The menu has **Start story** (cutscene, then Level 1), **Choose level**, **How the Wardens think** (minimax, lookahead, and the data-consent question in kid-friendly language) and a sound toggle. Press **M** during the game to come back to it.
+The game, **Clearpath**, opens on a pixel-art home screen with its own chiptune theme ("Lookahead", A minor, 96 BPM). The menu has **Start story** (prologue, cutscene, then Level 1), **Choose level**, **How the Wardens think** (minimax, lookahead, and the data-consent question in kid-friendly language) and a sound toggle. Press **M** during the game to come back to it.
 
 The monitor on the home screen is a live demo, not a recording: a simple bot plays Level 1 or 2 against the real Warden AI from `src/`, and the red dots are the future the Warden predicts. It skips Level 3 because two wardens take too long to think for a background animation on a Chromebook.
 
 `showTitleScreen({ levels })` resolves with `{ mode: "story" }` or `{ mode: "level", index }`. Like the cutscene, it swallows every key while it's open and `three-view.js` pauses the 3D rendering.
+
+## Prologue (`examples/prologue.js`)
+
+**Start story** begins with the prologue, which doubles as the tutorial. It opens on a Clearpath TV ad hosted by Pip, a friendly mascot robot, that teaches the game's ideas with examples an 8th grader can follow:
+
+1. **Prediction = spotting patterns.** Maya walks her dog at 7:00 every day, so Pip is 92% sure about Saturday.
+2. **Minimax.** In a two-move points game, the greedy 9 is really worth 1 because the opponent picks next, so Pip takes the sure 4.
+3. **Lookahead and pruning.** Futures multiply (5, 25, 125, 625), so Pip skips branches that can't beat its best plan. "Basic Pip looks 1 move ahead. Premium Pip looks 3."
+4. **The chase.** Red dots are Pip's plan and gold dots are the moves it predicts you'll make: the same colours as the in-game HUD.
+5. **Products and fine print**, which plants the data-consent question.
+
+The camera then pulls back out of the TV into a dark living room. Someone on the couch, seen from behind, thinks about what they just watched, and the player answers for them: four comprehension questions (one per idea above) and two ethics questions with no wrong answer. Every choice gets a short reply that explains the idea, so a wrong pick still teaches something. The smart speaker says goodnight, a text from Clearpath HR reveals it's Sam the night before his first day, and a "Six months later" card hands off to the cutscene below.
+
+Answers use the mouse or keys 1-3; Enter continues, Space pauses the ad, Esc skips. The questions and the ad's lines are plain text in `STEPS`, so they're easy to edit.
 
 ## Opening cutscene (`examples/cutscene.js`)
 

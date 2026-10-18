@@ -10,6 +10,7 @@ import { buildServerHalls } from "./server-halls.js";
 import { createQuality } from "./quality.js";
 import { cutsceneActive, playCutscene } from "./cutscene.js";
 import { showTitleScreen, titleActive } from "./title-screen.js";
+import { playPrologue, prologueActive } from "./prologue.js";
 
 const TILE = 1;
 const STEP_MS = 220; // pause between your move and the ghosts', so the turns are visible
@@ -351,16 +352,23 @@ function goToNextLevel() {
 // ---------- Home screen ----------
 const startMessage = () => `Reach the green exit. The ${enemy().name} move${game.state.ghosts.length > 1 ? "" : "s"} after you.`;
 
+// The story before Level 1: the prologue (Clearpath's ad and the living room), then "After Hours".
+// autoStart: the player just clicked, so both can start with sound straight away.
+async function playStory(autoStart) {
+  await playPrologue({ autoStart });
+  await playCutscene({ autoStart: true });
+}
+
 // Opens the home screen, then starts whatever the player picked: the story (cutscene, then Level 1) or a level.
 // skipPress opens it straight on the menu, for when the player opened it with a key or button.
 async function openMenu(skipPress = true) {
-  if (titleActive() || cutsceneActive()) return;
+  if (titleActive() || cutsceneActive() || prologueActive()) return;
   hideOverlay();
   const choice = await showTitleScreen({ levels: game.levels, skipPress });
   if (choice.mode === "story") {
     game.startLevel(0);
     showLevel(startMessage());
-    if (params.get("intro") !== "0") await playCutscene();
+    if (params.get("intro") !== "0") await playStory(true);
   } else {
     game.startLevel(choice.index);
     showLevel(startMessage());
@@ -433,7 +441,7 @@ if (fpsLabel) fpsLabel.hidden = false;
 let frame = 0;
 
 renderer.setAnimationLoop((now) => {
-  if (cutsceneActive() || titleActive()) return; // a full-screen scene is up; give the device's time to it instead of the maze
+  if (cutsceneActive() || titleActive() || prologueActive()) return; // a full-screen scene is up; give the device's time to it instead of the maze
   quality.frame(now);
   const time = clock.getElapsedTime();
 
@@ -467,10 +475,10 @@ renderer.setAnimationLoop((now) => {
 buildScene();
 updateHud(startMessage());
 
-// The home screen opens first. ?level= or ?title=0 go straight into the game (the cutscene still plays
+// The home screen opens first. ?level= or ?title=0 go straight into the game (the story still plays
 // before Level 1 unless ?intro=0).
 if (params.has("level") || params.get("title") === "0") {
-  if (game.levelIndex === 0 && params.get("intro") !== "0") playCutscene();
+  if (game.levelIndex === 0 && params.get("intro") !== "0") playStory(false);
 } else {
   openMenu(false);
 }
