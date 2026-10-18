@@ -1,0 +1,55 @@
+/* prologue.css — thought bubbles and answer choices for the prologue (examples/prologue.js).
+   The stage, dialogue box and control bar come from cutscene.css. Sizes use container units so the
+   bubbles scale with the pixel art; they sit in the left half, away from the TV and the person on the couch. */
+
+.prologue {
+  --pl-paper: #f3efe4; --pl-ink: #1b1b24; --pl-teal: #0b5c57; --pl-teal-soft: #dff5f2; --pl-amber: #c47a10; --pl-amber-soft: #fff1da;
+}
+.pl-think {
+  position: absolute; left: 3%; top: 5%; width: 44%;
+  display: grid; gap: 0.9cqw; align-content: start;
+  transition: opacity 0.2s ease;
+}
+.pl-think[hidden], .pl-reply[hidden], .pl-next[hidden], .pl-tag[hidden], .pl-choice[hidden] { display: none; }
+
+.pl-bubble {
+  background: var(--pl-paper); color: var(--pl-ink);
+  padding: 1.2cqw 1.7cqw 1.4cqw; border-radius: 2.2cqw;
+  box-shadow: 0 0 0 2px #000, 0.5cqw 0.6cqw 0 rgba(0, 0, 0, 0.45);
+}
+.pl-bubble p { margin: 0; font: clamp(14px, 2.85cqw, 30px)/1.02 "VT323", ui-monospace, "Courier New", monospace; text-wrap: pretty; }
+.pl-tag { margin-top: 0.6cqw !important; font: clamp(8px, 1.3cqw, 14px)/1.2 "Silkscreen", ui-monospace, monospace !important; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pl-teal); }
+
+.pl-choices { display: grid; gap: 0.7cqw; }
+.pl-choice {
+  display: flex; align-items: center; gap: 1cqw; width: 100%; text-align: left; cursor: pointer;
+  padding: 0.8cqw 1.3cqw; border-radius: 1.8cqw;
+  background: rgba(243, 239, 228, 0.9); color: var(--pl-ink); border: 2px solid transparent; box-shadow: 0 0 0 2px #000;
+  font: clamp(13px, 2.5cqw, 26px)/1 "VT323", ui-monospace, "Courier New", monospace;
+  animation: pl-in 0.25s ease both;
+}
+.pl-choice:not(:disabled):hover, .pl-choice:focus-visible { border-color: #3fd0c9; background: var(--pl-paper); outline: none; }
+.pl-key {
+  flex: none; display: inline-grid; place-items: center; width: 1.5em; height: 1.5em;
+  background: var(--pl-ink); color: var(--pl-paper); border-radius: 0.4em;
+  font: clamp(8px, 1.4cqw, 14px)/1 "Silkscreen", ui-monospace, monospace;
+}
+.pl-choice:disabled { cursor: default; opacity: 1; }
+.pl-right { border-color: #3fd0c9; background: var(--pl-teal-soft); }
+.pl-right .pl-key, .pl-picked .pl-key { background: var(--pl-teal); }
+.pl-other { border-color: #ffb347; background: var(--pl-amber-soft); }
+.pl-other .pl-key { background: var(--pl-amber); }
+.pl-picked { border-color: #9fb3b8; }
+
+.pl-reply { animation: pl-in 0.25s ease both; }
+.pl-reply.pl-good { box-shadow: 0 0 0 2px #000, inset 0.5cqw 0 0 #3fd0c9, 0.5cqw 0.6cqw 0 rgba(0, 0, 0, 0.45); }
+.pl-next {
+  justify-self: start; padding: 0.8cqw 1.4cqw; cursor: pointer;
+  font: clamp(9px, 1.4cqw, 15px)/1 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #e8eef8; background: rgba(5, 7, 12, 0.85); border: 1px solid #3fd0c9;
+}
+.pl-next:hover { background: rgba(63, 208, 201, 0.18); }
+.prologue button:focus-visible { outline: 2px solid #ffb347; outline-offset: 2px; }
+
+@keyframes pl-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pl-choice, .pl-reply { animation: none; } .pl-think { transition: none; } }

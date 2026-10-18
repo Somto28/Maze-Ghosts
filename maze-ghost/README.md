@@ -1,4 +1,6 @@
-# Maze Ghost
+# Clearpath
+
+*(Prototype name: Maze Ghost. The folder and package names still use it.)*
 
 A turn-based maze escape. You move, then the ghosts move. They use **adversarial search** (minimax with alpha-beta pruning) to predict your moves, and **each level they get stronger**: they look further ahead, and on the last level there are two of them, planning as a team.
 
@@ -74,7 +76,38 @@ Use `gridToWorld({ r, c })` to place a model on a tile and `worldToGrid({ x, z }
 
 A level's `theme.style` gives it custom art and a matching HUD: `"basement"` (Level 1, `examples/basement.*`), `"server-halls"` (Level 2, `examples/server-halls.*`) and `"core"` (Level 3, `examples/core.*`). `examples/quality.js` keeps the frame rate smooth by lowering the render resolution on slower devices, and `examples/ghost-worker.js` does the ghosts' thinking off the main thread.
 
-Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance).
+Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance), `?intro=0` skips the opening cutscene, `?title=0` skips the home screen.
+
+## Home screen (`examples/title-screen.js`)
+
+The game, **Clearpath**, opens on a pixel-art home screen with its own chiptune theme ("Lookahead", A minor, 96 BPM). The menu has **Start story** (prologue, cutscene, then Level 1), **Choose level**, **How the Wardens think** (minimax, lookahead, and the data-consent question in kid-friendly language) and a sound toggle. Press **M** during the game to come back to it.
+
+The monitor on the home screen is a live demo, not a recording: a simple bot plays Level 1 or 2 against the real Warden AI from `src/`, and the red dots are the future the Warden predicts. It skips Level 3 because two wardens take too long to think for a background animation on a Chromebook.
+
+`showTitleScreen({ levels })` resolves with `{ mode: "story" }` or `{ mode: "level", index }`. Like the cutscene, it swallows every key while it's open and `three-view.js` pauses the 3D rendering.
+
+## Prologue (`examples/prologue.js`)
+
+**Start story** begins with the prologue, which doubles as the tutorial. It opens on a Clearpath TV ad hosted by Pip, a friendly mascot robot, that teaches the game's ideas with examples an 8th grader can follow:
+
+1. **Prediction = spotting patterns.** Maya walks her dog at 7:00 every day, so Pip is 92% sure about Saturday.
+2. **Minimax.** In a two-move points game, the greedy 9 is really worth 1 because the opponent picks next, so Pip takes the sure 4.
+3. **Lookahead and pruning.** Futures multiply (5, 25, 125, 625), so Pip skips branches that can't beat its best plan. "Basic Pip looks 1 move ahead. Premium Pip looks 3."
+4. **The chase.** Red dots are Pip's plan and gold dots are the moves it predicts you'll make: the same colours as the in-game HUD.
+5. **Products and fine print**, which plants the data-consent question.
+
+The camera then pulls back out of the TV into a dark living room. Someone on the couch, seen from behind, thinks about what they just watched, and the player answers for them: four comprehension questions (one per idea above) and two ethics questions with no wrong answer. Every choice gets a short reply that explains the idea, so a wrong pick still teaches something. The smart speaker says goodnight, a text from Clearpath HR reveals it's Sam the night before his first day, and a "Six months later" card hands off to the cutscene below.
+
+Answers use the mouse or keys 1-3; Enter continues, Space pauses the ad, Esc skips. The questions and the ad's lines are plain text in `STEPS`, so they're easy to edit.
+
+## Opening cutscene (`examples/cutscene.js`)
+
+Before Level 1, a 1:44 pixel-art cutscene ("After Hours") tells the story: a Clearpath employee takes the elevator down to a secret sub-level, finds Dr. Voss feeding private data into the Wardens, and has to run. It ends with a Warden's view of its minimax search and predicted escape routes, which sets up the levels.
+
+- Drawn in code on a 320 × 180 canvas and scaled up without smoothing (no image files); sound is synthesized with the Web Audio API.
+- `playCutscene()` returns a promise that resolves when it ends or is skipped. While it's on screen it swallows every key, and `three-view.js` pauses the 3D rendering.
+- Players can pause (Space), skip (Esc or the Skip button) and mute it. It waits for a click or key press first because browsers only allow sound after one.
+- Each shot in `SHOTS` has its length, dialogue lines, sound cues and a `draw(t)` function. Character and place names are placeholders.
 
 ## Level guarantees and difficulty (`tests/levels.test.js`, `src/playtest.js`)
 

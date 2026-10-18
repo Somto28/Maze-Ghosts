@@ -8,12 +8,16 @@ import { buildBasement } from "./basement.js";
 import { buildCore } from "./core.js";
 import { buildServerHalls } from "./server-halls.js";
 import { createQuality } from "./quality.js";
+import { cutsceneActive, playCutscene } from "./cutscene.js";
+import { showTitleScreen, titleActive } from "./title-screen.js";
+import { playPrologue, prologueActive } from "./prologue.js";
 
 const TILE = 1;
 const STEP_MS = 220; // pause between your move and the ghosts', so the turns are visible
 const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core: buildCore }; // theme.style -> custom art
 const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-// ?level=2 starts on Level 2, ?fps shows the frame rate, ?res=1 pins the render resolution (testing).
+// ?level=2 starts on Level 2, ?fps shows the frame rate, ?res=1 pins the render resolution (testing),
+// ?intro=0 skips the opening cutscene, ?title=0 skips the home screen.
 const params = new URLSearchParams(location.search);
 
 const game = new MazeGame();
@@ -344,8 +348,31 @@ function restart(message = "Restarted.") {
 function goToNextLevel() {
   game.nextLevel(); hideOverlay(); showLevel(game.state.ghosts.length > 1 ? `Careful: there are ${game.state.ghosts.length} ${enemy().many} now.` : "The ghost is thinking further ahead now…");
 }
-function playAgain() {
-  game.startLevel(0); hideOverlay(); showLevel("Back to Level 1.");
+
+// ---------- Home screen ----------
+const startMessage = () => `Reach the green exit. The ${enemy().name} move${game.state.ghosts.length > 1 ? "" : "s"} after you.`;
+
+// The story before Level 1: the prologue (Clearpath's ad and the living room), then "After Hours".
+// autoStart: the player just clicked, so both can start with sound straight away.
+async function playStory(autoStart) {
+  await playPrologue({ autoStart });
+  await playCutscene({ autoStart: true });
+}
+
+// Opens the home screen, then starts whatever the player picked: the story (cutscene, then Level 1) or a level.
+// skipPress opens it straight on the menu, for when the player opened it with a key or button.
+async function openMenu(skipPress = true) {
+  if (titleActive() || cutsceneActive() || prologueActive()) return;
+  hideOverlay();
+  const choice = await showTitleScreen({ levels: game.levels, skipPress });
+  if (choice.mode === "story") {
+    game.startLevel(0);
+    showLevel(startMessage());
+    if (params.get("intro") !== "0") await playStory(true);
+  } else {
+    game.startLevel(choice.index);
+    showLevel(startMessage());
+  }
 }
 
 async function takeTurn(dir) {
@@ -384,7 +411,7 @@ function finish() {
       : `On Level ${next.id} the ${ne.one} looks ${next.lookahead} moves ahead.`;
     showOverlay("win", "Escaped!", text, `Start Level ${next.id}`, goToNextLevel);
   } else if (game.status === "gameComplete") {
-    showOverlay("win", `You beat the ${e.many}!`, "You escaped every level.", "Play again", playAgain);
+    showOverlay("win", `You beat the ${e.many}!`, "You escaped every level.", "Main menu", () => openMenu());
   }
 }
 
@@ -399,6 +426,7 @@ window.addEventListener("keydown", (e) => {
     return;
   }
   if (key === "r") return restart();
+  if (key === "m") return openMenu();
   if (key in KEYS) { e.preventDefault(); takeTurn(KEYS[key]); }
 });
 
@@ -413,6 +441,7 @@ if (fpsLabel) fpsLabel.hidden = false;
 let frame = 0;
 
 renderer.setAnimationLoop((now) => {
+  if (cutsceneActive() || titleActive() || prologueActive()) return; // a full-screen scene is up; give the device's time to it instead of the maze
   quality.frame(now);
   const time = clock.getElapsedTime();
 
@@ -444,4 +473,12 @@ renderer.setAnimationLoop((now) => {
 });
 
 buildScene();
-updateHud(`Reach the green exit. The ${enemy().name} move${game.state.ghosts.length > 1 ? "" : "s"} after you.`);
+updateHud(startMessage());
+
+// The home screen opens first. ?level= or ?title=0 go straight into the game (the story still plays
+// before Level 1 unless ?intro=0).
+if (params.has("level") || params.get("title") === "0") {
+  if (game.levelIndex === 0 && params.get("intro") !== "0") playStory(false);
+} else {
+  openMenu(false);
+}
