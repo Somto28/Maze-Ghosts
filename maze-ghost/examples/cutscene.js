@@ -576,10 +576,11 @@ let active = false;
 export const cutsceneActive = () => active;
 
 /**
- * Show the opening cutscene full-screen. It waits for a click or key press first, because browsers
- * only allow sound after the player interacts. Resolves when it ends or is skipped.
+ * Show the opening cutscene full-screen. Resolves when it ends or is skipped.
+ * @param {{ autoStart?: boolean }} [options] autoStart: begin right away. Use it only when the player has
+ *   just clicked or pressed a key (browsers block sound until then); otherwise it waits on a start button.
  */
-export function playCutscene() {
+export function playCutscene({ autoStart = false } = {}) {
   if (active) return Promise.resolve();
   active = true;
   return new Promise((resolve) => {
@@ -671,7 +672,7 @@ export function playCutscene() {
       e.currentTarget.setAttribute("aria-pressed", String(soundOn));
       if (soundOn) ensureAudio();
     });
-    startBtn.focus();
+    if (autoStart) begin(); else startBtn.focus();
 
     function frame(nowMs) {
       if (!active) return;
