@@ -10,7 +10,7 @@
 // While it's open it covers the screen and swallows every key, so the maze underneath can't move.
 // Drawn in code on a 320×180 canvas (no image files); music is synthesized with the Web Audio API.
 
-import { MazeGame, distancesFrom, legalMoves } from "../src/index.js";
+import { MazeGame, describeLevel, distancesFrom, playerMoves } from "../src/index.js";
 
 const W = 320, H = 180;
 const RM = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -141,8 +141,8 @@ function botMove(game) {
   const s = game.state, grid = s.grid, cols = grid[0].length;
   const exitD = s.exits.map((e) => distancesFrom(grid, e, "player"));
   const ghostD = s.ghosts.map((g) => distancesFrom(grid, g, "ghost"));
-  let best = "wait", bs = -Infinity;
-  for (const m of legalMoves(grid, s.player, "player")) {
+  let best = null, bs = -Infinity;
+  for (const m of playerMoves(s)) {
     if (grid[m.r][m.c] === "E") return m.dir;
     const k = m.r * cols + m.c;
     const de = Math.min(...exitD.map((d) => (d[k] < 0 ? 99 : d[k])));
@@ -151,7 +151,7 @@ function botMove(game) {
     if (dg <= 1) sc -= 40;
     if (sc > bs) { bs = sc; best = m.dir; }
   }
-  return best;
+  return best ?? "up";
 }
 
 function demoEnd(kind, now) { demo.banner = kind; demo.bannerT = now; if (kind === "CAUGHT") SFX.caught(); else SFX.escaped(); }
@@ -303,8 +303,7 @@ export function showTitleScreen({ levels, skipPress = false }) {
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-label", "Clearpath main menu");
     const levelCards = levels.map((l, i) => {
-      const n = (l.maze.join("").match(/G/g) ?? []).length, who = l.enemy ?? "ghost";
-      const detail = n > 1 ? `${n} ${who}s plan together, ${l.lookahead} moves ahead` : `1 ${who}, looks ${l.lookahead} move${l.lookahead === 1 ? "" : "s"} ahead`;
+      const detail = describeLevel(l).short;
       return `<button type="button" class="ts-level" data-level="${i}"><span class="ts-num">${l.id}</span><span class="ts-lname"></span><span class="ts-ldetail">${detail}</span></button>`;
     }).join("");
     root.innerHTML = `
@@ -328,7 +327,7 @@ export function showTitleScreen({ levels, skipPress = false }) {
           <h2>How the Wardens think</h2>
           <div class="ts-cards">
             <article><h3><span>1</span> Predict</h3><p>A Warden doesn't chase where you are. It imagines your smartest move, then its best answer, then your reply. This back-and-forth guessing is called <b>adversarial search</b>, or <b>minimax</b>.</p></article>
-            <article><h3><span>2</span> Look ahead</h3><p>The <b class="red">red dots</b> are the future it expects; the <b class="amber">gold dots</b> are the moves it thinks you'll make. Level 1 Wardens look 1 move ahead. On Level 3, two Wardens look 3 moves ahead and plan as a team.</p></article>
+            <article><h3><span>2</span> Look ahead</h3><p>The <b class="red">red dots</b> are the future it expects; the <b class="amber">gold dots</b> are the moves it thinks you'll make. Level 1's ghost looks 1 move ahead. On Level 3, two Wardens look 3 moves ahead and plan as a team. By Level 6, they learn from every attempt where they caught you.</p></article>
             <article><h3><span>3</span> Whose data?</h3><p>Clearpath made the Wardens better at predicting people by training them on private records nobody agreed to share. Accurate isn't the same as fair. Who should decide what an AI is allowed to learn from?</p></article>
           </div>
           <p class="ts-tip">Tip: a Warden assumes you'll make the smartest move, and it can only see a few moves ahead. Plan further than it does.</p>

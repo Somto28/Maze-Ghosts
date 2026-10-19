@@ -81,7 +81,7 @@ test("3D layout matches the maze", () => {
   assert.deepEqual(worldToGrid(gridToWorld({ r: 3, c: 5 }, 2), 2), { r: 3, c: 5 });
 });
 
-test("later levels have taller walls", () => {
-  const heights = LEVELS.map((l) => buildLayout3D(l).theme.wallHeight);
+test("walls get taller through the first three levels (later levels set their own look)", () => {
+  const heights = LEVELS.slice(0, 3).map((l) => buildLayout3D(l).theme.wallHeight);
   assert.deepEqual(heights, [...heights].sort((a, b) => a - b));
 });

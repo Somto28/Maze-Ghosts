@@ -1,8 +1,10 @@
 export { MazeGame } from "./game.js";
 export { LEVELS } from "./levels.js";
-export { chooseGhostMoves, evaluate, searchScore, WEIGHTS, WIN } from "./ai.js";
-export { DIRS, MAX_GHOSTS, parseMaze, legalMoves, canEnter, mazeDistance, distancesFrom, samePos } from "./maze.js";
-export { outcome, movePlayer, moveGhosts } from "./rules.js";
+export { chooseGhostMoves, droneMove, evaluate, habitGrid, searchScore, WEIGHTS, WIN } from "./ai.js";
+export { DIRS, MAX_DRONES, MAX_GHOSTS, parseMaze, legalMoves, canEnter, mazeDistance, distancesFrom, samePos } from "./maze.js";
+export { outcome, movePlayer, moveGhosts, playerMoves, exitsOpen, keysHeld, goalDistance, goalField, speedOf, averageSpeed, dronePhase, PLAYER_CAN_WAIT } from "./rules.js";
+export { habitsFrom, habitCount } from "./learning.js";
 export { buildLayout3D, gridToWorld, worldToGrid } from "./layout3d.js";
 export { solveLevel, replay, naiveRoute, stateFromLevel, ghostBrain, positionKey } from "./solver.js";
 export { playtest, SKILLS } from "./playtest.js";
+export { describeLevel, droneRule } from "./describe.js";

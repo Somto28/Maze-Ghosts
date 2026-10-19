@@ -1,0 +1,128 @@
+// The newer mechanics: no waiting, drones, vents, evidence drives, learning wardens, and the
+// search's memory of positions it already scored.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  MazeGame, chooseGhostMoves, droneMove, evaluate, exitsOpen, goalDistance, habitGrid, habitsFrom, moveGhosts, movePlayer,
+  outcome, parseMaze, playerMoves, speedOf, stateFromLevel, LEVELS,
+} from "../src/index.js";
+
+const state = (maze, extra = {}) => stateFromLevel({ maze, lookahead: 1, ...extra });
+const dirs = (moves) => moves.map((m) => m.dir).sort();
+
+test("the player can't stand still (the wardens still can)", () => {
+  const s = state(["#####", "#P.G#", "#..E#", "#####"]);
+  assert.deepEqual(dirs(playerMoves(s)), ["down", "right"]);
+});
+
+test("a drone dashes 2 tiles straight at you, then recharges when its pattern says so", () => {
+  const s = { ...state(["##########", "#P.....D.#", "#.......E#", "##########"], { dronePattern: [2, 0] }), turn: "ghost" };
+  assert.equal(speedOf(s, 0), 2);
+  const dash = droneMove(s, 0);
+  assert.deepEqual(dash.to, { r: 1, c: 5 });
+  assert.equal(dash.path.length, 2);
+  const after = moveGhosts(s, [dash.to]);
+  assert.equal(speedOf(after, 0), 0); // recharging next turn
+  assert.deepEqual(droneMove({ ...after, turn: "ghost" }, 0).to, dash.to);
+});
+
+test("a drone catches you if you're within its dash", () => {
+  const s = { ...state(["#######", "#P.D..#", "#....E#", "#######"]), turn: "ghost" };
+  assert.equal(outcome(moveGhosts(s, chooseGhostMoves(s, 1).move.to)), "caught");
+});
+
+test("vents: you fit, enemies don't, so a drone hovers at the opening", () => {
+  const m = parseMaze(["#######", "#Pv.D.#", "#####E#", "#######"]);
+  assert.equal(m.grid[1][2], "v");
+  const s = { ...state(["#######", "#.vP.D#", "#####E#", "#######"]), turn: "ghost" };
+  // Player is one tile past the vent: the drone reaches them.
+  assert.equal(outcome(moveGhosts(s, [droneMove(s, 0).to])), "caught");
+  const hiding = { ...state(["########", "#..v.D.#", "#.P##E##", "########"]), turn: "ghost" };
+  const to = droneMove(hiding, 0).to;
+  assert.notEqual(hiding.grid[to.r][to.c], "v");
+});
+
+test("evidence: the exit stays locked until you hold every drive", () => {
+  let s = state(["#######", "#PK..G#", "#.....#", "#E#####"].map((r) => r));
+  // Exit at (3,1): blocked while the drive is still on the floor.
+  s = { ...s, player: { r: 2, c: 1 } };
+  assert.ok(!exitsOpen(s));
+  assert.ok(!playerMoves(s).some((m) => m.dir === "down"));
+  assert.equal(goalDistance(s), 2 + 3); // to the drive at (1,2), then back down to the exit
+  s = { ...movePlayer({ ...s, player: { r: 1, c: 1 } }, { r: 1, c: 2 }), turn: "player" };
+  assert.ok(exitsOpen(s));
+  assert.equal(goalDistance(s), 3);
+});
+
+test("the game reports a locked exit and a picked-up drive", () => {
+  const game = new MazeGame({ levels: [{ id: 1, name: "T", lookahead: 1, maze: ["########", "#.K..#G#", "#P...#.#", "#E######", "########"] }] });
+  assert.equal(game.playerMove("down").event, "locked");
+  const r = game.playerMove("up");
+  assert.equal(r.event, "moved");
+  game.ghostMove();
+  assert.equal(game.playerMove("right").pickedUp, true);
+  assert.deepEqual(game.evidence, { total: 1, held: 1, exitOpen: true });
+});
+
+test("habits: the direction you took most often on each tile, ties to the latest attempt", () => {
+  const habits = habitsFrom([
+    [{ r: 1, c: 1, dir: "right" }, { r: 1, c: 2, dir: "down" }],
+    [{ r: 1, c: 1, dir: "down" }, { r: 2, c: 1, dir: "right" }],
+    [{ r: 1, c: 1, dir: "down" }],
+  ]);
+  assert.deepEqual(habits, { "1,1": "down", "1,2": "down", "2,1": "right" });
+  // Ties go to the most recent attempt.
+  assert.deepEqual(habitsFrom([[{ r: 1, c: 1, dir: "right" }], [{ r: 1, c: 1, dir: "up" }]]), { "1,1": "up" });
+});
+
+test("learning wardens trace your usual route and value ambushing it", () => {
+  const s = state(["#########", "#P......#", "#.#####.#", "#...G...E", "#########"]);
+  // Last time you went along the top corridor, then down to the exit.
+  const habits = { "1,1": "right", "1,2": "right", "1,3": "right", "1,4": "right", "1,5": "right", "1,6": "right", "1,7": "down", "2,7": "down" };
+  const plain = evaluate(s);
+  const learned = evaluate(s, undefined, habitGrid(s.grid, habits));
+  assert.equal(plain.parts.habit, undefined);
+  assert.ok(learned.parts.habit > 0, "the warden can reach your usual route before you do");
+  assert.ok(learned.total > plain.total);
+
+  const think = chooseGhostMoves({ ...s, turn: "ghost" }, 2, { habits }).thinking;
+  assert.equal(think.learned, Object.keys(habits).length);
+  const usual = think.options.find((o) => o.chosen);
+  assert.equal(usual.predictedPlayerReply === "right", usual.fromHabit);
+});
+
+test("only learning levels record your caught attempts, and they survive a restart", () => {
+  const maze = ["######", "#P.G.#", "#...E#", "######"];
+  const learning = new MazeGame({ levels: [{ id: 1, name: "L", lookahead: 1, learns: true, maze }] });
+  learning.takeTurn("right"); // walks into the warden's reach
+  assert.equal(learning.status, "caught");
+  learning.restartLevel();
+  assert.equal(learning.attemptsStudied, 1);
+  assert.deepEqual(learning.habits, { "1,1": "right" });
+  assert.equal(learning.ghostSearch.options.habits["1,1"], "right");
+
+  const plain = new MazeGame({ levels: [{ id: 1, name: "P", lookahead: 1, maze }] });
+  plain.takeTurn("right");
+  plain.restartLevel();
+  assert.equal(plain.attemptsStudied, 0);
+  assert.equal(plain.habits, null);
+});
+
+test("remembering scored positions changes the work, not the answer", () => {
+  for (const level of [LEVELS[2], LEVELS[3], LEVELS[5]]) {
+    const s = { ...stateFromLevel(level), turn: "ghost" };
+    const fast = chooseGhostMoves(s, level.lookahead);
+    const slow = chooseGhostMoves(s, level.lookahead, { memo: false });
+    const byDir = (t) => Object.fromEntries(t.options.map((o) => [o.dir, o.score]));
+    assert.deepEqual(byDir(fast.thinking), byDir(slow.thinking), `level ${level.id}`);
+    assert.equal(fast.move.dir, slow.move.dir);
+    assert.ok(fast.thinking.futuresConsidered < slow.thinking.futuresConsidered);
+  }
+});
+
+test("drones' dashes come with the tiles they pass, for animation", () => {
+  const game = new MazeGame({ levels: [{ id: 1, name: "D", lookahead: 1, maze: ["###########", "#P.......D#", "#.#######.#", "#........E#", "###########"] }] });
+  const { ghost } = game.takeTurn("right");
+  assert.equal(ghost.paths[0].length, 2);
+  assert.deepEqual(ghost.paths[0][1], ghost.to[0]);
+});
