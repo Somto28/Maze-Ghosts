@@ -88,6 +88,7 @@ export class MazeGame {
    * @param {Dir} dir
    * @returns {{ event: "blocked" | "locked" | "moved" | "escaped" | "caught" | "notYourTurn", from: object, to: object, status: Status, pickedUp?: boolean }}
    *   locked: tried to step onto the exit before picking up every evidence drive. pickedUp: grabbed a drive.
+   *   vent: the vent's number if this move crawled through one (`to` is the grate you came out of).
    */
   playerMove(dir) {
     const from = this.state.player;
@@ -108,7 +109,7 @@ export class MazeGame {
     if (end === "escaped") this.status = this.isLastLevel ? "gameComplete" : "levelComplete";
     if (end === "caught") { this.status = "caught"; this.recordCatch(); }
     const pickedUp = keysHeld(this.state) > heldBefore;
-    return { event: end ?? "moved", from, to: this.state.player, status: this.status, pickedUp };
+    return { event: end ?? "moved", from, to: this.state.player, status: this.status, pickedUp, vent: move.vent ?? null };
   }
 
   /**

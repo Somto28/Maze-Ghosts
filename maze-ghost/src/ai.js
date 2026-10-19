@@ -17,13 +17,13 @@
 // will really move. Fast but predictable vs slow but smart: that contrast is the lesson.
 //
 // LEARNING wardens (levels with `learns: true`) get `habits`: which way you went on each tile in
-// your earlier caught attempts. From any tile they can trace "your usual route" from there, and they
-// score positions where they can AMBUSH that route (reach a tile on it before you do) as better.
-// They still assume your smartest move, so this never makes them easier to fool; it just puts them
-// where you went last time. Predictable players walk into the ambush; changing your route avoids it.
+// your earlier caught attempts. From any tile they can trace "your usual route" from there. Whenever
+// several moves are equally good, they pick the one that best AMBUSHES that route (reaches a tile on
+// it before you do). They never play a worse move because of your habits, so learning can only help
+// them; it just puts them where you went last time.
 
-import { distancesFrom, legalMoves, samePos } from "./maze.js";
-import { averageSpeed, goalField, moveGhosts, movePlayer, outcome, playerMoves, speedOf } from "./rules.js";
+import { distancesFrom, isVent, legalMoves, moveGraph, samePos } from "./maze.js";
+import { averageSpeed, exitsOpen, goalField, moveGhosts, movePlayer, outcome, playerMoves, speedOf } from "./rules.js";
 
 /** @typedef {import("./rules.js").GameState} GameState */
 /** @typedef {import("./maze.js").Move} Move */
@@ -47,8 +47,14 @@ export const WEIGHTS = Object.freeze({
   playerFromExit: 4,
   /** Per tile between each OTHER ghost and the player: brings the whole team in, not just the nearest. */
   pack: 0,
-  /** Per floor tile the player can reach before any ghost can (a smaller "safe zone" = cornered). */
-  territory: 0,
+  /** Per floor tile the player can reach before any enemy can (a smaller "safe zone" = cornered). */
+  territory: 1,
+  /**
+   * The big one. If you have a SAFE RUN (a path to the goal where you reach every tile before any
+   * enemy could), you will escape no matter what they do, so they treat that position as nearly
+   * lost. This is what makes them cut you off and guard the way out instead of chasing your back.
+   */
+  cutoff: 400,
   /** Learning levels: how much an ambush on your usual route is worth (more for an earlier ambush). */
   habit: 12,
 });
@@ -63,10 +69,60 @@ export function habitGrid(grid, habits) {
   const next = new Int32Array(grid.length * cols).fill(-1);
   for (const [tile, dir] of Object.entries(habits)) {
     const [r, c] = tile.split(",").map(Number);
-    const step = DIR_STEP[dir];
-    if (step && grid[r + step[0]]?.[c + step[1]] !== undefined) next[r * cols + c] = (r + step[0]) * cols + c + step[1];
+    if (!DIR_STEP[dir] || grid[r]?.[c] === undefined) continue;
+    const m = legalMoves(grid, { r, c }, "player", false).find((x) => x.dir === dir); // a vent move lands at the far grate
+    if (m) next[r * cols + c] = m.r * cols + m.c;
   }
   return next;
+}
+
+// Scratch space for the safe-run search, reused between calls (it runs at every leaf of the search).
+let safeSeen = new Int32Array(0), safeQueue = new Int32Array(0), safeDepth = new Int32Array(0), safeStamp = 0;
+
+/**
+ * Where can the player get to SAFELY: arriving on each tile strictly before any enemy could get there
+ * (so nobody can be waiting, and nobody can step on them while they pass)? Vent grates and exits are
+ * always safe to step on, since enemies can't enter them.
+ * @returns {{ size: number, free: boolean }} size = safe tiles; free = the goal is reachable this way.
+ */
+function safeRun(state, enemyTurns, open) {
+  const { grid, player, exits } = state;
+  const cols = grid[0].length;
+  const size = grid.length * cols;
+  if (safeSeen.length < size) {
+    safeSeen = new Int32Array(size); safeQueue = new Int32Array(size); safeDepth = new Int32Array(size); safeStamp = 0;
+  }
+  const stamp = ++safeStamp;
+  const out = moveGraph(grid, "player").out;
+  const start = player.r * cols + player.c;
+  // If it's the enemies' turn, they get one extra move before each of yours.
+  const lead = state.turn === "ghost" ? 1 : 0;
+  if (lead && !isVent(grid[player.r][player.c]) && enemyTurns(start) <= 1) return { size: 0, free: false };
+  let head = 0, tail = 0, count = 0;
+  safeSeen[start] = stamp; safeDepth[start] = 0; safeQueue[tail++] = start;
+  while (head < tail) {
+    const cur = safeQueue[head++];
+    const d = safeDepth[cur] + 1; // the move on which the player would arrive
+    for (const k of out[cur]) {
+      if (safeSeen[k] === stamp) continue;
+      const tile = grid[Math.floor(k / cols)][k % cols];
+      if (tile === "E") { if (!open) continue; }
+      else if (!isVent(tile) && d + lead >= enemyTurns(k)) continue; // an enemy could be there by then
+      safeSeen[k] = stamp; safeDepth[k] = d; safeQueue[tail++] = k; count++;
+    }
+  }
+  // Free = every remaining drive is safely reachable, and so is an exit (or the exit already is, if open).
+  let free = true;
+  const keys = state.keys ?? [];
+  keys.forEach((k, i) => { if (!((state.collected >> i) & 1) && safeSeen[k.r * cols + k.c] !== stamp) free = false; });
+  if (free) {
+    if (open) free = exits.some((e) => safeSeen[e.r * cols + e.c] === stamp);
+    else {
+      // Exit locked: it isn't in the safe set, so ask whether a tile next to it is.
+      free = exits.some((e) => moveGraph(grid, "player").into[e.r * cols + e.c].some((k) => safeSeen[k] === stamp || k === start));
+    }
+  }
+  return { size: count, free };
 }
 
 /**
@@ -110,16 +166,15 @@ export function evaluate(state, weights = WEIGHTS, route = null) {
     playerFromExit: w.playerFromExit * playerToExit,
   };
   if (w.pack) parts.pack = -w.pack * others;
-  if (w.territory) {
-    const fromPlayer = distancesFrom(grid, player, "player");
-    let safe = 0;
-    for (let i = 0; i < fromPlayer.length; i++) {
-      if (fromPlayer[i] < 0) continue;
-      let ok = true;
-      for (let g = 0; g < n && ok; g++) if (fromPlayer[i] >= turns(g, i)) ok = false;
-      if (ok) safe++;
-    }
-    parts.territory = -w.territory * safe;
+  if (w.territory || w.cutoff) {
+    const soonest = (tile) => {
+      let best = far;
+      for (let g = 0; g < n; g++) { const t = turns(g, tile); if (t < best) best = t; }
+      return best;
+    };
+    const run = safeRun(state, soonest, exitsOpen(state));
+    if (w.territory) parts.territory = -w.territory * run.size;
+    if (w.cutoff && run.free) parts.cutoff = -w.cutoff;
   }
   // Learning wardens: follow your usual route from here and find the first tile on it that an
   // enemy can reach no later than you would. The sooner that ambush, the better for them.
@@ -175,7 +230,14 @@ export function chooseGhostMoves(state, lookahead, { pruning = true, memo = true
   });
 
   const best = Math.max(...options.map((o) => o.score));
-  const ties = options.filter((o) => o.score === best);
+  let ties = options.filter((o) => o.score === best);
+  // Learning wardens: among moves that are equally good, take the one that best ambushes the route
+  // you took last time. They never play a worse move because of your habits; they just break ties with them.
+  if (ctx.route && ties.length > 1) {
+    const ambush = (o) => evaluate({ ...moveGhosts(root, o.to), turn: "player" }, ctx.weights, ctx.route).parts.habit ?? 0;
+    const top = Math.max(...ties.map(ambush));
+    if (top > 0) ties = ties.filter((o) => ambush(o) === top);
+  }
   const pick = rng ? ties[Math.min(ties.length - 1, Math.floor(rng() * ties.length))] : ties[0];
 
   return {
@@ -228,7 +290,7 @@ function minimax(state, depth, alpha, beta, ctx) {
   const end = outcome(state);
   if (end === "caught") return { value: WIN + depth, line: [] };
   if (end === "escaped") return { value: -WIN - depth, line: [] };
-  if (depth === 0) return { value: evaluate(state, ctx.weights, ctx.route).total, line: [] };
+  if (depth === 0) return { value: evaluate(state, ctx.weights).total, line: [] };
 
   const key = ctx.table && ttKey(state, depth);
   const seen = ctx.table?.get(key);
@@ -261,7 +323,7 @@ function minimax(state, depth, alpha, beta, ctx) {
     }
   }
   // No legal move at all (the player is boxed in): treat it as a catch, it's only a turn away.
-  best ??= { value: ghostTurn ? evaluate(state, ctx.weights, ctx.route).total : WIN + depth, line: [] };
+  best ??= { value: ghostTurn ? evaluate(state, ctx.weights).total : WIN + depth, line: [] };
   if (ctx.table) ctx.table.set(key, { value: best.value, line: best.line, flag: best.value <= alpha0 ? UPPER : best.value >= beta0 ? LOWER : EXACT });
   return best;
 }

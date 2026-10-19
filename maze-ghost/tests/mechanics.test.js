@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   MazeGame, chooseGhostMoves, droneMove, evaluate, exitsOpen, goalDistance, habitGrid, habitsFrom, moveGhosts, movePlayer,
-  outcome, parseMaze, playerMoves, speedOf, stateFromLevel, LEVELS,
+  outcome, parseMaze, playerMoves, speedOf, stateFromLevel, LEVELS, WIN,
 } from "../src/index.js";
 
 const state = (maze, extra = {}) => stateFromLevel({ maze, lookahead: 1, ...extra });
@@ -31,15 +31,29 @@ test("a drone catches you if you're within its dash", () => {
   assert.equal(outcome(moveGhosts(s, chooseGhostMoves(s, 1).move.to)), "caught");
 });
 
-test("vents: you fit, enemies don't, so a drone hovers at the opening", () => {
-  const m = parseMaze(["#######", "#Pv.D.#", "#####E#", "#######"]);
-  assert.equal(m.grid[1][2], "v");
-  const s = { ...state(["#######", "#.vP.D#", "#####E#", "#######"]), turn: "ghost" };
-  // Player is one tile past the vent: the drone reaches them.
-  assert.equal(outcome(moveGhosts(s, [droneMove(s, 0).to])), "caught");
-  const hiding = { ...state(["########", "#..v.D.#", "#.P##E##", "########"]), turn: "ghost" };
+test("vents: step onto a grate and you come out of the matching grate; enemies can't use them", () => {
+  const s = state(["#########", "#P1...G.#", "#####.#.#", "#1....#.E", "#########"]);
+  const right = playerMoves(s).find((m) => m.dir === "right");
+  assert.deepEqual({ r: right.r, c: right.c, vent: right.vent }, { r: 3, c: 1, vent: "1" });
+  // Enemies can't stand on a grate, so a drone hovers next to it instead.
+  const hiding = { ...state(["#########", "#P1..D..#", "#####.#.#", "#1....#.E", "#########"]), player: { r: 1, c: 2 }, turn: "ghost" };
   const to = droneMove(hiding, 0).to;
-  assert.notEqual(hiding.grid[to.r][to.c], "v");
+  assert.equal(hiding.grid[to.r][to.c], ".");
+  // Grates come in pairs and can't touch.
+  assert.throws(() => parseMaze(["#####", "#P1G#", "#..E#", "#####"]), /exactly two/);
+  assert.throws(() => parseMaze(["######", "#P11G#", "#...E#", "######"]), /touch/);
+});
+
+test("wardens cut you off: they guard the only way out instead of chasing", () => {
+  // You start near the exit corridor; the warden is far behind you but closer to the corridor's mouth.
+  const s = { ...state(["###########", "#P........#", "#.#######.#", "#.#.G...#.#", "#.#.###.#.#", "#.......#.E", "###########"]), turn: "ghost" };
+  const { move } = chooseGhostMoves(s, 1);
+  const before = goalDistance(s);
+  // Its move must not leave you a safe run to the exit.
+  assert.ok(Number.isFinite(before));
+  const after = moveGhosts(s, move.to);
+  const reply = chooseGhostMoves({ ...movePlayer(after, playerMoves(after)[0]), turn: "ghost" }, 1);
+  assert.ok(reply.thinking.options[0].score > -WIN, "the warden should still have a way to stop you");
 });
 
 test("evidence: the exit stays locked until you hold every drive", () => {

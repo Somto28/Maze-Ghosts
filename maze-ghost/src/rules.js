@@ -7,7 +7,7 @@
 //
 // Evidence drives (K): stepping on one picks it up. The exit stays locked until you hold them all.
 
-import { distancesFrom, legalMoves, samePos } from "./maze.js";
+import { distancesFrom, distancesTo, legalMoves, samePos } from "./maze.js";
 
 /**
  * @typedef {import("./maze.js").Pos} Pos
@@ -120,12 +120,13 @@ export function goalField(state) {
   const BIG = 1 << 20;
   const exitField = new Int32Array(size).fill(BIG);
   for (const e of exits) {
-    const d = distancesFrom(grid, e, "player");
+    const d = distancesTo(grid, e, "player");
     for (let i = 0; i < size; i++) if (d[i] >= 0 && d[i] < exitField[i]) exitField[i] = d[i];
   }
 
   const left = keys.map((_, i) => i).filter((i) => !(mask & (1 << i)));
-  const fromKey = keys.map((k) => distancesFrom(grid, k, "player"));
+  const fromKey = keys.map((k) => distancesFrom(grid, k, "player")); // from drive k to anywhere
+  const toKey = keys.map((k) => distancesTo(grid, k, "player")); // from anywhere to drive k
   const at = (arr, p) => (arr[p.r * cols + p.c] < 0 ? BIG : arr[p.r * cols + p.c]);
   // Shortest walk that starts on drive k, visits every drive in `rest`, then reaches an exit.
   const tail = (k, rest) => {
@@ -143,7 +144,7 @@ export function goalField(state) {
     for (let i = 0; i < size; i++) {
       let best = BIG;
       left.forEach((k, n) => {
-        const d = fromKey[k][i];
+        const d = toKey[k][i];
         if (d >= 0) best = Math.min(best, d + tails[n]);
       });
       field[i] = best >= BIG ? -1 : best;

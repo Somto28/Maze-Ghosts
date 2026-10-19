@@ -6,17 +6,17 @@ A turn-based maze escape. You move, then the enemies move. The Wardens use **adv
 
 | Level | Maze | Enemies | New idea | What it feels like |
 | --- | --- | --- | --- | --- |
-| 1 · The Basement | 9 × 9 | 1 ghost, looks 1 move ahead | Reacting isn't predicting | It chases where you ARE. Lead it away, then run |
-| 2 · The Server Halls | 11 × 11 | 1 warden, 3 moves ahead + a vent | Predicting where you'll be | It heads for where you WILL be, and waits at the other end of the vent |
-| 3 · The Core | 13 × 13 | 2 wardens, 3 moves ahead | Teamwork | One chases while the other cuts you off |
-| 4 · The Data Vault | 13 × 15 | 1 warden + 1 drone + vents | Fast rules vs. slow thinking | The drone dashes 2 tiles at you, then recharges. Fast, but 100% predictable |
-| 5 · The Archive | 15 × 15 | 2 wardens + 2 evidence drives | When the AI knows your goal | They guard the drives you need. Grab them in the order they don't expect |
-| 6 · The Uplink | 15 × 17 | 2 wardens + drone + evidence | Learning from your data | Every time they catch you, they study your route and expect you to repeat it |
+| 1 · The Basement | 9 × 9 | 1 ghost, looks 1 move ahead, 2 exits | It guards the way out | It doesn't chase you, it blocks you. Make it commit to one exit, then take the other |
+| 2 · The Server Halls | 11 × 11 | 1 warden, 3 moves ahead + 1 vent | Predicting where you'll be | It heads for where you WILL be, including the far end of the vent |
+| 3 · The Core | 13 × 13 | 2 wardens + 2 vents | Teamwork | One guards the way out while the other hunts you |
+| 4 · The Data Vault | 13 × 15 | 2 wardens + 1 drone + 2 vents | Fast rules vs. slow thinking | The drone dashes 2 tiles at you, then recharges. Fast, but 100% predictable |
+| 5 · The Archive | 15 × 15 | 2 wardens + drone + 2 vents + 2 evidence drives | When the AI knows your goal | They guard the drives you need. Grab them in the order they don't expect |
+| 6 · The Uplink | 15 × 17 | 2 wardens + drone + 3 vents + evidence | Learning from your data | Every time they catch you, they study your route and set up ambushes on it |
 
 Plain JavaScript (ES modules), no dependencies. The 3D example loads Three.js from a CDN.
 
 ```bash
-npm test               # 50 tests, including level guarantees and the difficulty curve
+npm test               # 51 tests, including level guarantees and the difficulty curve
 npm run play           # play in the terminal (add -- --think to see the ghosts' scores)
 npm run 3d             # then open http://localhost:5173/examples/ for the 3D version
 npm run check-levels   # after editing a maze: is it still beatable, and how hard does it feel?
@@ -28,15 +28,19 @@ The ghosts and the player are opponents. The ghosts are **MAX** (want a high sco
 
 1. The ghosts list their legal **team moves**: one step for every ghost at once, every combination (two ghosts can't end on the same tile). With one ghost that's just its own moves.
 2. For each one they imagine your best reply, then their next move, then your reply… until they have looked `lookahead` of their own moves ahead (`lookahead × 2` half-moves).
-3. At the end of each imagined future they score the position:
-   `score = −10 × (turns the nearest enemy needs to reach you) + 4 × (how far you still have to walk)`
-   "How far you still have to walk" goes through every evidence drive still on the floor, then to the exit. A catch is +1000 and an escape is −1000. Optional weights (`pack`, `territory`) make the team close in together or shrink the area you can reach first.
+3. At the end of each imagined future they judge the position. The most important question is: **does the player have a safe run?** That's a path to the goal where you'd reach every tile before any enemy could. If you do, you'll escape whatever they do, so they treat that position as nearly lost (`cutoff`, −400). That's what makes them get between you and the exit instead of chasing your back. On top of that:
+   `score = −10 × (turns the nearest enemy needs to reach you) + 4 × (how far you still have to walk) − 1 × (tiles you can reach safely)`
+   "How far you still have to walk" goes through every evidence drive still on the floor, then to the exit. A catch is +1000 and an escape is −1000. All of these are `WEIGHTS` in `src/ai.js`; a level can override them.
 4. Alpha-beta pruning skips futures that one side would never allow. It gives the same answer, just faster. The search also remembers positions it already scored this turn (a *transposition table*): two wardens reach the same position in many different orders, so this cuts the work about 3×, again without changing the answer.
 5. They pick the highest-scoring team move. Ties always go the same way, so the wardens are predictable and the levels can be checked.
 
 Because the team move is searched as one, two wardens coordinate on their own: in a corridor they squeeze you from both ends instead of following each other. Each extra warden multiplies the work by about 5, so `MAX_GHOSTS` is 3.
 
-Walking distance is measured with breadth-first search through the corridors, not in a straight line. Enemies can't step onto exit tiles (so they can't park on the exit) or into vents.
+Walking distance is measured with breadth-first search through the corridors, not in a straight line. Enemies can't step onto exit tiles (so they can't park on the exit) or onto vent grates.
+
+### Vents (Level 2+)
+
+Vent grates come in numbered pairs (`1`-`4` in a maze). Step onto a grate and you crawl through and come out of the grate with the same number, in one move. Enemies can't use vents or stand on a grate, so a grate is also a one-turn safe spot (you still have to move on next turn). The wardens know where every vent comes out, so they include crawls in their search and guard the far end when they predict you'll use it. In the 3D view each pair has its own colour, a big number on the grate and a dashed arc joining the two ends, and the HUD tells you when you're standing next to one.
 
 **You can't wait.** Every turn you must move (`PLAYER_CAN_WAIT` in `src/rules.js`); the wardens can still hold still. That keeps the pressure on and makes the plan dots matter.
 
@@ -46,7 +50,7 @@ A drone (`D` in a maze) doesn't search at all. Each enemy turn it moves along it
 
 ### Learning wardens (Level 6, `src/learning.js`)
 
-On a level with `learns: true`, every attempt where you're caught is recorded: on each tile, which way you went. `habitsFrom(attempts)` turns that into one habit per tile (most common direction, ties to the latest try). Next attempt, on those tiles the search stops assuming "your smartest move" and assumes "what you did last time". The game draws those tiles as red arrows and marks those predictions `habit` in the HUD. Repeat yourself and they're waiting; change your route and their prediction is wrong. It's also the ethics question in miniature: they got better at predicting you by collecting data about you.
+On a level with `learns: true`, every attempt where you're caught is recorded: on each tile, which way you went. `habitsFrom(attempts)` turns that into one habit per tile (most common direction, ties to the latest try). Next attempt, whenever several of their moves are equally good, they pick the one that sets up an ambush on that route (a tile on it they can reach before you). They never play a worse move because of your habits, so learning can only help them. The game draws your old route as red arrows and marks predictions that match it `habit` in the HUD. Repeat yourself and they're waiting. It's also the ethics question in miniature: they got better at predicting you by collecting data about you.
 
 ## Using it in your own game (`src/game.js`)
 
@@ -138,30 +142,28 @@ Because the enemies are predictable, `solveLevel()` can search every situation a
 
 | First-try escape rate | Beginner | Average | Strong | Thinker |
 | --- | --- | --- | --- | --- |
-| Level 1 · The Basement | 31% | 66% | 76% | 98% |
-| Level 2 · The Server Halls | 21% | 46% | 71% | 90% |
-| Level 3 · The Core | 18% | 36% | 56% | 83% |
-| Level 4 · The Data Vault | 7% | 28% | 49% | 76% |
-| Level 5 · The Archive | 2% | 10% | 26% | 82% |
-| Level 6 · The Uplink | 1% | 9% | 24% | 70% |
-| *Old Level 1 (before the redesign, same rules)* | *62%* | *85%* | *100%* | *100%* |
-| *Old Level 2* | *19%* | *51%* | *99%* | *89%* |
+| Level 1 · The Basement | 9% | 2% | 0% | 51% |
+| Level 2 · The Server Halls | 0% | 0% | 0% | 41% |
+| Level 3 · The Core | 0% | 2% | 0% | 41% |
+| Level 4 · The Data Vault | 0% | 0% | 0% | 20% |
+| Level 5 · The Archive | 1% | 2% | 0% | 14% |
+| Level 6 · The Uplink | 0% | 0% | 0% | 4% |
 
-The gap between the guessers and the thinker is the point: from Level 4 on, reflexes alone get you caught most of the time, but reading the prediction still works. On Level 6 the wardens also learn: a strong (but repetitive) player who keeps retrying escapes by try 1-5 only 24% → 40% of the time, against about 73% by try 4 when the wardens forget everything between tries.
+Players who don't read the wardens' plan essentially never escape. A player who reads it and thinks 3 moves ahead wins about half the time on Level 1 and almost never on Level 6. On Level 6 the wardens also learn: a thinker retrying the level escapes by try 1-4 only 0% / 2% / 2% / 5% of the time, against 2% / 5% / 5% / 7% if the wardens forgot between tries.
 
-Old Level 3 isn't in the table: once waiting was removed it became a single narrow escape at the very start (thinker 0%), so it was rebuilt.
+The wardens' judgment (the safe-run `cutoff`, see "How the ghosts think") is what made this possible: with it, all three of the original mazes became impossible, so every level was rebuilt around tools the player has (two exits on Level 1, vents from Level 2 on).
 
-How the mazes were made: each new layout was generated (a random maze with extra loops, then enemies, drives and vents placed by distance) and scored against a target curve with these simulated players; the closest one was kept, then hand-checked for readability. Small changes matter a lot: moving one evidence drive on Level 5 swung the thinker from 84% to 3%. Always run `npm run check-levels` after editing a maze (add a level number, e.g. `npm run check-levels -- 5`, to check just one).
+How the mazes were made: each new layout was generated (a random maze with extra loops, then enemies, drives and vents placed by distance) and scored against a target curve with these simulated players; the closest one was kept, then hand-checked for readability. Small changes matter a lot: moving one evidence drive on Level 5 swung the thinker from 84% to 3%, and Levels 5 and 6 are fine-tuned with their own `weights` (Level 5's wardens don't try to box you in; Level 6's care more about the goal and close in harder). Always run `npm run check-levels` after editing a maze (add a level number, e.g. `npm run check-levels -- 5`, to check just one).
 
 The tests check that:
 
 - every level can be beaten against its own enemies, and running straight for the exit gets you caught;
 - each level adds its new idea (lookahead, vents, a team, a drone, evidence, learning) and comes with a briefing and hints;
 - on Level 2, a route that fools a 1-move warden doesn't get past the real 3-move warden;
-- each level is harder than the last for average players, Level 1 is a gentle start, Level 6 catches most players who don't think about the prediction, a thinker beats every level at least half the time, and from Level 4 on reading the prediction matters much more than reflexes;
-- Level 6's learning wardens stop a repeating player more often than wardens that forget.
+- each level is harder than the last for a thinker, every level can still be won by one, and players who ignore the prediction almost never escape;
+- on Level 6, replaying a route that got you caught never gets further against the learning wardens than against forgetful ones, and some get caught sooner.
 
-`npm test` takes about a minute and a half, mostly proving Levels 5 and 6 beatable. These are simulated players; playtesting with real kids is the real test.
+`npm test` takes about two minutes, mostly proving Levels 5 and 6 beatable. These are simulated players; playtesting with real kids is the real test.
 
 ## Changing things
 

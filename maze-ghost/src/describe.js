@@ -1,6 +1,6 @@
 // describe.js — plain-language descriptions of a level's enemies, shared by the HUD and the menu.
 
-import { parseMaze } from "./maze.js";
+import { parseMaze, ventPairs } from "./maze.js";
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const cap = (s) => s.replace(/^./, (ch) => ch.toUpperCase());
@@ -23,7 +23,8 @@ export function describeLevel(level) {
   const drones = roles.length - wardens;
   const one = level.enemy ?? "ghost";
   const moves = plural(level.lookahead, "move");
-  const vents = grid.some((row) => row.includes("v"));
+  const ventCount = ventPairs(grid).length;
+  const vents = ventCount > 0;
 
   const parts = [];
   if (wardens > 1) parts.push(`${wardens} ${one}s plan together, ${moves} ahead`);
@@ -31,7 +32,7 @@ export function describeLevel(level) {
   if (drones) parts.push(`${drones > 1 ? `${drones} drones` : "Drone"} ${droneRule(level.dronePattern)}`);
   if (level.learns) parts.push(`${wardens > 1 ? "they" : "it"} learn${wardens > 1 ? "" : "s"} from your attempts`);
 
-  const extras = [drones && plural(drones, "drone"), keys.length && plural(keys.length, "evidence drive"), level.learns && "learns from you"].filter(Boolean);
+  const extras = [drones && plural(drones, "drone"), ventCount && plural(ventCount, "vent"), keys.length && plural(keys.length, "evidence drive"), level.learns && "learns from you"].filter(Boolean);
   const short = `${wardens > 1 ? `${wardens} ${one}s` : `1 ${one}`}, ${moves} ahead${extras.length ? ` · ${extras.join(" · ")}` : ""}`;
 
   return { wardens, drones, evidence: keys.length, vents, name: wardens > 1 || (drones && wardens) ? `${one}s` : one, line: parts.join(" · "), short };
