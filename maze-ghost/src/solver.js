@@ -4,33 +4,35 @@
 // situation. So the whole game is decided by where everyone stands, and a breadth-first search over
 // those positions finds the SHORTEST winning route, or proves no route exists.
 
-import { legalMoves, parseMaze, samePos } from "./maze.js";
+import { parseMaze, samePos } from "./maze.js";
 import { chooseGhostMoves } from "./ai.js";
-import { moveGhosts, movePlayer, outcome } from "./rules.js";
+import { exitsOpen, moveGhosts, movePlayer, outcome, playerMoves } from "./rules.js";
 
 /** @typedef {import("./maze.js").Dir} Dir */
-/** @typedef {{ maze: string[], lookahead: number, weights?: object }} LevelSpec */
+/** @typedef {{ maze: string[], lookahead: number, weights?: object, dronePattern?: number[], learns?: boolean }} LevelSpec */
 
 /** Build a fresh game state from a level definition. */
 export function stateFromLevel(level) {
-  const { grid, exits, player, ghosts } = parseMaze(level.maze);
-  return { grid, exits, player, ghosts, turn: "player" };
+  const { grid, exits, player, ghosts, roles, keys } = parseMaze(level.maze);
+  return { grid, exits, keys, collected: 0, player, ghosts, roles, dronePattern: level.dronePattern ?? [2], tick: 0, turn: "player" };
 }
 
-/** A short text key for "where everyone stands". */
-export const positionKey = (s) => `${s.player.r},${s.player.c}|${s.ghosts.map((g) => `${g.r},${g.c}`).join("|")}`;
+/** A short text key for "where everyone stands" (and which evidence is picked up). */
+export const positionKey = (s) =>
+  `${s.player.r},${s.player.c}|${s.ghosts.map((g) => `${g.r},${g.c}`).join("|")}|${s.collected ?? 0}|${(s.tick ?? 0) % (s.dronePattern?.length || 1)}`;
 
 /**
- * The ghosts' reply to a position, remembered: they're deterministic, so each position is
+ * The enemies' reply to a position, remembered: they're deterministic, so each position is
  * searched once no matter how many times a solver or playtest reaches it.
  * @param {LevelSpec} level
+ * @param {Record<string, string> | null} [habits] what learning wardens know about you (learning.js)
  */
-export function ghostBrain(level) {
+export function ghostBrain(level, habits = null) {
   const memo = new Map();
   return (state) => {
     const k = positionKey(state);
     let move = memo.get(k);
-    if (!move) memo.set(k, (move = chooseGhostMoves(state, level.lookahead, { weights: level.weights }).move));
+    if (!move) memo.set(k, (move = chooseGhostMoves(state, level.lookahead, { weights: level.weights, habits }).move));
     return move;
   };
 }
@@ -50,7 +52,7 @@ export function solveLevel(level, { maxStates = 200_000, brain = ghostBrain(leve
     if (seen.size > maxStates) throw new Error(`Gave up after ${maxStates} states`);
     const s = queue[head];
 
-    for (const m of legalMoves(s.grid, s.player, "player")) {
+    for (const m of playerMoves(s)) {
       const afterPlayer = movePlayer(s, m);
       const end = outcome(afterPlayer);
       if (end === "caught") continue;
@@ -83,7 +85,7 @@ function pathTo(seen, k) {
 export function replay(level, moves, brain = ghostBrain(level)) {
   let s = stateFromLevel(level);
   for (const dir of moves) {
-    const m = legalMoves(s.grid, s.player, "player").find((x) => x.dir === dir);
+    const m = playerMoves(s).find((x) => x.dir === dir);
     if (!m) return "blocked";
     s = movePlayer(s, m);
     const end = outcome(s);
@@ -94,17 +96,19 @@ export function replay(level, moves, brain = ghostBrain(level)) {
   return "unfinished";
 }
 
-/** Shortest path to an exit ignoring the ghosts (a "naive" player). */
+/** Shortest route ignoring the enemies (a "naive" player): every evidence drive, then the exit. */
 export function naiveRoute(maze) {
-  const s = stateFromLevel({ maze });
-  const seen = new Map([[`${s.player.r},${s.player.c}`, null]]);
-  const queue = [s.player];
+  const start = stateFromLevel({ maze });
+  const key = (s) => `${s.player.r},${s.player.c}|${s.collected}`;
+  const seen = new Map([[key(start), null]]);
+  const queue = [start];
   for (let h = 0; h < queue.length; h++) {
-    const p = queue[h];
-    if (s.exits.some((e) => samePos(e, p))) return pathTo(seen, `${p.r},${p.c}`);
-    for (const m of legalMoves(s.grid, p, "player", false)) {
-      const k = `${m.r},${m.c}`;
-      if (!seen.has(k)) { seen.set(k, { prev: `${p.r},${p.c}`, dir: m.dir }); queue.push(m); }
+    const s = queue[h];
+    if (exitsOpen(s) && s.exits.some((e) => samePos(e, s.player))) return pathTo(seen, key(s));
+    for (const m of playerMoves(s)) {
+      const next = { ...movePlayer(s, m), turn: "player" };
+      const k = key(next);
+      if (!seen.has(k)) { seen.set(k, { prev: key(s), dir: m.dir }); queue.push(next); }
     }
   }
   return null;

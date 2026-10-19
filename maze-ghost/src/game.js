@@ -7,10 +7,10 @@
 //   }
 // Or call game.takeTurn("up") to do both at once.
 
-import { legalMoves } from "./maze.js";
 import { chooseGhostMoves } from "./ai.js";
 import { LEVELS } from "./levels.js";
-import { moveGhosts, movePlayer, outcome } from "./rules.js";
+import { habitsFrom } from "./learning.js";
+import { exitsOpen, keysHeld, moveGhosts, movePlayer, outcome, playerMoves } from "./rules.js";
 import { stateFromLevel } from "./solver.js";
 
 /** @typedef {import("./maze.js").Dir} Dir */
@@ -26,19 +26,31 @@ export class MazeGame {
     if (levels.length === 0) throw new Error("Need at least one level");
     this.levels = levels;
     this.searchOptions = { pruning, rng };
+    /** Learning levels: every caught attempt, per level index (see learning.js). Kept across restarts. */
+    this.attempts = levels.map(() => []);
     this.startLevel(0);
   }
 
   get level() { return this.levels[this.levelIndex]; }
   /** Everything chooseGhostMoves needs for the ghosts' current turn (to run it somewhere else). */
   get ghostSearch() {
-    return { state: this.state, lookahead: this.level.lookahead, options: { ...this.searchOptions, weights: this.level.weights } };
+    return { state: this.state, lookahead: this.level.lookahead, options: { ...this.searchOptions, weights: this.level.weights, habits: this.habits } };
   }
+  /** What learning wardens know about you on this level: { "row,col": "dir" }, or null. */
+  get habits() {
+    if (!this.level.learns) return null;
+    const attempts = this.attempts[this.levelIndex];
+    return attempts.length ? habitsFrom(attempts) : null;
+  }
+  /** How many of your caught attempts the wardens have studied on this level. */
+  get attemptsStudied() { return this.level.learns ? this.attempts[this.levelIndex].length : 0; }
+  /** Evidence on this level: how many there are and how many you hold. */
+  get evidence() { return { total: this.state.keys.length, held: keysHeld(this.state), exitOpen: exitsOpen(this.state) }; }
   get isLastLevel() { return this.levelIndex === this.levels.length - 1; }
   /** Directions the player can move right now (for disabling buttons, or hints). */
   get availableMoves() {
     if (this.status !== "playing" || this.state.turn !== "player") return [];
-    return legalMoves(this.state.grid, this.state.player, "player").map((m) => m.dir);
+    return playerMoves(this.state).map((m) => m.dir);
   }
 
   /** @param {number} index */
@@ -50,10 +62,21 @@ export class MazeGame {
     this.status = "playing";
     this.turnNumber = 0;
     this.lastThinking = null;
+    /** Your moves this attempt, so learning wardens can study them if you're caught. */
+    this.currentAttempt = [];
     return this.state;
   }
 
   restartLevel() { return this.startLevel(this.levelIndex); }
+
+  /** Learning wardens forget everything (e.g. a "reset their data" button). */
+  forgetAttempts() { this.attempts[this.levelIndex] = []; }
+
+  // Caught on a learning level: the wardens keep a record of this attempt.
+  recordCatch() {
+    if (this.level.learns && this.currentAttempt.length) this.attempts[this.levelIndex].push(this.currentAttempt);
+    this.currentAttempt = [];
+  }
 
   nextLevel() {
     if (this.status !== "levelComplete") throw new Error("Finish this level first");
@@ -63,22 +86,29 @@ export class MazeGame {
   /**
    * The player's turn.
    * @param {Dir} dir
-   * @returns {{ event: "blocked" | "moved" | "escaped" | "caught" | "notYourTurn", from: object, to: object, status: Status }}
+   * @returns {{ event: "blocked" | "locked" | "moved" | "escaped" | "caught" | "notYourTurn", from: object, to: object, status: Status, pickedUp?: boolean }}
+   *   locked: tried to step onto the exit before picking up every evidence drive. pickedUp: grabbed a drive.
    */
   playerMove(dir) {
     const from = this.state.player;
     if (this.status !== "playing" || this.state.turn !== "player") {
       return { event: "notYourTurn", from, to: from, status: this.status };
     }
-    const move = legalMoves(this.state.grid, from, "player").find((m) => m.dir === dir);
-    if (!move) return { event: "blocked", from, to: from, status: this.status };
+    const move = playerMoves(this.state).find((m) => m.dir === dir);
+    if (!move) {
+      const locked = !exitsOpen(this.state) && this.state.grid[from.r + (dir === "down") - (dir === "up")]?.[from.c + (dir === "right") - (dir === "left")] === "E";
+      return { event: locked ? "locked" : "blocked", from, to: from, status: this.status };
+    }
 
+    const heldBefore = keysHeld(this.state);
     this.state = movePlayer(this.state, move);
+    this.currentAttempt.push({ r: from.r, c: from.c, dir });
     this.turnNumber++;
     const end = outcome(this.state);
     if (end === "escaped") this.status = this.isLastLevel ? "gameComplete" : "levelComplete";
-    if (end === "caught") this.status = "caught";
-    return { event: end ?? "moved", from, to: this.state.player, status: this.status };
+    if (end === "caught") { this.status = "caught"; this.recordCatch(); }
+    const pickedUp = keysHeld(this.state) > heldBefore;
+    return { event: end ?? "moved", from, to: this.state.player, status: this.status, pickedUp };
   }
 
   /**
@@ -96,13 +126,18 @@ export class MazeGame {
     const { move, thinking } = decision ?? chooseGhostMoves(this.state, this.level.lookahead, this.ghostSearch.options);
     this.state = moveGhosts(this.state, move.to);
     this.lastThinking = thinking;
-    if (outcome(this.state) === "caught") this.status = "caught";
+    if (outcome(this.state) === "caught") {
+      this.status = "caught";
+      this.recordCatch();
+    }
     return {
       event: this.status === "caught" ? "caught" : "moved",
       dir: move.dir,
       dirs: move.dirs,
       from,
       to: this.state.ghosts,
+      /** Every tile each enemy passed through (drones can cover two), for animating step by step. */
+      paths: move.paths ?? move.to.map((p) => [p]),
       thinking,
       status: this.status,
     };

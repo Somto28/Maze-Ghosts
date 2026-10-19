@@ -2,8 +2,8 @@
 // All rules and AI come from ../src; this file only draws and handles input.
 
 import * as THREE from "three";
-import { MazeGame, buildLayout3D, chooseGhostMoves, gridToWorld } from "../src/index.js";
-import { floorDecal } from "./art-kit.js";
+import { MazeGame, buildLayout3D, chooseGhostMoves, describeLevel, dronePhase, gridToWorld } from "../src/index.js";
+import { canvasTexture, floorDecal } from "./art-kit.js";
 import { buildBasement } from "./basement.js";
 import { buildCore } from "./core.js";
 import { buildServerHalls } from "./server-halls.js";
@@ -45,15 +45,18 @@ quality.start();
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 300);
 let scene, layout, look, player, ghosts, ghostGlows, blobs, planDots;
+let drives = [], exitPads = [], habitMarks = null; // evidence drives, exit pads (red while locked), learned-habit arrows
 let builtLevel = -1;
 let busy = false;
 let turnToken = 0; // bumped on restart so a late answer from the worker is ignored
 
 // What the HUD calls the enemies on this level ("ghost" unless the level says otherwise).
-function enemy(level = game.level, count = game.state.ghosts.length) {
+function enemy(level = game.level) {
   const one = level.enemy ?? "ghost";
-  return { one, many: `${one}s`, name: count > 1 ? `${one}s` : one, Name: (count > 1 ? `${one}s` : one).replace(/^./, (ch) => ch.toUpperCase()) };
+  const { name } = describeLevel(level);
+  return { one, many: `${one}s`, name, Name: name.replace(/^./, (ch) => ch.toUpperCase()), plural: name.endsWith("s") };
 }
+const isDrone = (i) => game.state.roles?.[i] === "drone";
 
 // ---------- The ghosts think in a Web Worker, so the animation never stalls while they plan ----------
 let worker = null;
@@ -74,7 +77,7 @@ function thinkInBackground() {
   const id = nextId++;
   return new Promise((done) => {
     waiting.set(id, done);
-    worker.postMessage({ type: "think", id, state, lookahead, options: { pruning: options.pruning, weights: options.weights } });
+    worker.postMessage({ type: "think", id, state, lookahead, options: { pruning: options.pruning, weights: options.weights, habits: options.habits } });
   });
 }
 
@@ -112,6 +115,74 @@ function defaultGhost(color) {
   );
 }
 
+// The drone: a small flying wedge with a spinning rotor ring. Brighter when its dash is charged.
+function makeDrone(color) {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.2, 0),
+    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.9, roughness: 0.4 }),
+  );
+  body.scale.set(1.25, 0.6, 1.25);
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.3, 0.025, 6, 24).rotateX(Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color }),
+  );
+  group.add(body, ring);
+  group.userData.spin = (t) => { ring.rotation.y = t * 9; body.rotation.y = t * 2; };
+  group.userData.charge = (on) => { body.material.emissiveIntensity = on ? 1.4 : 0.25; ring.material.color.set(on ? color : 0x555555); };
+  return group;
+}
+
+// Vents: a dark grate on the floor (you fit, they don't).
+function ventTexture() {
+  return canvasTexture(THREE, 64, (g, w) => {
+    g.fillStyle = "#1a1f26"; g.fillRect(0, 0, w, w);
+    g.fillStyle = "#4a5562";
+    for (let i = 6; i < w - 4; i += 9) g.fillRect(i, 6, 4, w - 12);
+    g.strokeStyle = "#7d8a99"; g.lineWidth = 3; g.strokeRect(3, 3, w - 6, w - 6);
+  }, { wrap: false });
+}
+
+// Learned habits: a red arrow on each tile where the wardens expect you to repeat yourself.
+const ARROW_TURN = { up: 0, down: Math.PI, left: Math.PI / 2, right: -Math.PI / 2 };
+function makeHabitMarks(max) {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0.28); shape.lineTo(0.2, -0.05); shape.lineTo(0.07, -0.05); shape.lineTo(0.07, -0.26);
+  shape.lineTo(-0.07, -0.26); shape.lineTo(-0.07, -0.05); shape.lineTo(-0.2, -0.05); shape.closePath();
+  const marks = new THREE.InstancedMesh(
+    new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0xff3b5c, transparent: true, opacity: 0.75, depthWrite: false }),
+    Math.max(1, max),
+  );
+  marks.count = 0;
+  marks.frustumCulled = false;
+  return marks;
+}
+
+function drawHabits() {
+  if (!habitMarks) return;
+  const habits = game.habits ?? {};
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
+  habitMarks.count = 0;
+  for (const [tile, dir] of Object.entries(habits)) {
+    if (habitMarks.count >= habitMarks.instanceMatrix.count) break;
+    const [r, c] = tile.split(",").map(Number);
+    const { x, z } = gridToWorld({ r, c }, TILE);
+    // The arrow points "up" the screen (toward -z) by default; turn it to the habit's direction.
+    q.setFromAxisAngle(up, ARROW_TURN[dir] ?? 0);
+    habitMarks.setMatrixAt(habitMarks.count++, m.compose(new THREE.Vector3(x, 0.03, z), q, one));
+  }
+  habitMarks.instanceMatrix.needsUpdate = true;
+}
+
+// Evidence drives and the exit lock follow the game state.
+function drawEvidence() {
+  const { exitOpen } = game.evidence;
+  const s = game.state;
+  drives.forEach((d, i) => { d.visible = !((s.collected >> i) & 1); });
+  for (const pad of exitPads) pad.material.color.set(exitOpen ? 0x2bd36a : 0xd23b3b);
+}
+
 // ---------- Scene from the level's 3D layout ----------
 function buildScene() {
   disposeScene();
@@ -122,6 +193,7 @@ function buildScene() {
   const span = Math.max(layout.floor.size.x, layout.floor.size.z);
   look = LOOKS[t.style]?.(THREE, layout, { still });
   document.body.dataset.style = t.style ?? ""; // lets the page restyle the HUD to match
+  document.body.dataset.level = String(game.level.id); // levels that reuse a look relabel its HUD
   // Looks without real shadows paint their shade into textures; actors then get soft blob shadows.
   renderer.shadowMap.enabled = look?.shadows ?? true;
 
@@ -156,6 +228,7 @@ function buildScene() {
   }
 
   // Glows are soft patches on the floor rather than point lights: a real light costs every pixel on screen.
+  exitPads = [];
   for (const e of layout.exits) {
     const pad = new THREE.Mesh(
       new THREE.BoxGeometry(TILE * 0.9, 0.04, TILE * 0.9),
@@ -164,20 +237,52 @@ function buildScene() {
     pad.position.set(e.position.x, 0.02, e.position.z);
     const glow = floorDecal(THREE, { color: 0x4ade80, size: 2.6, opacity: 0.55 });
     glow.position.set(e.position.x, 0.05, e.position.z);
+    exitPads.push(pad);
     scene.add(pad, glow);
   }
+
+  // Vents: grates on the floor.
+  const vents = layout.floorTiles.filter((f) => f.isVent);
+  if (vents.length) {
+    const grate = new THREE.InstancedMesh(
+      new THREE.PlaneGeometry(TILE * 0.86, TILE * 0.86).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: ventTexture() }),
+      vents.length,
+    );
+    const m = new THREE.Matrix4();
+    vents.forEach((v, i) => grate.setMatrixAt(i, m.makeTranslation(v.position.x, 0.025, v.position.z)));
+    scene.add(grate);
+  }
+
+  // Evidence drives: small glowing cases floating over their tiles.
+  drives = layout.keys.map((k) => {
+    const drive = new THREE.Group();
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(0.34, 0.12, 0.24),
+      new THREE.MeshStandardMaterial({ color: 0x7fe6ff, emissive: 0x29b6ff, emissiveIntensity: 0.9 }),
+    );
+    const glow = floorDecal(THREE, { color: 0x29b6ff, size: 1.6, opacity: 0.6, y: -0.38 });
+    drive.add(box, glow);
+    drive.position.set(k.position.x, 0.42, k.position.z);
+    drive.userData.spin = (t) => { box.rotation.y = t * 1.6; box.position.y = Math.sin(t * 2.4) * 0.05; };
+    scene.add(drive);
+    return drive;
+  });
 
   player = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.22, 0.3, 6, 16),
     new THREE.MeshStandardMaterial({ color: 0x5ab0ff, emissive: 0x1d4ed8, emissiveIntensity: 0.4 }),
   );
   player.castShadow = true;
-  ghosts = layout.ghostStarts.map(() => {
-    const g = look?.makeGhost?.(t.ghostColor) ?? defaultGhost(t.ghostColor);
+  ghosts = layout.ghostStarts.map((start) => {
+    const g = start.role === "drone"
+      ? makeDrone(t.droneColor ?? "#ffb020")
+      : look?.makeGhost?.(t.ghostColor) ?? defaultGhost(t.ghostColor);
     g.traverse((o) => { o.castShadow = true; });
+    g.userData.hover = start.role === "drone" ? 0.85 : 0.45;
     return g;
   });
-  ghostGlows = ghosts.map(() => floorDecal(THREE, { color: t.ghostColor, size: 3, opacity: 0.5, y: 0.015 }));
+  ghostGlows = ghosts.map((_, i) => floorDecal(THREE, { color: layout.ghostStarts[i].role === "drone" ? t.droneColor ?? "#ffb020" : t.ghostColor, size: 3, opacity: 0.5, y: 0.015 }));
   blobs = renderer.shadowMap.enabled ? [] : [player, ...ghosts].map((actor) => {
     const blob = floorDecal(THREE, { color: 0x000000, size: 0.9, opacity: 0.6, additive: false, y: 0.02 });
     blob.userData.actor = actor;
@@ -185,6 +290,8 @@ function buildScene() {
   });
   planDots = { ghost: makeDots(0xff5a6e, ghosts.length), player: makeDots(0xffd166, 1) };
   scene.add(player, ...ghosts, ...ghostGlows, ...blobs, planDots.ghost, planDots.player);
+  habitMarks = game.level.learns ? makeHabitMarks(layout.floorTiles.length) : null;
+  if (habitMarks) scene.add(habitMarks);
 
   resetActors();
   resize();
@@ -196,8 +303,10 @@ function resetActors() {
   turnToken++;
   busy = false;
   placeAt(player, game.state.player, 0.37, true);
-  game.state.ghosts.forEach((g, i) => placeAt(ghosts[i], g, 0.45, true));
+  game.state.ghosts.forEach((g, i) => placeAt(ghosts[i], g, ghosts[i].userData.hover, true));
   drawPlan(null);
+  drawEvidence();
+  drawHabits();
   renderer.shadowMap.needsUpdate = true;
 }
 
@@ -212,7 +321,15 @@ function showLevel(message) {
 function placeAt(mesh, pos, y, instant = false) {
   const { x, z } = gridToWorld(pos, TILE);
   mesh.userData.target = new THREE.Vector3(x, y, z);
+  mesh.userData.queue = [];
   if (instant) mesh.position.copy(mesh.userData.target);
+}
+
+// A drone's dash covers two tiles: glide through each one so it never cuts through a wall.
+function placeAlong(mesh, path, y) {
+  if (path.length <= 1) return path.length ? placeAt(mesh, path[0], y) : undefined;
+  placeAt(mesh, path[0], y);
+  mesh.userData.queue = path.slice(1).map((p) => { const { x, z } = gridToWorld(p, TILE); return new THREE.Vector3(x, y, z); });
 }
 
 // ---------- Camera: fit the whole maze into the part of the screen the panels don't cover ----------
@@ -303,33 +420,48 @@ function drawPlan(thinking) {
 
 // ---------- HUD ----------
 function updateHud(message) {
-  const { id, name, lookahead } = game.level;
-  const n = game.state.ghosts.length;
+  const { id, name } = game.level;
   const e = enemy();
-  const moves = `${lookahead} move${lookahead === 1 ? "" : "s"}`;
+  const about = describeLevel(game.level);
   $("level-name").textContent = `Level ${id} · ${name}`;
-  $("depth").innerHTML = n > 1
-    ? `<b>${n}</b> ${e.many} plan together, <b>${moves}</b> ahead`
-    : `${e.Name} looks <b>${moves}</b> ahead`;
+  // Bold the numbers: "2 wardens plan together, 3 moves ahead".
+  $("depth").innerHTML = about.line.replace(/(\d+ (?:moves?|tiles?|wardens?|ghosts?))/g, "<b>$1</b>");
   $("legend-enemy").textContent = `${possessive(e.Name)} plan`;
   if (message !== undefined) $("message").textContent = message;
+
+  // Status chips: evidence, drone charge, what learning wardens know.
+  const chips = [];
+  const ev = game.evidence;
+  if (ev.total) chips.push(`<span class="chip ${ev.exitOpen ? "ok" : ""}">Evidence ${ev.held}/${ev.total} · exit ${ev.exitOpen ? "unlocked" : "locked"}</span>`);
+  if (about.drones) {
+    const charged = (game.level.dronePattern ?? [2])[dronePhase(game.state)] > 0;
+    chips.push(`<span class="chip ${charged ? "warn" : ""}">Drone: ${charged ? "dash ready" : "recharging"}</span>`);
+  }
+  if (game.level.learns) {
+    const n = game.attemptsStudied;
+    chips.push(`<span class="chip ${n ? "warn" : ""}">${n ? `Studied ${n} of your attempts` : "No data on you yet"}</span>`);
+  }
+  $("status").innerHTML = chips.join("");
+  $("status").hidden = chips.length === 0;
 
   const t = game.lastThinking;
   $("thinking").innerHTML = t
     ? `<div class="title">${e.Name} checked ${t.futuresConsidered} possible futures (${t.branchesPruned} skipped by pruning)</div>` +
       t.options.slice(0, 3).map((o) =>
         `<div class="opt${o.chosen ? " chosen" : ""}"><span>${o.chosen ? "▶ " : ""}${o.dir}</span>` +
-        `<span>expects you: ${o.predictedPlayerReply ?? "–"}</span><span>${o.score}</span></div>`).join("")
+        `<span>expects you: ${o.predictedPlayerReply ?? "–"}${o.fromHabit ? ' <em class="habit">habit</em>' : ""}</span><span>${o.score}</span></div>`).join("")
     : `<div class="title">After your first move, the ${possessive(e.name)} options and scores show up here.</div>`;
 }
 
 const possessive = (word) => (word.endsWith("s") ? `${word}'` : `${word}'s`); // "ghost's", "wardens'"
 
 let overlayAction = null;
-function showOverlay(kind, title, text, button, action) {
-  $("overlay").dataset.kind = kind; // "lose" or "win", for styling
+function showOverlay(kind, title, text, button, action, hint = "") {
+  $("overlay").dataset.kind = kind; // "lose", "win" or "brief", for styling
   $("overlay-title").textContent = title;
   $("overlay-text").textContent = text;
+  $("overlay-hint").textContent = hint;
+  $("overlay-hint").hidden = !hint;
   $("overlay-btn").textContent = button;
   overlayAction = action;
   $("overlay").classList.add("show");
@@ -346,11 +478,21 @@ function restart(message = "Restarted.") {
   game.restartLevel(); hideOverlay(); showLevel(message);
 }
 function goToNextLevel() {
-  game.nextLevel(); hideOverlay(); showLevel(game.state.ghosts.length > 1 ? `Careful: there are ${game.state.ghosts.length} ${enemy().many} now.` : "The ghost is thinking further ahead now…");
+  game.nextLevel(); hideOverlay(); showLevel(startMessage());
+}
+
+// Before a level: what's new and what to think about. The briefing is the level's lesson.
+function showBriefing() {
+  const l = game.level;
+  showOverlay("brief", l.name, l.briefing ?? startMessage(), `Start Level ${l.id}`, hideOverlay, l.concept ? `New idea: ${l.concept}` : "");
 }
 
 // ---------- Home screen ----------
-const startMessage = () => `Reach the green exit. The ${enemy().name} move${game.state.ghosts.length > 1 ? "" : "s"} after you.`;
+const startMessage = () => {
+  const e = enemy();
+  const goal = game.evidence.total ? `Grab ${game.evidence.total === 1 ? "the evidence drive" : `all ${game.evidence.total} evidence drives`}, then reach the exit.` : "Reach the green exit.";
+  return `${goal} The ${e.name} move${e.plural ? "" : "s"} after you.`;
+};
 
 // The story before Level 1: the prologue (Clearpath's ad and the living room), then "After Hours".
 // autoStart: the player just clicked, so both can start with sound straight away.
@@ -373,45 +515,54 @@ async function openMenu(skipPress = true) {
     game.startLevel(choice.index);
     showLevel(startMessage());
   }
+  showBriefing();
 }
 
 async function takeTurn(dir) {
   if (busy || game.status !== "playing") return;
   const result = game.playerMove(dir);
   if (result.event === "blocked") return updateHud("That's a wall.");
+  if (result.event === "locked") return updateHud(`The exit is locked: you still need ${game.evidence.total - game.evidence.held} evidence drive${game.evidence.total - game.evidence.held === 1 ? "" : "s"}.`);
   placeAt(player, game.state.player, 0.37);
+  if (result.pickedUp) drawEvidence();
   if (result.event !== "moved") return finish();
 
   busy = true;
   const token = turnToken;
-  updateHud(`${enemy().Name} ${game.state.ghosts.length > 1 ? "are" : "is"} thinking…`);
+  updateHud(`${enemy().Name} ${enemy().plural ? "are" : "is"} thinking…`);
   // Think while the player's move animates; wait at least STEP_MS so the turns stay readable.
   const [decision] = await Promise.all([thinkInBackground(), new Promise((r) => setTimeout(r, STEP_MS))]);
   if (token !== turnToken) return; // restarted while they were thinking
 
   const g = game.ghostMove(decision ?? chooseGhostMoves(game.ghostSearch.state, game.ghostSearch.lookahead, game.ghostSearch.options));
-  g.to.forEach((pos, i) => placeAt(ghosts[i], pos, 0.45));
+  g.paths.forEach((path, i) => placeAlong(ghosts[i], path.length ? path : [g.to[i]], ghosts[i].userData.hover));
   drawPlan(g.thinking);
-  updateHud(g.event === "caught" ? "" : `${enemy().Name} moved ${g.dir}.`);
+  const picked = result.pickedUp ? `Evidence drive picked up${game.evidence.exitOpen ? ": the exit is unlocked!" : "."} ` : "";
+  updateHud(g.event === "caught" ? "" : `${picked}${enemy().Name} moved ${g.dir}.`);
   busy = false;
   if (g.event === "caught") finish();
 }
 
+// Caught: say HOW they caught you, then one nudge to think about their prediction.
+let catches = 0;
 function finish() {
   const n = game.level.lookahead;
   const e = enemy();
   if (game.status === "caught") {
-    showOverlay("lose", "Caught!", `The ${e.name} predicted your moves ${n} step${n > 1 ? "s" : ""} ahead.`, "Try again", () => restart("Try again!"));
+    const hints = game.level.hints ?? [];
+    const hint = hints.length ? hints[catches++ % hints.length] : "";
+    const byDrone = game.state.ghosts.some((g, i) => isDrone(i) && g.r === game.state.player.r && g.c === game.state.player.c);
+    let text = byDrone
+      ? "The drone dashed straight at you. It never plans, but it's fast."
+      : `The ${e.name} predicted your moves ${n} step${n > 1 ? "s" : ""} ahead.`;
+    if (game.level.learns) text += ` They've now studied ${game.attemptsStudied} of your attempts.`;
+    showOverlay("lose", "Caught!", text, "Try again", () => restart("Try again!"), hint);
   } else if (game.status === "levelComplete") {
+    catches = 0;
     const next = game.levels[game.levelIndex + 1];
-    const count = (next.maze.join("").match(/G/g) ?? []).length;
-    const ne = enemy(next, count);
-    const text = count > 1
-      ? `On Level ${next.id}, ${count} ${ne.many} plan together, ${next.lookahead} moves ahead.`
-      : `On Level ${next.id} the ${ne.one} looks ${next.lookahead} moves ahead.`;
-    showOverlay("win", "Escaped!", text, `Start Level ${next.id}`, goToNextLevel);
+    showOverlay("win", "Escaped!", `Next: Level ${next.id} · ${next.name}. ${next.briefing ?? describeLevel(next).line}`, `Start Level ${next.id}`, goToNextLevel, next.concept ? `New idea: ${next.concept}` : "");
   } else if (game.status === "gameComplete") {
-    showOverlay("win", `You beat the ${e.many}!`, "You escaped every level.", "Main menu", () => openMenu());
+    showOverlay("win", "Evidence uploaded!", `You outthought every ${e.one} and the world can finally see what Clearpath was doing. Every Warden was only ever as good as its predictions, and you learned to read them.`, "Main menu", () => openMenu());
   }
 }
 
@@ -447,12 +598,19 @@ renderer.setAnimationLoop((now) => {
 
   let moved = false;
   for (const mesh of [player, ...ghosts]) {
-    const to = mesh.userData.target;
+    let to = mesh.userData.target;
+    // Multi-tile moves (drone dashes): once close to this waypoint, head for the next one.
+    if (mesh.userData.queue?.length && Math.abs(mesh.position.x - to.x) + Math.abs(mesh.position.z - to.z) < 0.12) {
+      to = mesh.userData.target = mesh.userData.queue.shift();
+    }
     if (Math.abs(mesh.position.x - to.x) + Math.abs(mesh.position.z - to.z) > 0.002) moved = true;
-    mesh.position.lerp(to, 0.22);
+    mesh.position.lerp(to, mesh.userData.queue?.length ? 0.35 : 0.22);
   }
+  for (const d of drives) d.userData.spin(time);
+  const charged = (game.level.dronePattern ?? [2])[dronePhase(game.state)] > 0;
   ghosts.forEach((g, i) => {
-    g.position.y = 0.45 + Math.sin(time * 3 + i * 1.7) * 0.05; // gentle hover, out of step with each other
+    g.position.y = g.userData.hover + Math.sin(time * 3 + i * 1.7) * 0.05; // gentle hover, out of step with each other
+    g.userData.charge?.(charged);
     g.userData.spin?.(time + i);
     ghostGlows[i].position.x = g.position.x;
     ghostGlows[i].position.z = g.position.z;
@@ -474,6 +632,7 @@ renderer.setAnimationLoop((now) => {
 
 buildScene();
 updateHud(startMessage());
+if (params.has("level") || params.get("title") === "0") showBriefing();
 
 // The home screen opens first. ?level= or ?title=0 go straight into the game (the story still plays
 // before Level 1 unless ?intro=0).

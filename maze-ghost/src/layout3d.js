@@ -22,7 +22,7 @@ export function worldToGrid(point, tileSize = 1) {
  * @param {{ tileSize?: number }} [options]
  */
 export function buildLayout3D(level, { tileSize = 1 } = {}) {
-  const { grid, exits, player, ghosts } = parseMaze(level.maze);
+  const { grid, exits, player, ghosts, roles, keys } = parseMaze(level.maze);
   const theme = { wallHeight: 1, wallColor: "#5b6b82", floorColor: "#1e2633", ghostColor: "#ff5a5a", fog: 0.02, light: 1, ...level.theme };
   const rows = grid.length;
   const cols = grid[0].length;
@@ -37,7 +37,7 @@ export function buildLayout3D(level, { tileSize = 1 } = {}) {
         // A box: centre at half the wall height so it stands on the floor.
         walls.push({ r, c, position: { x, y: h / 2, z }, size: { x: tileSize, y: h, z: tileSize } });
       } else {
-        floorTiles.push({ r, c, position: { x, y: 0, z }, isExit: tile === "E" });
+        floorTiles.push({ r, c, position: { x, y: 0, z }, isExit: tile === "E", isVent: tile === "v" });
       }
     }),
   );
@@ -58,7 +58,10 @@ export function buildLayout3D(level, { tileSize = 1 } = {}) {
     floorTiles,
     exits: exits.map((e) => ({ ...e, position: gridToWorld(e, tileSize) })),
     playerStart: { ...player, position: gridToWorld(player, tileSize) },
-    ghostStarts: ghosts.map((g) => ({ ...g, position: gridToWorld(g, tileSize) })),
+    /** Every enemy's start; `role` is "warden" or "drone". */
+    ghostStarts: ghosts.map((g, i) => ({ ...g, role: roles[i], position: gridToWorld(g, tileSize) })),
+    /** Evidence drives (K tiles). */
+    keys: keys.map((k) => ({ ...k, position: gridToWorld(k, tileSize) })),
     /** A tilted overhead camera that fits the whole maze; tall walls get a steeper angle so they don't hide the player. */
     camera: {
       position: { x: center.x, y: span * 0.9 + h * 2, z: center.z + span * (0.8 - h * 0.22) },

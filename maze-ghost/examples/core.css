@@ -74,6 +74,7 @@ body[data-style="core"] #overlay .card::before {
 }
 body[data-style="core"] #overlay[data-kind="lose"] .card::before { content: "INCIDENT REPORT · WARDEN TEST #0042"; }
 body[data-style="core"] #overlay[data-kind="win"] .card::before { content: "NOTICE · SECURITY PERIMETER BREACHED"; }
+body[data-style="core"] #overlay[data-kind="brief"] .card::before { content: "MEMO · NEW SECURITY PROTOCOL"; }
 body[data-style="core"] #overlay h2 { font: 800 30px/1.15 var(--sans); letter-spacing: -0.02em; color: #e0193a; }
 body[data-style="core"] #overlay[data-kind="win"] h2 { color: #15803d; }
 body[data-style="core"] #overlay p { color: var(--muted); }
@@ -82,3 +83,8 @@ body[data-style="core"] #overlay button {
   background: var(--violet); color: #fff; box-shadow: 0 8px 20px rgba(109, 77, 255, 0.35);
 }
 body[data-style="core"] #overlay button:focus-visible { outline: 3px solid rgba(109, 77, 255, 0.4); outline-offset: 3px; }
+
+/* ---------- Level 6 reuses this look as the Uplink ---------- */
+body[data-style="core"][data-level="6"] #hud::before { content: "WARDEN LEARNING MODE · LIVE"; }
+body[data-style="core"][data-level="6"] #level-name::before { content: "Rooftop broadcast studio"; }
+body[data-style="core"][data-level="6"] #overlay[data-kind="lose"] .card::before { content: "INCIDENT REPORT · ATTEMPT LOGGED FOR TRAINING"; }

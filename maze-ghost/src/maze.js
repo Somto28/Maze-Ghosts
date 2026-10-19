@@ -1,6 +1,10 @@
 // maze.js — how a maze is represented: tiles, legal moves and walking distance.
 //
-// Map key:  #  wall    .  floor    E  exit    P  player start    G  ghost start (one G per ghost)
+// Map key:  #  wall    .  floor    E  exit    P  player start
+//           G  warden start (plans with minimax; one G per warden)
+//           D  drone start (fast and rule-based: dashes 2 tiles straight at you every turn)
+//           K  evidence drive (pick up every one before the exit unlocks)
+//           v  air vent (you can crawl through; wardens and drones can't follow)
 //
 // The grid only holds terrain. The player and ghost positions are stored separately,
 // so the grid never changes during a level.
@@ -8,7 +12,7 @@
 /** @typedef {{ r: number, c: number }} Pos */
 /** @typedef {"up" | "down" | "left" | "right" | "wait"} Dir */
 /** @typedef {Pos & { dir: Dir }} Move */
-/** @typedef {"#" | "." | "E"} Tile */
+/** @typedef {"#" | "." | "E" | "K" | "v"} Tile */
 /** @typedef {ReadonlyArray<ReadonlyArray<Tile>>} Grid */
 
 /** @type {ReadonlyArray<{ dir: Dir, dr: number, dc: number }>} */
@@ -23,13 +27,16 @@ export const DIRS = Object.freeze([
 /** @param {Pos} a @param {Pos} b */
 export const samePos = (a, b) => a.r === b.r && a.c === b.c;
 
-/** Ghosts plan their moves together, and the work grows ×5 per ghost, so keep teams small. */
+/** Wardens plan their moves together, and the work grows ×5 per warden, so keep teams small. */
 export const MAX_GHOSTS = 3;
+/** Drones follow a fixed rule, so they cost the search almost nothing; two is plenty on screen. */
+export const MAX_DRONES = 2;
 
 /**
  * Turn a text map into grid + start positions.
  * @param {readonly string[]} lines
- * @returns {{ grid: Grid, exits: Pos[], player: Pos, ghosts: Pos[] }}
+ * `ghosts` lists every enemy (wardens and drones) in reading order; `roles[i]` says which one it is.
+ * @returns {{ grid: Grid, exits: Pos[], player: Pos, ghosts: Pos[], roles: ("warden" | "drone")[], keys: Pos[] }}
  */
 export function parseMaze(lines) {
   const width = lines[0]?.length ?? 0;
@@ -39,6 +46,8 @@ export function parseMaze(lines) {
   /** @type {Pos[]} */ const exits = [];
   /** @type {Pos[]} */ const players = [];
   /** @type {Pos[]} */ const ghosts = [];
+  /** @type {("warden" | "drone")[]} */ const roles = [];
+  /** @type {Pos[]} */ const keys = [];
 
   const grid = lines.map((line, r) =>
     Object.freeze(
@@ -48,7 +57,10 @@ export function parseMaze(lines) {
           case ".": return ".";
           case "E": exits.push({ r, c }); return "E";
           case "P": players.push({ r, c }); return ".";
-          case "G": ghosts.push({ r, c }); return ".";
+          case "v": return "v";
+          case "K": keys.push({ r, c }); return "K";
+          case "G": ghosts.push({ r, c }); roles.push("warden"); return ".";
+          case "D": ghosts.push({ r, c }); roles.push("drone"); return ".";
           default: throw new Error(`Unknown tile '${ch}' at row ${r}, col ${c}`);
         }
       }),
@@ -56,18 +68,21 @@ export function parseMaze(lines) {
   );
 
   if (players.length !== 1) throw new Error("Maze needs exactly one P (player)");
-  if (ghosts.length === 0) throw new Error("Maze needs at least one G (ghost)");
-  if (ghosts.length > MAX_GHOSTS) throw new Error(`Maze can have at most ${MAX_GHOSTS} ghosts`);
+  const wardens = roles.filter((r) => r === "warden").length;
+  if (ghosts.length === 0) throw new Error("Maze needs at least one G (ghost) or D (drone)");
+  if (wardens > MAX_GHOSTS) throw new Error(`Maze can have at most ${MAX_GHOSTS} ghosts`);
+  if (ghosts.length - wardens > MAX_DRONES) throw new Error(`Maze can have at most ${MAX_DRONES} drones`);
+  if (keys.length > 3) throw new Error("Maze can have at most 3 evidence drives (K)");
   if (exits.length === 0) throw new Error("Maze needs at least one E (exit)");
 
-  return { grid: Object.freeze(grid), exits, player: players[0], ghosts };
+  return { grid: Object.freeze(grid), exits, player: players[0], ghosts, roles, keys };
 }
 
-/** Can this actor stand on (r, c)? The ghost can't pass through exit doors. */
+/** Can this actor stand on (r, c)? Ghosts (wardens and drones) can't pass exit doors or fit in vents. */
 export function canEnter(grid, r, c, who) {
   const tile = grid[r]?.[c];
   if (tile === undefined || tile === "#") return false;
-  return !(who === "ghost" && tile === "E");
+  return !(who === "ghost" && (tile === "E" || tile === "v"));
 }
 
 /**
