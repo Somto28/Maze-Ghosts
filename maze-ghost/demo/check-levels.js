@@ -28,8 +28,8 @@ for (const level of LEVELS) {
   const rates = Object.keys(SKILLS).map((skill) => `${skill} ${Math.round(playtest(level, { skill, games: 300, brain }).rate * 100)}%`);
   console.log(`  simulated players who escape (first try): ${rates.join(" · ")}`);
   if (level.learns) {
-    const tries = playtest(level, { skill: "strong", games: 100, attempts: 5 }).byAttempt.map((r) => `${Math.round(r * 100)}%`);
-    console.log(`  strong player retrying while the wardens learn, escaped by try 1-5: ${tries.join(" ")}`);
+    const tries = (learns) => playtest({ ...level, learns }, { skill: "thinker", games: 60, attempts: 4, seed: 3 }).byAttempt.map((r) => `${Math.round(r * 100)}%`).join(" ");
+    console.log(`  thinker retrying, escaped by try 1-4: ${tries(true)} (if the wardens forgot between tries: ${tries(false)})`);
   }
   console.log(`  winning route: ${win.moves.join(" ")}`);
 }

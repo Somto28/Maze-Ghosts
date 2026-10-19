@@ -23,7 +23,7 @@ function draw() {
       if (tile === "#") return "\x1b[100m   \x1b[0m";
       if (tile === "E") return game.evidence.exitOpen ? "\x1b[42m E \x1b[0m" : "\x1b[41m E \x1b[0m";
       if (tile === "K") return (collected >> keys.findIndex((k) => samePos(k, here))) & 1 ? " · " : "\x1b[36m K \x1b[0m";
-      if (tile === "v") return "\x1b[90m ≡ \x1b[0m";
+      if (tile >= "1" && tile <= "4") return `\x1b[46m ${tile} \x1b[0m`;
       return " · ";
     }).join(""),
   );

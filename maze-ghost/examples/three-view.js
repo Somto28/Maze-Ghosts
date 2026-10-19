@@ -133,14 +133,32 @@ function makeDrone(color) {
   return group;
 }
 
-// Vents: a dark grate on the floor (you fit, they don't).
-function ventTexture() {
-  return canvasTexture(THREE, 64, (g, w) => {
-    g.fillStyle = "#1a1f26"; g.fillRect(0, 0, w, w);
-    g.fillStyle = "#4a5562";
-    for (let i = 6; i < w - 4; i += 9) g.fillRect(i, 6, 4, w - 12);
-    g.strokeStyle = "#7d8a99"; g.lineWidth = 3; g.strokeRect(3, 3, w - 6, w - 6);
+// Vents: a numbered grate on the floor in its vent's colour (you fit, they don't).
+const VENT_COLORS = { 1: "#2ee6c8", 2: "#b48cff", 3: "#c6f35a", 4: "#ff8ad8" };
+function ventTexture(id) {
+  const color = VENT_COLORS[id] ?? "#9fe";
+  return canvasTexture(THREE, 128, (g, w) => {
+    g.fillStyle = "#11161c"; g.fillRect(0, 0, w, w);
+    g.fillStyle = "#3a4552";
+    for (let i = 12; i < w - 8; i += 16) g.fillRect(i, 12, 7, w - 24);
+    g.strokeStyle = color; g.lineWidth = 8; g.strokeRect(6, 6, w - 12, w - 12);
+    g.fillStyle = color; g.font = "bold 64px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.shadowColor = "#000"; g.shadowBlur = 8;
+    g.fillText(String(id), w / 2, w / 2 + 4);
   }, { wrap: false });
+}
+
+// A dashed arc over the walls joining a vent's two grates, so you can see where it comes out.
+function ventArc(a, b, color, height) {
+  const pa = gridToWorld(a, TILE), pb = gridToWorld(b, TILE);
+  const mid = new THREE.Vector3((pa.x + pb.x) / 2, height, (pa.z + pb.z) / 2);
+  const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(pa.x, 0.1, pa.z), mid, new THREE.Vector3(pb.x, 0.1, pb.z));
+  const line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(curve.getPoints(48)),
+    new THREE.LineDashedMaterial({ color, dashSize: 0.25, gapSize: 0.18, transparent: true, opacity: 0.85 }),
+  );
+  line.computeLineDistances();
+  return line;
 }
 
 // Learned habits: a red arrow on each tile where the wardens expect you to repeat yourself.
@@ -241,17 +259,19 @@ function buildScene() {
     scene.add(pad, glow);
   }
 
-  // Vents: grates on the floor.
-  const vents = layout.floorTiles.filter((f) => f.isVent);
-  if (vents.length) {
-    const grate = new THREE.InstancedMesh(
-      new THREE.PlaneGeometry(TILE * 0.86, TILE * 0.86).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ map: ventTexture() }),
-      vents.length,
-    );
-    const m = new THREE.Matrix4();
-    vents.forEach((v, i) => grate.setMatrixAt(i, m.makeTranslation(v.position.x, 0.025, v.position.z)));
-    scene.add(grate);
+  // Vents: a numbered grate at each end, a glow in the vent's colour, and an arc joining the pair.
+  for (const { id, a, b } of layout.vents) {
+    const color = VENT_COLORS[id] ?? "#9fe";
+    const material = new THREE.MeshBasicMaterial({ map: ventTexture(id) });
+    for (const end of [a, b]) {
+      const { x, z } = gridToWorld(end, TILE);
+      const grate = new THREE.Mesh(new THREE.PlaneGeometry(TILE * 0.86, TILE * 0.86).rotateX(-Math.PI / 2), material);
+      grate.position.set(x, 0.025, z);
+      const glow = floorDecal(THREE, { color, size: 1.8, opacity: 0.45, y: 0.03 });
+      glow.position.set(x, 0.03, z);
+      scene.add(grate, glow);
+    }
+    scene.add(ventArc(a, b, color, t.wallHeight + 1.2));
   }
 
   // Evidence drives: small glowing cases floating over their tiles.
@@ -427,6 +447,7 @@ function updateHud(message) {
   // Bold the numbers: "2 wardens plan together, 3 moves ahead".
   $("depth").innerHTML = about.line.replace(/(\d+ (?:moves?|tiles?|wardens?|ghosts?))/g, "<b>$1</b>");
   $("legend-enemy").textContent = `${possessive(e.Name)} plan`;
+  $("legend-vent").hidden = !about.vents;
   if (message !== undefined) $("message").textContent = message;
 
   // Status chips: evidence, drone charge, what learning wardens know.
@@ -437,6 +458,10 @@ function updateHud(message) {
     const charged = (game.level.dronePattern ?? [2])[dronePhase(game.state)] > 0;
     chips.push(`<span class="chip ${charged ? "warn" : ""}">Drone: ${charged ? "dash ready" : "recharging"}</span>`);
   }
+  // Standing next to a vent grate: say how to use it.
+  const { r, c } = game.state.player, grid = game.state.grid;
+  const ventNear = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].map(([y, x]) => grid[y]?.[x]).find((tile) => tile >= "1" && tile <= "4");
+  if (ventNear && game.status === "playing") chips.push(`<span class="chip vent">Vent ${ventNear} next to you: step onto the grate to crawl out of the other grate ${ventNear}</span>`);
   if (game.level.learns) {
     const n = game.attemptsStudied;
     chips.push(`<span class="chip ${n ? "warn" : ""}">${n ? `Studied ${n} of your attempts` : "No data on you yet"}</span>`);
@@ -523,7 +548,7 @@ async function takeTurn(dir) {
   const result = game.playerMove(dir);
   if (result.event === "blocked") return updateHud("That's a wall.");
   if (result.event === "locked") return updateHud(`The exit is locked: you still need ${game.evidence.total - game.evidence.held} evidence drive${game.evidence.total - game.evidence.held === 1 ? "" : "s"}.`);
-  placeAt(player, game.state.player, 0.37);
+  placeAt(player, game.state.player, 0.37, !!result.vent); // a vent crawl pops you out of the other grate
   if (result.pickedUp) drawEvidence();
   if (result.event !== "moved") return finish();
 
@@ -537,7 +562,8 @@ async function takeTurn(dir) {
   const g = game.ghostMove(decision ?? chooseGhostMoves(game.ghostSearch.state, game.ghostSearch.lookahead, game.ghostSearch.options));
   g.paths.forEach((path, i) => placeAlong(ghosts[i], path.length ? path : [g.to[i]], ghosts[i].userData.hover));
   drawPlan(g.thinking);
-  const picked = result.pickedUp ? `Evidence drive picked up${game.evidence.exitOpen ? ": the exit is unlocked!" : "."} ` : "";
+  const picked = (result.vent ? `You crawled through vent ${result.vent}. ` : "") +
+    (result.pickedUp ? `Evidence drive picked up${game.evidence.exitOpen ? ": the exit is unlocked!" : "."} ` : "");
   updateHud(g.event === "caught" ? "" : `${picked}${enemy().Name} moved ${g.dir}.`);
   busy = false;
   if (g.event === "caught") finish();

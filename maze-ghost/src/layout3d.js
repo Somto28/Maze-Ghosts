@@ -4,7 +4,7 @@
 //   grid column -> x (left/right),  grid row -> z (toward the camera),  y = height.
 // One grid tile = `tileSize` world units. Everything sits on the floor at y = 0.
 
-import { parseMaze } from "./maze.js";
+import { isVent, parseMaze, ventPairs } from "./maze.js";
 
 /** Grid tile -> world position of the tile's centre on the floor. */
 export function gridToWorld(pos, tileSize = 1) {
@@ -37,7 +37,7 @@ export function buildLayout3D(level, { tileSize = 1 } = {}) {
         // A box: centre at half the wall height so it stands on the floor.
         walls.push({ r, c, position: { x, y: h / 2, z }, size: { x: tileSize, y: h, z: tileSize } });
       } else {
-        floorTiles.push({ r, c, position: { x, y: 0, z }, isExit: tile === "E", isVent: tile === "v" });
+        floorTiles.push({ r, c, position: { x, y: 0, z }, isExit: tile === "E", isVent: isVent(tile) });
       }
     }),
   );
@@ -60,6 +60,8 @@ export function buildLayout3D(level, { tileSize = 1 } = {}) {
     playerStart: { ...player, position: gridToWorld(player, tileSize) },
     /** Every enemy's start; `role` is "warden" or "drone". */
     ghostStarts: ghosts.map((g, i) => ({ ...g, role: roles[i], position: gridToWorld(g, tileSize) })),
+    /** Vents: [{ id, a, b }], a and b being the two grates (grid positions). */
+    vents: ventPairs(grid),
     /** Evidence drives (K tiles). */
     keys: keys.map((k) => ({ ...k, position: gridToWorld(k, tileSize) })),
     /** A tilted overhead camera that fits the whole maze; tall walls get a steeper angle so they don't hide the player. */

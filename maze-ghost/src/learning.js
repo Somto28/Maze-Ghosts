@@ -3,9 +3,8 @@
 // Clearpath's pitch is "our AI knows what people will do." On a level with `learns: true`, every
 // attempt where you get caught is recorded: on each tile you stood on, which way you went next.
 // Next attempt, the wardens' search uses that record: from wherever you are, they trace "your usual
-// route" and score positions where they can get to a tile on it before you do (an ambush) as
-// better (see `habit` in ai.js WEIGHTS). They still plan for your smartest move too; the record
-// just tells them where to wait.
+// route", and whenever several of their moves are equally good they pick the one that gets them to a
+// tile on that route before you (an ambush). See `habit` in ai.js WEIGHTS and chooseGhostMoves.
 //
 // That makes them deadly against players who repeat themselves, while players who notice and
 // change their route walk around the ambush. (It's also the ethics question in miniature: the

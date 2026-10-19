@@ -42,15 +42,17 @@ export const SKILLS = Object.freeze({
  *   attempts: tries per simulated player (default 1). Like a real kid, a simulated player remembers
  *   the last two moves before each catch ("going right here got me caught") and tries something
  *   else there next time. On learning levels the wardens also study each caught try.
- * @returns {{ escaped: number, caught: number, stuck: number, games: number, rate: number, byAttempt: number[] }}
+ *   record: also return every attempt's moves (`played`), e.g. to replay them against learning wardens.
+ * @returns {{ escaped: number, caught: number, stuck: number, games: number, rate: number, byAttempt: number[], played?: object[] }}
  *   rate = escaped on the first try. byAttempt[i] = share who had escaped within i + 1 tries.
  *   stuck = still alive after maxTurns without finding the way out (counts as a loss: a kid would give up).
  */
-export function playtest(level, { skill = "average", games = 200, seed = 1, maxTurns = 150, brain = null, attempts = 1 } = {}) {
+export function playtest(level, { skill = "average", games = 200, seed = 1, maxTurns = 150, brain = null, attempts = 1, record = false } = {}) {
   const { depth, mistakes, reads = false } = SKILLS[skill];
   const rnd = seededRandom(seed);
   const tally = { escaped: 0, caught: 0, stuck: 0, games };
   const escapedBy = new Array(attempts).fill(0);
+  const played = []; // record: every attempt's moves and result
   const fixedBrain = level.learns ? null : brain ?? ghostBrain(level);
   const brains = new Map(); // learning levels: one brain per set of habits, shared between players
 
@@ -67,6 +69,7 @@ export function playtest(level, { skill = "average", games = 200, seed = 1, maxT
       }
       const { result, steps, keys } = playOnce(level, think, rnd, depth, mistakes, maxTurns, reads, avoid);
       if (a === 0) tally[result]++;
+      if (record) played.push({ result, steps });
       if (result === "escaped") {
         for (let i = a; i < attempts; i++) escapedBy[i]++;
         break;
@@ -75,7 +78,7 @@ export function playtest(level, { skill = "average", games = 200, seed = 1, maxT
       if (result === "caught") for (const k of keys.slice(-2)) avoid.add(k);
     }
   }
-  return { ...tally, rate: tally.escaped / games, byAttempt: escapedBy.map((n) => n / games) };
+  return { ...tally, rate: tally.escaped / games, byAttempt: escapedBy.map((n) => n / games), ...(record ? { played } : {}) };
 }
 
 function playOnce(level, brain, rnd, depth, mistakes, maxTurns, reads, avoid) {

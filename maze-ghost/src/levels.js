@@ -1,23 +1,24 @@
 // levels.js — the six levels. Each one adds ONE new idea about how the enemy AI predicts you.
 //
-//   Level 1  The Basement      1 ghost,  lookahead 1   It only REACTS: steps toward where you are now. Lead it away.
-//   Level 2  The Server Halls  1 warden, lookahead 3   It PREDICTS: heads for where you'll be. New: vents.
-//   Level 3  The Core          2 wardens, lookahead 3  TEAMWORK: they search every combination of their moves together.
-//   Level 4  The Data Vault    2 wardens + 1 drone     RULES vs SEARCH: the drone is fast but follows a fixed rule.
-//   Level 5  The Archive       2 wardens, 2 evidence   PREDICTABLE GOALS: they know what you need, so they guard it.
-//   Level 6  The Uplink        2 wardens + drone       LEARNING: they study your caught attempts and expect repeats.
+//   Level 1  The Basement      1 ghost, 2 exits             It GUARDS the way out instead of chasing you.
+//   Level 2  The Server Halls  1 warden, lookahead 3, vent  It PREDICTS where you'll be. New: vents.
+//   Level 3  The Core          2 wardens, 2 vents           TEAMWORK: one guards, one hunts.
+//   Level 4  The Data Vault    2 wardens + 1 drone, vents   RULES vs SEARCH: the drone is fast but follows a fixed rule.
+//   Level 5  The Archive       2 wardens + drone, 2 drives  PREDICTABLE GOALS: they know what you need, so they guard it.
+//   Level 6  The Uplink        2 wardens + drone + drive    LEARNING: they study your caught attempts and wait on your old route.
 //
+// Every enemy uses the same brain (src/ai.js): minimax search plus a judgment of positions that
+// treats "the player has a safe run to the goal" as nearly lost, so they cut you off instead of chasing.
 // lookahead = how many of their own moves the wardens plan, each followed by your best reply.
 //
 // Map key:  #  wall    .  floor    E  exit (enemies can't enter)    P  player
 //           G  warden (minimax)    D  drone (rule-based, see dronePattern)
 //           K  evidence drive (pick up every one before the exit unlocks)
-//           v  vent (you can crawl through, enemies can't)
+//           1-4  vent grates in pairs: step on one, come out of the other (enemies can't use them)
 //
 // Every maze is checked by tests/levels.test.js: it must be winnable against its own enemies, running
 // straight for the exit must get you caught, and simulated players (src/playtest.js) must find each
-// level harder than the last but never out of reach for a player who reads the wardens' plan.
-// `npm run check-levels` prints the numbers (see the table in README.md).
+// level harder than the last. `npm run check-levels` prints the numbers (see the table in README.md).
 //
 // Optional fields:
 //   enemy         what the HUD calls them (default "ghost")
@@ -35,24 +36,24 @@ export const LEVELS = Object.freeze([
     id: 1,
     name: "The Basement",
     lookahead: 1,
-    concept: "Reacting is not predicting",
+    concept: "It guards the way out",
     briefing:
-      "This ghost only looks 1 move ahead: every turn it steps toward wherever you are RIGHT NOW. It can't plan, so you can lead it. Pull it away from the exit, then make your break.",
+      "This ghost only looks 1 move ahead, but it doesn't just chase you. It moves to stand between you and the way out. There are two exits and it can only guard one at a time. Watch where it goes, make it commit, then go for the other one.",
     hints: [
-      "It always steps toward where you are now, never where you're going. Lead it around a loop, then run.",
-      "Running straight for the exit is exactly what it's waiting for. Make it chase you somewhere else first.",
-      "Watch the gold dot: that's the move it expects from you. Surprise it.",
+      "It isn't chasing you, it's blocking you. Its red dot shows where it will stand next.",
+      "Two exits, one ghost. Head for one until it moves to block it, then switch.",
+      "You only get out if you can reach an exit before it can reach your path. Count the tiles.",
     ],
     maze: [
       "#########",
-      "#P....#.#",
-      "#.###.#.#",
+      "#P......#",
+      "#.####..#",
+      "#....#..#",
+      "#...#G#.#",
+      "#.##..#.#",
       "#.....#.#",
-      "#...#...#",
-      "#...#G..#",
-      "##...##.#",
-      "##....#.E",
-      "#########",
+      "#...#.#.E",
+      "#####E###",
     ],
     // style "basement": brick, damp concrete and one swinging bulb (examples/basement.js + basement.css).
     theme: { style: "basement", wallHeight: 1.0, wallColor: "#4a2e24", floorColor: "#17120e", ghostColor: "#ff5a5a", fog: 0.03, light: 1.0 },
@@ -64,23 +65,23 @@ export const LEVELS = Object.freeze([
     lookahead: 3,
     concept: "Predicting where you'll be",
     briefing:
-      "This Warden looks 3 moves ahead. It imagines your best route and heads to where you WILL be, not where you are. New: vents (the grates). You can crawl through them; the Warden can't follow, but it can predict where you'll come out.",
+      "This Warden looks 3 moves ahead: it heads for where you WILL be. New: VENTS. Step onto a numbered grate and you crawl through the ducts and pop out of the grate with the same number, all in one move. The dashed arc shows where it comes out. The Warden can't follow you, but it can predict where you'll come out.",
     hints: [
-      "Its red dots end where it expects to catch you. If they point at the exit, it has already guessed your route.",
-      "It assumes you'll take your best route. Make it commit to guarding one way, then use another.",
-      "It can't follow you into a vent, but it can wait at the other end. Check its red dots before you crawl.",
+      "Step onto a grate to crawl to its twin with the same number. The dashed arc shows where you'll pop out.",
+      "If the Warden's red dots head for the other end of the vent, it has guessed your plan. Go the other way.",
+      "It assumes you'll make your smartest move. Make it commit to one route, then take another.",
     ],
     maze: [
       "###########",
-      "#P.....#..#",
+      "#P......#.#",
+      "#.#.###.#.#",
+      "#.#.#.....#",
       "#.#.#.##..#",
-      "#.#.#.###.#",
-      "#.#.##..#.#",
-      "#...#.G.#.#",
-      "###.###.#v#",
-      "#...###...#",
-      "#.###.....#",
-      "#.......#.E",
+      "#.#...#1#.#",
+      "####..#...#",
+      "##..#...G.#",
+      "#.#...#.#.#",
+      "#1...##...E",
       "###########",
     ],
     // style "server-halls": racks, raised floor and security cameras (examples/server-halls.js + server-halls.css).
@@ -93,25 +94,25 @@ export const LEVELS = Object.freeze([
     lookahead: 3,
     concept: "Teamwork: searching together",
     briefing:
-      "Two Wardens being field-tested. They plan as ONE team, trying every combination of their moves, so one can chase while the other cuts you off. Stay where you have more than one way out.",
+      "Two Wardens plan as ONE team, trying every combination of their moves. Usually one guards the way out while the other hunts you. Use the vents to split them up: they can't guard both ends of every vent at once.",
     hints: [
-      "Two Wardens squeeze a corridor from both ends. Stay near loops where you have two ways out.",
-      "Look at how many futures they checked: two Wardens planning together check about 5 times more than one.",
-      "Their search assumes you'll make your smartest move. Which move did they score as your best? Is it really?",
+      "One Warden is guarding, the other is hunting. Which is which? Their red dots tell you.",
+      "Two Wardens can squeeze a corridor from both ends. Keep a vent or a loop between you and them.",
+      "They plan as a team, so pulling one away can leave a gap. Make the hunter follow you, then use a vent.",
     ],
     maze: [
       "#############",
-      "#P..#...G...#",
-      "#.#.#.###.#.#",
-      "#.......#.#.#",
+      "#P..........#",
+      "#.#.##2#..###",
+      "#.#...#.#...#",
+      "#.###.#.###.#",
+      "#...........#",
+      "#.#.##1###..#",
+      "#.#..1#.....#",
+      "#.#..##.###.#",
+      "#....G#.#2#.#",
       "#.#.#.#.#.#.#",
-      "#.#.......#.#",
-      "#.#.#####G#.#",
-      "#.#.#...#...#",
-      "#.#.#.#.###.#",
-      "#.....#.....#",
-      "###.#.#.#.#.#",
-      "#.....#.....E",
+      "#...#G......E",
       "#############",
     ],
     // style "core": glass offices on the executive floor (examples/core.js + core.css).
@@ -125,25 +126,25 @@ export const LEVELS = Object.freeze([
     dronePattern: [2, 0],
     concept: "Fast rules vs. slow thinking",
     briefing:
-      "Meet the Drone. It doesn't think at all: it dashes 2 tiles straight at where you are, then recharges for a turn. Fast, but 100% predictable. The Wardens think 3 moves ahead and know exactly how the Drone will move. Drones can't fit in vents.",
+      "Meet the Drone. It doesn't think at all: it dashes 2 tiles straight at where you are, then recharges for a turn. Fast, but 100% predictable. The two Wardens think 3 moves ahead and know exactly how the Drone will move. Drones can't use vents either.",
     hints: [
-      "The Drone always takes the shortest path to where you are now, 2 tiles, then rests. Count its turns.",
-      "When the Drone is recharging, it can't move. That's your window.",
-      "Duck into a vent and the Drone can only hover at the opening. The Wardens will try to guess which end you'll use.",
+      "The Drone always flies the shortest way to where you are now: 2 tiles, then it rests. Count its turns.",
+      "When the HUD says the Drone is recharging, it can't move this turn. That's your window.",
+      "Speed isn't intelligence: the Drone gets there first, but only the Wardens plan. Lead the Drone, outthink the Wardens.",
     ],
     maze: [
       "###############",
-      "#P#...#...#...#",
-      "#.v.#.#.#.#.#.#",
-      "#.#.....#...#.#",
-      "#.###.#.#####.#",
-      "#.....#......G#",
-      "#.#.#.##v##.#.#",
-      "#.....#.......#",
-      "#.###.#.#####.#",
-      "#.......#.....#",
-      "#.#####.#.#D###",
-      "#.......#.....E",
+      "#P........#...#",
+      "###.#.###.#.#.#",
+      "#1#.#...#...#.#",
+      "#.#.#.#.#.#.#.#",
+      "#.....#...#...#",
+      "#.#.#.#.###.#.#",
+      "#.#.#...#..D#.#",
+      "#.#.2##.#.###.#",
+      "#...#2..#.#1#.#",
+      "#G#.#####.#.#.#",
+      "#...G.....#...E",
       "###############",
     ],
     // Reuses Level 2's server look (the Vault is where Clearpath stores the data it collects).
@@ -154,9 +155,12 @@ export const LEVELS = Object.freeze([
     name: "The Archive",
     enemy: "warden",
     lookahead: 3,
+    dronePattern: [2, 0],
+    // These wardens only guard the drives and the door; they don't also try to box you in.
+    weights: { territory: 0 },
     concept: "When the AI knows your goal",
     briefing:
-      "You need proof. Grab both evidence drives (the glowing blue cases) before the exit unlocks. The Wardens know what you need, so they don't just chase you: they guard the drives. When an AI knows your goal, your moves become easy to predict.",
+      "You need proof. Grab both evidence drives (the glowing blue cases) before the exit unlocks. The Wardens know exactly what you need, so they don't chase you: they guard the drives and the door. When an AI knows your goal, your moves become easy to predict.",
     hints: [
       "They predict your route from your goal: drive, drive, exit. Grab the drives in the order they don't expect.",
       "Watch which drive their red dots head for. Go for the other one first.",
@@ -164,24 +168,24 @@ export const LEVELS = Object.freeze([
     ],
     maze: [
       "###############",
-      "#P............#",
-      "###.#.###.#.#.#",
-      "#.......#...#.#",
-      "#.##v##.#.#.###",
-      "#.#G....#.K...#",
-      "#.#.###.###.#.#",
-      "#.#..G..K.....#",
-      "#.###########.#",
-      "#.............#",
-      "#.#.#.#.###.#.#",
-      "#.#.......#...#",
-      "#.#.###.#.#.#.#",
+      "#P#1........#2#",
+      "#.###.###.#.#.#",
+      "#......1#...#.#",
+      "#.#.#####G#.#.#",
+      "#.#.....#.#.#.#",
+      "#.###.#K#.#.#.#",
+      "#.....#.#.#...#",
+      "#.#.###.#.2##.#",
+      "#.......#.#...#",
+      "#.#####.#K#.###",
+      "#.G.....#.#.#.#",
+      "#.#.###.#.#D#.#",
       "#.........#...E",
       "###############",
     ],
     // No custom look yet (the basement look is too dark for a maze this big): plain lit walls in archive colours,
     // kept low so solid walls never hide you.
-    theme: { wallHeight: 1.1, wallColor: "#8a6a4a", floorColor: "#2a2018", ghostColor: "#ff4d5e", fog: 0.018, light: 1.1 },
+    theme: { wallHeight: 1.1, wallColor: "#8a6a4a", floorColor: "#2a2018", ghostColor: "#ff4d5e", droneColor: "#ffb020", fog: 0.018, light: 1.1 },
   },
   {
     id: 6,
@@ -190,6 +194,8 @@ export const LEVELS = Object.freeze([
     lookahead: 3,
     dronePattern: [2, 0],
     learns: true,
+    // The final test: they care twice as much about keeping you from the goal, and close in harder.
+    weights: { playerFromExit: 8, chase: 12 },
     concept: "Learning from your data",
     briefing:
       "Upload the evidence and the world will know. But these Wardens LEARN. Every time they catch you, they record your route, and next time they lie in wait along it. The red arrows show what they've learned about you. Same route, same result.",
@@ -200,19 +206,19 @@ export const LEVELS = Object.freeze([
     ],
     maze: [
       "#################",
-      "#P#.............#",
-      "#.###.#.###.#.#.#",
-      "#.#...#...#.....#",
-      "#.#.#####G#.###.#",
-      "#..........K..#.#",
-      "#.###.#.###.#.#.#",
-      "#...#.........#.#",
-      "#.#.#.###.###.#.#",
-      "#.....v...#...#.#",
-      "#.#v###.#.#.#.#.#",
-      "#.#...#G....D.#.#",
-      "#.#.#.#.###.#.#.#",
-      "#.......#.......E",
+      "#P..............#",
+      "#.#.####1######.#",
+      "#.......#G......#",
+      "#.#.#.#.#.#.#####",
+      "#.....#.........#",
+      "#.###.#.##3##.#.#",
+      "#...#...#1#....G#",
+      "###.#.###.#.#####",
+      "#2#...#...#.#...#",
+      "#.3####.###.#.#.#",
+      "#.#.....#...#.#.#",
+      "#.#.###.#.#.#.#.#",
+      "#....2#K.....D#.E",
       "#################",
     ],
     // Reuses Level 3's glass look: the broadcast studio at the top of the tower.

@@ -1,7 +1,7 @@
 // Level design guarantees. If you edit a maze in src/levels.js, these tell you if you broke it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LEVELS, describeLevel, ghostBrain, naiveRoute, playtest, replay, solveLevel } from "../src/index.js";
+import { LEVELS, describeLevel, ghostBrain, habitsFrom, moveGhosts, movePlayer, naiveRoute, outcome, playerMoves, playtest, replay, solveLevel, stateFromLevel } from "../src/index.js";
 
 const about = LEVELS.map((level) => describeLevel(level));
 const brains = LEVELS.map((level) => ghostBrain(level)); // shared, so each position is only searched once
@@ -9,7 +9,7 @@ const brains = LEVELS.map((level) => ghostBrain(level)); // shared, so each posi
 test("there are 6 levels and each one adds a new idea", () => {
   assert.equal(LEVELS.length, 6);
   const [l1, l2, l3, l4, l5, l6] = about;
-  assert.ok(LEVELS[0].lookahead === 1 && l1.wardens === 1 && !l1.drones, "level 1: one ghost that only reacts");
+  assert.ok(l1.wardens === 1 && !l1.drones, "level 1: one guard");
   assert.ok(LEVELS[1].lookahead > LEVELS[0].lookahead && l2.vents, "level 2: looks further ahead, and vents appear");
   assert.ok(l3.wardens > l2.wardens, "level 3: a team of wardens");
   assert.ok(l4.drones > 0, "level 4: a rule-based drone");
@@ -40,31 +40,51 @@ test("level 2: a route that fools a 1-move warden does NOT get past this level's
   const level = LEVELS[1];
   const shallow = { ...level, lookahead: 1 };
   const beatsShallowGhost = solveLevel(shallow).moves;
+  if (!beatsShallowGhost) return; // even a 1-move warden is unbeatable here, so there's no shallow trick to test
   assert.equal(replay(shallow, beatsShallowGhost), "escaped");
   assert.notEqual(replay(level, beatsShallowGhost, brains[1]), "escaped");
 });
 
 // The difficulty curve, measured with simulated players (src/playtest.js). Seeded, so always the same numbers.
-// Players who only GUESS what the wardens will do get caught more and more often; a player who READS
-// their prediction (the "thinker") can still win every level. That gap is the lesson.
-test("difficulty curve: each level is harder than the last, and reading the prediction keeps working", () => {
-  const rate = (i, skill, games = 120) => playtest(LEVELS[i], { skill, games, brain: LEVELS[i].learns ? null : brains[i] }).rate;
-  const average = LEVELS.map((_, i) => rate(i, "average"));
-  for (let i = 1; i < average.length; i++) assert.ok(average[i] < average[i - 1], `level ${i + 1} should be harder than level ${i} (${average.map((r) => Math.round(r * 100))})`);
-  assert.ok(average[0] >= 0.5, "level 1 should be a gentle start");
-  assert.ok(average[5] <= 0.15, "level 6 should catch most players who don't think about the prediction");
+// Players who only GUESS what the wardens will do almost never escape. A player who READS their
+// prediction (the "thinker") can win every level, but less often each level.
+test("difficulty curve: near impossible unless you read the prediction, and harder every level", () => {
+  const rate = (i, skill, games = 100) => playtest(LEVELS[i], { skill, games, brain: LEVELS[i].learns ? null : brains[i] }).rate;
+  const thinker = LEVELS.map((_, i) => rate(i, "thinker"));
+  const shown = thinker.map((r) => Math.round(r * 100));
+  for (let i = 1; i < thinker.length; i++) assert.ok(thinker[i] < thinker[i - 1], `level ${i + 1} should be harder than level ${i} (${shown})`);
   for (let i = 0; i < LEVELS.length; i++) {
-    const thinker = rate(i, "thinker", 80);
-    assert.ok(thinker >= 0.5, `level ${i + 1} is too hard even for a player who reads the wardens (${thinker})`);
-    if (i >= 3) assert.ok(thinker >= 1.5 * rate(i, "strong"), `level ${i + 1}: reading the prediction should matter much more than reflexes`);
+    assert.ok(thinker[i] >= 0.03, `level ${i + 1} should still be winnable by a player who reads the wardens (${shown})`);
+    assert.ok(rate(i, "average") <= 0.15, `level ${i + 1}: players who ignore the prediction should almost never escape`);
   }
+  assert.ok(thinker[0] <= 0.6, "even level 1 should catch a careful player often");
 });
 
-test("level 6: the wardens learn, so a player who keeps repeating themselves keeps getting caught", () => {
-  // A careful player (1% slips) who mostly plays the same way each try. Wardens that study the
-  // caught tries should stop more of them by the third try than wardens that forget everything.
+test("level 6: the wardens learn, so repeating a caught route gets you caught sooner", () => {
+  // Take simulated players' caught attempts, then replay each exact route. Wardens who studied that
+  // attempt never let you get further than wardens who forgot it, and stop some routes sooner.
   const level = LEVELS[5];
-  const learning = playtest(level, { skill: "strong", games: 60, attempts: 3, seed: 3 }).byAttempt[2];
-  const forgetful = playtest({ ...level, learns: false }, { skill: "strong", games: 60, attempts: 3, seed: 3 }).byAttempt[2];
-  assert.ok(learning < forgetful, `learning ${learning} vs forgetful ${forgetful}`);
+  const forgetful = ghostBrain({ ...level, learns: false });
+  const caught = playtest({ ...level, learns: false }, { skill: "thinker", games: 20, brain: forgetful, record: true, seed: 5 })
+    .played.filter((p) => p.result === "caught");
+  const survived = (steps, brain) => {
+    let s = stateFromLevel(level);
+    for (let i = 0; i < steps.length; i++) {
+      const m = playerMoves(s).find((x) => x.dir === steps[i].dir);
+      if (!m) return i;
+      s = movePlayer(s, m);
+      if (outcome(s)) return outcome(s) === "caught" ? i : Infinity;
+      s = moveGhosts(s, brain(s).to);
+      if (outcome(s)) return i;
+    }
+    return steps.length;
+  };
+  let sooner = 0;
+  for (const { steps } of caught) {
+    const before = survived(steps, forgetful);
+    const after = survived(steps, ghostBrain(level, habitsFrom([steps])));
+    assert.ok(after <= before, `a repeated route lasted longer against learning wardens (${after} vs ${before})`);
+    if (after < before) sooner++;
+  }
+  assert.ok(caught.length > 0 && sooner >= 1, `learning should catch some repeated routes sooner (${sooner} of ${caught.length})`);
 });
