@@ -6,7 +6,7 @@
 
 import { canvasTexture, drawGlow, exitSigns, floorDecal, seededRandom, wrapped } from "./art-kit.js";
 
-const BULB_POWER = 30;
+const BULB_POWER = 50;
 const BULB_HEIGHT = 2.6;
 const CORD_LENGTH = 6;
 
