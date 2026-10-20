@@ -6,7 +6,7 @@
 
 import { canvasTexture, drawGlow, exitSigns, floorDecal, seededRandom, wrapped } from "./art-kit.js";
 
-const BULB_POWER = 50;
+const BULB_POWER = 100;
 const BULB_HEIGHT = 2.6;
 const CORD_LENGTH = 6;
 
@@ -67,7 +67,7 @@ export function buildBasement(THREE, layout, { still = false } = {}) {
   halo.scale.setScalar(1.4);
   halo.position.y = -CORD_LENGTH;
   // A wide spotlight aimed straight down: one shadow pass instead of a point light's six,
-  // which is cheaper on Chromebooks and still throws swinging shadows.
+
   const bulb = new THREE.SpotLight(0xffb46b, BULB_POWER, 0, 1.25, 0.9, 2);
   bulb.position.y = -CORD_LENGTH - 0.05;
   bulb.target.position.y = -CORD_LENGTH - 5;
