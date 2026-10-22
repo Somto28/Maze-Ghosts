@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isValidAttempt(d) {
+      return d.keys().hasAll(['sessionId', 'level', 'attemptNumber', 'result',
+                              'answerChoices', 'moves', 'moveCount',
+                              'durationSec', 'createdAt'])
+        && d.keys().hasOnly(['sessionId', 'level', 'attemptNumber', 'result',
+                             'answerChoices', 'moves', 'moveCount',
+                             'durationSec', 'createdAt', 'deathPosition'])
+        && d.sessionId is string && d.sessionId.size() <= 64
+        && d.level is int && d.level >= 1 && d.level <= 6
+        && d.attemptNumber is int && d.attemptNumber >= 1
+        && d.result in ['win', 'death']
+        && d.answerChoices is list && d.answerChoices.size() <= 100
+        && d.moves is list && d.moves.size() <= 2000
+        && d.moveCount is int
+        && d.durationSec is int && d.durationSec >= 0
+        && d.createdAt == request.time
+        && (!('deathPosition' in d) || d.deathPosition is map);
+    }
+
+    // Players can only ADD attempt records.
+    match /attempts/{attemptId} {
+      allow create: if isValidAttempt(request.resource.data);
+      allow read, update, delete: if false;
+    }
+
+    // Everything else is locked.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

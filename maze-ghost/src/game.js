@@ -55,6 +55,7 @@ export class MazeGame {
 
   /** @param {number} index */
   startLevel(index) {
+    logger.startAttempt(index);
     if (!Number.isInteger(index) || index < 0 || index >= this.levels.length) throw new RangeError(`No level ${index}`);
     this.levelIndex = index;
     this.state = stateFromLevel(this.level);
