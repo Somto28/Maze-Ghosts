@@ -588,9 +588,12 @@ function finish() {
     const hints = game.level.hints ?? [];
     const hint = hints.length ? hints[catches++ % hints.length] : "";
     const byDrone = game.state.ghosts.some((g, i) => isDrone(i) && g.r === game.state.player.r && g.c === game.state.player.c);
+    const reactive = game.level.weights?.cutoff === 0; // Level 1's ghost only chases, it doesn't predict
     let text = byDrone
       ? "The drone dashed straight at you. It never plans, but it's fast."
-      : `The ${e.name} predicted your moves ${n} step${n > 1 ? "s" : ""} ahead.`;
+      : reactive
+        ? `The ${e.name} caught you. It doesn't plan: it just steps toward wherever you are, every single turn.`
+        : `The ${e.name} predicted your moves ${n} step${n > 1 ? "s" : ""} ahead.`;
     if (game.level.learns) text += ` They've now studied ${game.attemptsStudied} of your attempts.`;
     showOverlay("lose", "Caught!", text, "Try again", () => restart("Try again!"), hint);
   } else if (game.status === "levelComplete") {

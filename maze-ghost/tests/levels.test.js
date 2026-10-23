@@ -1,7 +1,7 @@
 // Level design guarantees. If you edit a maze in src/levels.js, these tell you if you broke it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LEVELS, describeLevel, ghostBrain, habitsFrom, moveGhosts, movePlayer, naiveRoute, outcome, playerMoves, playtest, replay, solveLevel, stateFromLevel } from "../src/index.js";
+import { LEVELS, describeLevel, ghostBrain, habitsFrom, moveGhosts, movePlayer, naiveRoute, outcome, playerMoves, playtest, replay, safestMargin, solveLevel, stateFromLevel } from "../src/index.js";
 
 const about = LEVELS.map((level) => describeLevel(level));
 const brains = LEVELS.map((level) => ghostBrain(level)); // shared, so each position is only searched once
@@ -9,7 +9,7 @@ const brains = LEVELS.map((level) => ghostBrain(level)); // shared, so each posi
 test("there are 6 levels and each one adds a new idea", () => {
   assert.equal(LEVELS.length, 6);
   const [l1, l2, l3, l4, l5, l6] = about;
-  assert.ok(l1.wardens === 1 && !l1.drones, "level 1: one guard");
+  assert.ok(l1.wardens === 1 && !l1.drones && LEVELS[0].weights?.cutoff === 0, "level 1: one ghost that only reacts");
   assert.ok(LEVELS[1].lookahead > LEVELS[0].lookahead && l2.vents, "level 2: looks further ahead, and vents appear");
   assert.ok(l3.wardens > l2.wardens, "level 3: a team of wardens");
   assert.ok(l4.drones > 0, "level 4: a rule-based drone");
@@ -46,18 +46,30 @@ test("level 2: a route that fools a 1-move warden does NOT get past this level's
 });
 
 // The difficulty curve, measured with simulated players (src/playtest.js). Seeded, so always the same numbers.
-// Players who only GUESS what the wardens will do almost never escape. A player who READS their
-// prediction (the "thinker") can win every level, but less often each level.
-test("difficulty curve: near impossible unless you read the prediction, and harder every level", () => {
+// Level 1's ghost only reacts, so quick reflexes can beat it. From Level 2 on the enemies predict, and
+// players who only GUESS what they'll do almost never escape. A player who READS their prediction (the
+// "thinker") can win every level, but less often each level, in roughly even steps.
+test("difficulty curve: each level harder than the last, in even steps, and reading the prediction is what works", () => {
   const rate = (i, skill, games = 100) => playtest(LEVELS[i], { skill, games, brain: LEVELS[i].learns ? null : brains[i] }).rate;
   const thinker = LEVELS.map((_, i) => rate(i, "thinker"));
   const shown = thinker.map((r) => Math.round(r * 100));
-  for (let i = 1; i < thinker.length; i++) assert.ok(thinker[i] < thinker[i - 1], `level ${i + 1} should be harder than level ${i} (${shown})`);
-  for (let i = 0; i < LEVELS.length; i++) {
-    assert.ok(thinker[i] >= 0.03, `level ${i + 1} should still be winnable by a player who reads the wardens (${shown})`);
-    assert.ok(rate(i, "average") <= 0.15, `level ${i + 1}: players who ignore the prediction should almost never escape`);
+  for (let i = 1; i < thinker.length; i++) {
+    assert.ok(thinker[i] < thinker[i - 1], `level ${i + 1} should be harder than level ${i} (${shown})`);
+    const step = thinker[i - 1] - thinker[i];
+    assert.ok(step <= 0.22, `level ${i} to ${i + 1} is a big jump in difficulty (${shown})`);
   }
-  assert.ok(thinker[0] <= 0.6, "even level 1 should catch a careful player often");
+  for (let i = 0; i < LEVELS.length; i++) assert.ok(thinker[i] >= 0.03, `level ${i + 1} should still be winnable by a player who reads the wardens (${shown})`);
+  for (let i = 1; i < LEVELS.length; i++) assert.ok(rate(i, "average") <= 0.15, `level ${i + 1}: players who ignore the prediction should almost never escape`);
+  assert.ok(thinker[0] <= 0.75, "even level 1 should catch a careful player sometimes");
+});
+
+// The "obvious path" problem: no level may have a route that walks around the enemies. On the safest
+// winning route an enemy still has to come within a few moves of you.
+test("no free paths: every escape has to pass close to an enemy", () => {
+  LEVELS.forEach((level, i) => {
+    const { margin } = safestMargin(level, { brain: level.learns ? ghostBrain(level) : brains[i], maxStates: 15_000 });
+    assert.ok(margin <= 4, `level ${level.id} has a route that stays ${margin} moves clear of every enemy`);
+  });
 });
 
 test("level 6: the wardens learn, so repeating a caught route gets you caught sooner", () => {

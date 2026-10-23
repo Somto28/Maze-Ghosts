@@ -5,7 +5,7 @@
 //   thinker                      reads the wardens' plan and thinks 3 moves ahead
 // On a learning level it also shows how a thinker does over several tries while the wardens study it.
 
-import { LEVELS, SKILLS, describeLevel, ghostBrain, naiveRoute, playtest, replay, solveLevel } from "../src/index.js";
+import { LEVELS, SKILLS, describeLevel, ghostBrain, naiveRoute, playtest, replay, safestMargin, solveLevel } from "../src/index.js";
 
 const only = Number(process.argv[2]) || null;
 for (const level of LEVELS) {
@@ -21,6 +21,8 @@ for (const level of LEVELS) {
   }
   console.log(`  ✓ beatable: shortest escape is ${win.moves.length} moves (checked ${win.statesExplored} positions in ${ms} ms)`);
   console.log(`  straight run to the exit: ${replay(level, naiveRoute(level.maze), brain)}`);
+  const safe = safestMargin(level, { brain, maxStates: 20_000 });
+  console.log(`  safest escape still passes within ${safe.margin}${safe.capped ? " (or fewer)" : ""} move${safe.margin === 1 ? "" : "s"} of an enemy${safe.margin >= 5 ? "  ⚠ there's a route that avoids them" : ""}`);
   for (let shallow = 1; shallow < level.lookahead; shallow++) {
     const route = solveLevel({ ...level, lookahead: shallow }).moves;
     console.log(`  route that beats a ${shallow}-move search: ${route ? replay(level, route, brain) : "(none exists)"}`);

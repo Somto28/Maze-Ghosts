@@ -5,6 +5,6 @@ export { DIRS, MAX_DRONES, MAX_GHOSTS, parseMaze, legalMoves, canEnter, mazeDist
 export { outcome, movePlayer, moveGhosts, playerMoves, exitsOpen, keysHeld, goalDistance, goalField, speedOf, averageSpeed, dronePhase, PLAYER_CAN_WAIT } from "./rules.js";
 export { habitsFrom, habitCount } from "./learning.js";
 export { buildLayout3D, gridToWorld, worldToGrid } from "./layout3d.js";
-export { solveLevel, replay, naiveRoute, stateFromLevel, ghostBrain, positionKey } from "./solver.js";
+export { solveLevel, replay, naiveRoute, stateFromLevel, ghostBrain, positionKey, safestMargin } from "./solver.js";
 export { playtest, SKILLS } from "./playtest.js";
 export { describeLevel, droneRule } from "./describe.js";

@@ -53,7 +53,7 @@ test("escaping advances through the levels and the last one wins the game", () =
 
 test("the game exposes what the ghost was thinking", () => {
   const game = new MazeGame();
-  const { ghost } = game.takeTurn("right");
+  const { ghost } = game.takeTurn(game.availableMoves[0]);
   assert.equal(ghost.thinking.lookahead, LEVELS[0].lookahead);
   assert.ok(ghost.thinking.futuresConsidered > 0);
   assert.equal(game.lastThinking, ghost.thinking);
