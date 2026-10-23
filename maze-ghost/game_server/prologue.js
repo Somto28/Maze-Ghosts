@@ -20,6 +20,8 @@
 // It reuses the stage, dialogue box and control bar styles from cutscene.css; prologue.css adds the thought bubbles.
 // Text lives in STEPS (the ad's lines and the questions), so it's easy to edit.
 
+import { logger } from "./log.js";
+
 const W = 320, H = 180;
 const RM = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 let ctx = null; // whichever canvas is being drawn right now
@@ -573,9 +575,11 @@ export function playPrologue({ autoStart = false } = {}) {
       choicesEl.firstChild?.focus({ preventScroll: true });
     }
     function answer(k) {
-      logger.recordAnswer(questionId, choice, correct);
       if (!ask || ask.phase !== "choose") return;
       const s = STEPS[si], c = s.choices[k];
+      // q1-q4 are the comprehension questions, q5-q6 the ethics ones (no wrong answer, so correct = true).
+      const qNum = STEPS.slice(0, si + 1).filter((x) => x.kind === "ask").length;
+      logger.recordAnswer(`q${qNum}`, "ABC"[k] ?? String(k), s.ethics ? true : !!c.right);
       ask.phase = "reply"; ask.choice = k; ask.replyAt = lt; ask.readFor = 2.2 + c.reply.length / 16;
       [...choicesEl.children].forEach((b, j) => {
         b.disabled = true;

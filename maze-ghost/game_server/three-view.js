@@ -11,6 +11,7 @@ import { createQuality } from "./quality.js";
 import { cutsceneActive, playCutscene } from "./cutscene.js";
 import { showTitleScreen, titleActive } from "./title-screen.js";
 import { playPrologue, prologueActive } from "./prologue.js";
+import { logger } from "./log.js";
 
 const TILE = 1;
 const STEP_MS = 220; // pause between your move and the ghosts', so the turns are visible
@@ -332,6 +333,7 @@ function resetActors() {
 
 // Builds the scene only when the level changes; restarting the same level just resets the actors.
 function showLevel(message) {
+  logger.startAttempt(game.level.id); // every start, restart and next level is a new attempt
   if (game.levelIndex === builtLevel) resetActors();
   else buildScene();
   updateHud(message);
@@ -576,7 +578,7 @@ function finish() {
   const n = game.level.lookahead;
   const e = enemy();
   if (game.status === "caught") {
-    logger.endAttempt("death", {x: game.state.player.c, y: game.state.player.r});
+    logger.endAttempt("death", { x: game.state.player.c, y: game.state.player.r });
     const hints = game.level.hints ?? [];
     const hint = hints.length ? hints[catches++ % hints.length] : "";
     const byDrone = game.state.ghosts.some((g, i) => isDrone(i) && g.r === game.state.player.r && g.c === game.state.player.c);
@@ -586,7 +588,7 @@ function finish() {
     if (game.level.learns) text += ` They've now studied ${game.attemptsStudied} of your attempts.`;
     showOverlay("lose", "Caught!", text, "Try again", () => restart("Try again!"), hint);
   } else if (game.status === "levelComplete") {
-    logger.endAttempt("success", {x: game.state.player.c, y: game.state.player.r});
+    logger.endAttempt("win", { x: game.state.player.c, y: game.state.player.r });
     catches = 0;
     const next = game.levels[game.levelIndex + 1];
     showOverlay("win", "Escaped!", `Next: Level ${next.id} · ${next.name}. ${next.briefing ?? describeLevel(next).line}`, `Start Level ${next.id}`, goToNextLevel, next.concept ? `New idea: ${next.concept}` : "");
@@ -661,6 +663,7 @@ renderer.setAnimationLoop((now) => {
 
 buildScene();
 updateHud(startMessage());
+logger.startAttempt(game.level.id);
 if (params.has("level") || params.get("title") === "0") showBriefing();
 
 // The home screen opens first. ?level= or ?title=0 go straight into the game (the story still plays
