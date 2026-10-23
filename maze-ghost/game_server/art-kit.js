@@ -81,3 +81,73 @@ export function seededRandom(seed) {
     return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/**
+ * Merged geometry for every visible wall face, for the level looks. Faces pressed against another wall
+ * tile are skipped (never visible), and each face picks a cell from a horizontal texture atlas.
+ *   sides: pickSide(r, c, face) -> atlas cell for a side face (face.dc / face.dr say which way it faces;
+ *          face.end is true on the end of a straight row, where a plain panel looks right)
+ *   tops:  pickTop(r, c) -> atlas cell for the top face, or -1 for none
+ * Returns { sides, tops } BufferGeometries (either may be empty).
+ */
+export function wallGeometry(THREE, layout, { y0 = 0, y1, sideCells = 1, topCells = 1, pickSide = () => 0, pickTop = () => 0 }) {
+  const h = layout.tileSize / 2;
+  const top = y1 ?? layout.theme.wallHeight;
+  const isWall = new Set(layout.walls.map((w) => `${w.r},${w.c}`));
+  const wallAt = (r, c) => isWall.has(`${r},${c}`);
+  const sides = { pos: [], nrm: [], uv: [], idx: [] };
+  const tops = { pos: [], nrm: [], uv: [], idx: [] };
+  const quad = (buf, corners, normal, uvs) => {
+    const base = buf.pos.length / 3;
+    corners.forEach((p, i) => { buf.pos.push(...p); buf.nrm.push(...normal); buf.uv.push(...uvs[i]); });
+    buf.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+  // Corners go bottom-left, bottom-right, top-right, top-left as seen from outside the face.
+  const FACES = [
+    { dr: 0, dc: 1, n: [1, 0, 0], corners: (x, z) => [[x + h, y0, z + h], [x + h, y0, z - h], [x + h, top, z - h], [x + h, top, z + h]] },
+    { dr: 0, dc: -1, n: [-1, 0, 0], corners: (x, z) => [[x - h, y0, z - h], [x - h, y0, z + h], [x - h, top, z + h], [x - h, top, z - h]] },
+    { dr: 1, dc: 0, n: [0, 0, 1], corners: (x, z) => [[x - h, y0, z + h], [x + h, y0, z + h], [x + h, top, z + h], [x - h, top, z + h]] },
+    { dr: -1, dc: 0, n: [0, 0, -1], corners: (x, z) => [[x + h, y0, z - h], [x - h, y0, z - h], [x - h, top, z - h], [x + h, top, z - h]] },
+  ];
+  for (const { r, c, position: { x, z } } of layout.walls) {
+    const alongX = wallAt(r, c - 1) || wallAt(r, c + 1);
+    const alongZ = wallAt(r - 1, c) || wallAt(r + 1, c);
+    for (const f of FACES) {
+      if (wallAt(r + f.dr, c + f.dc)) continue;
+      const end = f.dc !== 0 ? alongX && !alongZ : alongZ && !alongX;
+      const cell = pickSide(r, c, { dr: f.dr, dc: f.dc, end });
+      const u0 = cell / sideCells, u1 = (cell + 1) / sideCells;
+      quad(sides, f.corners(x, z), f.n, [[u0, 0], [u1, 0], [u1, 1], [u0, 1]]);
+    }
+    const cell = pickTop(r, c);
+    if (cell < 0) continue;
+    const u0 = cell / topCells, u1 = (cell + 1) / topCells;
+    quad(tops, [[x - h, top, z + h], [x + h, top, z + h], [x + h, top, z - h], [x - h, top, z - h]], [0, 1, 0], [[u0, 0], [u1, 0], [u1, 1], [u0, 1]]);
+  }
+  const toGeometry = (b) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(b.pos, 3));
+    g.setAttribute("normal", new THREE.Float32BufferAttribute(b.nrm, 3));
+    g.setAttribute("uv", new THREE.Float32BufferAttribute(b.uv, 2));
+    g.setIndex(b.idx);
+    return g;
+  };
+  return { sides: toGeometry(sides), tops: toGeometry(tops) };
+}
+
+/** A full-screen backdrop painted on a canvas (used as scene.background). 16:9, stretched to the window. */
+export function backdrop(THREE, draw, { width = 1280, height = 720 } = {}) {
+  const tex = canvasTexture(THREE, width, (g, w, h) => draw(g, w, h), { height, wrap: false });
+  tex.anisotropy = 1;
+  return tex;
+}
+
+/** Soft blur-free "shadow" at the foot of every wall: stacked, growing translucent rectangles. */
+export function paintWallShadows(g, layout, px, { steps = 7, alpha = 0.07, spread = 3 } = {}) {
+  for (const { r, c } of layout.walls) {
+    for (let k = 1; k <= steps; k++) {
+      g.fillStyle = `rgba(0,0,0,${alpha})`;
+      g.fillRect(c * px - k * spread, r * px - k * spread, px + k * spread * 2, px + k * spread * 2);
+    }
+  }
+}

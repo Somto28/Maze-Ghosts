@@ -7,6 +7,9 @@ import { canvasTexture, floorDecal } from "./art-kit.js";
 import { buildBasement } from "./basement.js";
 import { buildCore } from "./core.js";
 import { buildServerHalls } from "./server-halls.js";
+import { buildVault } from "./vault.js";
+import { buildArchive } from "./archive.js";
+import { buildUplink } from "./uplink.js";
 import { createQuality } from "./quality.js";
 import { cutsceneActive, playCutscene } from "./cutscene.js";
 import { showTitleScreen, titleActive } from "./title-screen.js";
@@ -15,7 +18,8 @@ import { logger } from "./log.js";
 
 const TILE = 1;
 const STEP_MS = 220; // pause between your move and the ghosts', so the turns are visible
-const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core: buildCore }; // theme.style -> custom art
+// theme.style -> custom art for that level
+const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core: buildCore, vault: buildVault, archive: buildArchive, uplink: buildUplink };
 const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 // ?level=2 starts on Level 2, ?fps shows the frame rate, ?res=1 pins the render resolution (testing),
 // ?intro=0 skips the opening cutscene, ?title=0 skips the home screen.
@@ -200,6 +204,7 @@ function drawEvidence() {
   const s = game.state;
   drives.forEach((d, i) => { d.visible = !((s.collected >> i) & 1); });
   for (const pad of exitPads) pad.material.color.set(exitOpen ? 0x2bd36a : 0xd23b3b);
+  look?.setExitOpen?.(exitOpen); // e.g. the Uplink's beam turns from red to cyan
 }
 
 // ---------- Scene from the level's 3D layout ----------
@@ -218,8 +223,9 @@ function buildScene() {
 
   scene = new THREE.Scene();
   const bg = new THREE.Color(t.floorColor).multiplyScalar(0.6);
-  scene.background = bg;
-  scene.fog = new THREE.FogExp2(bg, t.fog);
+  // A look can paint its own backdrop (the vault hall, the archive stacks, the night skyline).
+  scene.background = look?.background ?? bg;
+  scene.fog = new THREE.FogExp2(look?.fogColor ? new THREE.Color(look.fogColor) : bg, t.fog);
   scene.add(look ? look.group : defaultLights(t, c, span));
 
   const floor = new THREE.Mesh(

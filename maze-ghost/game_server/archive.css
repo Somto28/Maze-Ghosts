@@ -1,0 +1,109 @@
+/* archive.css — Level 5's HUD: a case file pulled from Clearpath's records archive. The HUD is a manila
+   folder with a tab and a red CONFIDENTIAL stamp, the wardens' thinking is typed on a ruled index card,
+   the controls are typewriter keys, and results are stamped onto the file. Warm lamplight vignette.
+   Applies only while three-view.js sets <body data-style="archive">. Gameplay colours stay the same. */
+
+body[data-style="archive"] {
+  --ink: #2b1d12;
+  --muted: #6e5a42;
+  --line: rgba(60, 40, 20, 0.2);
+  --manila: #e9d6a6;
+  --manila-dark: #d4bd84;
+  --stamp: #b3261e;
+  --serif: "Libre Baskerville", Georgia, "Times New Roman", serif;
+  --type: "Courier Prime", "Courier New", ui-monospace, monospace;
+  background: #0c0704;
+}
+
+/* ---------- Over the 3D view: warm lamplight falling off into the dark stacks ---------- */
+body[data-style="archive"] #mood {
+  display: block;
+  background: radial-gradient(ellipse 68% 64% at 58% 52%, rgba(255, 190, 110, 0.04) 40%, rgba(12, 6, 2, 0.78) 100%);
+}
+
+/* ---------- Panels: manila card stock ---------- */
+body[data-style="archive"] .panel {
+  color: var(--ink);
+  font-family: var(--type);
+  border: 1px solid #b79a5e;
+  border-radius: 3px;
+  background:
+    repeating-linear-gradient(0deg, rgba(120, 90, 40, 0.04) 0 2px, transparent 2px 5px),
+    linear-gradient(170deg, #f0e0b6, var(--manila) 60%, var(--manila-dark));
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.55), 2px 3px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* The HUD is the folder: a tab on top, the stamp across the corner. */
+body[data-style="archive"] #hud { top: 38px; overflow: visible; padding-top: 14px; }
+body[data-style="archive"] #hud::before {
+  content: "SUBJECT FILES · B2";
+  position: absolute; left: -1px; top: -24px; padding: 4px 14px 3px;
+  font: 700 11px/16px var(--type); letter-spacing: 0.12em; color: var(--ink);
+  background: linear-gradient(180deg, #f3e4bd, var(--manila));
+  border: 1px solid #b79a5e; border-bottom: 0; border-radius: 6px 10px 0 0;
+}
+body[data-style="archive"] #hud::after {
+  content: "CONFIDENTIAL";
+  position: absolute; right: 10px; top: -22px; padding: 2px 6px;
+  font: 700 12px/1.2 var(--type); letter-spacing: 0.14em; color: var(--stamp);
+  border: 2px solid var(--stamp); border-radius: 3px; transform: rotate(-6deg); opacity: 0.85; background: rgba(233, 214, 166, 0.92);
+  pointer-events: none;
+}
+body[data-style="archive"] #level-name { font: 700 19px/1.25 var(--serif); color: #24160c; }
+body[data-style="archive"] #level-name::before {
+  content: "Records archive · Sub-level B2";
+  display: block; margin-bottom: 3px;
+  font: 400 11px/1.3 var(--type); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+}
+body[data-style="archive"] #depth { color: var(--muted); }
+body[data-style="archive"] #depth b { color: var(--stamp); }
+body[data-style="archive"] #message { font-weight: 700; }
+body[data-style="archive"] .legend { color: var(--muted); }
+
+/* The wardens' thinking: typed on a ruled index card clipped into the folder. */
+body[data-style="archive"] #thinking {
+  position: relative; border-top: 0; margin-top: 12px; padding: 10px 10px 8px 14px;
+  background:
+    linear-gradient(90deg, transparent 8px, rgba(200, 60, 60, 0.5) 8px 9px, transparent 9px),
+    repeating-linear-gradient(180deg, #fbf7ea 0 17px, rgba(90, 130, 190, 0.35) 17px 18px);
+  border-radius: 2px; box-shadow: 0 2px 4px rgba(60, 40, 20, 0.25);
+}
+body[data-style="archive"] #thinking::before { /* paper clip */
+  content: ""; position: absolute; right: 16px; top: -8px; width: 10px; height: 24px;
+  border: 2px solid #8b8f96; border-radius: 6px;
+}
+body[data-style="archive"] #thinking .title { color: var(--muted); }
+body[data-style="archive"] #thinking .opt { color: #4a3a2a; border-radius: 0; }
+body[data-style="archive"] #thinking .opt.chosen { color: var(--stamp); background: rgba(179, 38, 30, 0.08); font-weight: 700; }
+body[data-style="archive"] .chip { font-family: var(--type); background: rgba(255, 255, 255, 0.35); }
+
+/* Controls: round typewriter keys. */
+body[data-style="archive"] #pad button {
+  border-radius: 50%; border: 3px solid #2a2a2a; color: #f3ead2; font-family: var(--type);
+  background: radial-gradient(circle at 40% 35%, #4a4a4a, #1c1c1c);
+  box-shadow: 0 4px 0 #0e0e0e, 0 8px 14px rgba(0, 0, 0, 0.5), inset 0 0 0 2px #c9b27a;
+}
+body[data-style="archive"] #pad button:active { transform: translateY(3px); box-shadow: 0 1px 0 #0e0e0e, inset 0 0 0 2px #c9b27a; }
+body[data-style="archive"] #help { font-family: var(--type); }
+
+/* ---------- Result: stamped onto the case file ---------- */
+body[data-style="archive"] #overlay { background: rgba(10, 5, 2, 0.7); }
+body[data-style="archive"] #overlay .card { position: relative; padding: 26px 28px 24px; max-width: 440px; transform: rotate(-0.6deg); }
+body[data-style="archive"] #overlay .card::before {
+  position: absolute; right: 18px; top: 14px; padding: 3px 8px;
+  font: 700 13px/1.2 var(--type); letter-spacing: 0.12em; border: 3px solid currentColor; border-radius: 4px;
+  transform: rotate(7deg); opacity: 0.85;
+}
+body[data-style="archive"] #overlay[data-kind="lose"] .card::before { content: "FILE CLOSED"; color: var(--stamp); }
+body[data-style="archive"] #overlay[data-kind="win"] .card::before { content: "RECOVERED"; color: #2f6b3a; }
+body[data-style="archive"] #overlay[data-kind="brief"] .card::before { content: "CASE FILE"; color: #2e4560; }
+body[data-style="archive"] #overlay h2 { font: 700 26px/1.2 var(--serif); color: var(--stamp); text-align: left; padding-right: 120px; }
+body[data-style="archive"] #overlay[data-kind="win"] h2 { color: #2f6b3a; }
+body[data-style="archive"] #overlay[data-kind="brief"] h2 { color: #24160c; }
+body[data-style="archive"] #overlay p { color: #4a3a2a; text-align: left; font-size: 14px; }
+body[data-style="archive"] #overlay p.hint { color: #3b2a14; background: #fbf7ea; border-left: 3px solid #c9a227; border-radius: 0; }
+body[data-style="archive"] #overlay button {
+  font: 700 14px/1 var(--type); letter-spacing: 0.08em; border-radius: 3px; padding: 12px 20px;
+  background: #2b1d12; color: var(--manila);
+}
+body[data-style="archive"] #overlay button:focus-visible { outline: 2px solid var(--stamp); outline-offset: 3px; }

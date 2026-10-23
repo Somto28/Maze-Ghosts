@@ -83,8 +83,3 @@ body[data-style="core"] #overlay button {
   background: var(--violet); color: #fff; box-shadow: 0 8px 20px rgba(109, 77, 255, 0.35);
 }
 body[data-style="core"] #overlay button:focus-visible { outline: 3px solid rgba(109, 77, 255, 0.4); outline-offset: 3px; }
-
-/* ---------- Level 6 reuses this look as the Uplink ---------- */
-body[data-style="core"][data-level="6"] #hud::before { content: "WARDEN LEARNING MODE · LIVE"; }
-body[data-style="core"][data-level="6"] #level-name::before { content: "Rooftop broadcast studio"; }
-body[data-style="core"][data-level="6"] #overlay[data-kind="lose"] .card::before { content: "INCIDENT REPORT · ATTEMPT LOGGED FOR TRAINING"; }
