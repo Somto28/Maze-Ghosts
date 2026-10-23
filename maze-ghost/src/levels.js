@@ -1,6 +1,6 @@
 // levels.js — the six levels. Each one adds ONE new idea about how the enemy AI predicts you.
 //
-//   Level 1  The Basement      1 ghost, 2 exits             It GUARDS the way out instead of chasing you.
+//   Level 1  The Basement      1 ghost, lookahead 1         It only REACTS: chases where you are now. Lure it, then run.
 //   Level 2  The Server Halls  1 warden, lookahead 3, vent  It PREDICTS where you'll be. New: vents.
 //   Level 3  The Core          2 wardens, 2 vents           TEAMWORK: one guards, one hunts.
 //   Level 4  The Data Vault    2 wardens + 1 drone, vents   RULES vs SEARCH: the drone is fast but follows a fixed rule.
@@ -9,6 +9,7 @@
 //
 // Every enemy uses the same brain (src/ai.js): minimax search plus a judgment of positions that
 // treats "the player has a safe run to the goal" as nearly lost, so they cut you off instead of chasing.
+// Level 1 switches that judgment off (its `weights`), so its ghost is a pure chaser.
 // lookahead = how many of their own moves the wardens plan, each followed by your best reply.
 //
 // Map key:  #  wall    .  floor    E  exit (enemies can't enter)    P  player
@@ -36,27 +37,30 @@ export const LEVELS = Object.freeze([
     id: 1,
     name: "The Basement",
     lookahead: 1,
-    concept: "It guards the way out",
+    // This ghost only REACTS: no cut-offs, no boxing in, just "step toward where the player is now".
+    // That's the baseline the later levels improve on (Level 2's warden starts predicting).
+    weights: { cutoff: 0, territory: 0, playerFromExit: 0 },
+    concept: "Reacting is not predicting",
     briefing:
-      "This ghost only looks 1 move ahead, but it doesn't just chase you. It moves to stand between you and the way out. There are two exits and it can only guard one at a time. Watch where it goes, make it commit, then go for the other one.",
+      "This ghost doesn't plan. It looks just 1 move ahead and always steps toward where you are RIGHT NOW. It can't get in front of you, but it never stops chasing. Lure it out of the way, then race for the exit. Watch out for dead ends: one wrong turn is all it needs.",
     hints: [
-      "It isn't chasing you, it's blocking you. Its red dot shows where it will stand next.",
-      "Two exits, one ghost. Head for one until it moves to block it, then switch.",
-      "You only get out if you can reach an exit before it can reach your path. Count the tiles.",
+      "It always steps toward where you are now. Pull it toward you first, then run for the exit with it behind you.",
+      "Dead ends are traps. If it follows you into one, it's over. Always keep a way out.",
+      "It only reacts, it never predicts. Something that can't predict you can't get in front of you.",
     ],
     maze: [
-      "#########",
-      "#P......#",
-      "#.####..#",
-      "#....#..#",
-      "#...#G#.#",
-      "#.##..#.#",
-      "#.....#.#",
-      "#...#.#.E",
-      "#####E###",
+      "###########",
+      "#P##..##..#",
+      "#.#.......#",
+      "#..#.#G...#",
+      "#.####...##",
+      "#......#..#",
+      "#.#......##",
+      "#......#..E",
+      "###########",
     ],
     // style "basement": brick, damp concrete and one swinging bulb (examples/basement.js + basement.css).
-    theme: { style: "basement", wallHeight: 1.0, wallColor: "#4a2e24", floorColor: "#17120e", ghostColor: "#ff5a5a", fog: 0.03, light: 1.0 },
+    theme: { style: "basement", wallHeight: 1.0, wallColor: "#4a2e24", floorColor: "#17120e", ghostColor: "#ff5a5a", fog: 0.02, light: 1.6 }, // brighter ambience: the room is wider now and the corners must be readable
   },
   {
     id: 2,
@@ -130,25 +134,26 @@ export const LEVELS = Object.freeze([
     hints: [
       "The Drone always flies the shortest way to where you are now: 2 tiles, then it rests. Count its turns.",
       "When the HUD says the Drone is recharging, it can't move this turn. That's your window.",
+      "The Drone and the Wardens can't follow you into a vent. Which vent pops out closest to the vault door?",
       "Speed isn't intelligence: the Drone gets there first, but only the Wardens plan. Lead the Drone, outthink the Wardens.",
     ],
     maze: [
       "###############",
-      "#P........#...#",
-      "###.#.###.#.#.#",
-      "#1#.#...#...#.#",
-      "#.#.#.#.#.#.#.#",
-      "#.....#...#...#",
-      "#.#.#.#.###.#.#",
-      "#.#.#...#..D#.#",
-      "#.#.2##.#.###.#",
-      "#...#2..#.#1#.#",
-      "#G#.#####.#.#.#",
-      "#...G.....#...E",
+      "#P.....#......#",
+      "#.#.#.##.#.#.##",
+      "#.#...####....#",
+      "#..#..#...###.#",
+      "#.......#..##.#",
+      "#.#.###.2#....#",
+      "#1#..G#..2#...#",
+      "#####.#.#D.####",
+      "#.#.....##.G.##",
+      "#.###.##1##..##",
+      "#.............E",
       "###############",
     ],
-    // Reuses Level 2's server look (the Vault is where Clearpath stores the data it collects).
-    theme: { style: "server-halls", wallHeight: 1.8, wallColor: "#1a2230", floorColor: "#081018", ghostColor: "#ff3b6b", droneColor: "#ffb020", fog: 0.024, light: 0.95 },
+    // style "vault": a sci-fi cold-storage data vault (game_server/vault.js + vault.css).
+    theme: { style: "vault", wallHeight: 1.5, wallColor: "#a7b7c3", floorColor: "#0a1219", ghostColor: "#ff3b6b", droneColor: "#ffb020", fog: 0.02, light: 1.0 },
   },
   {
     id: 5,
@@ -157,35 +162,37 @@ export const LEVELS = Object.freeze([
     lookahead: 3,
     dronePattern: [2, 0],
     // These wardens only guard the drives and the door; they don't also try to box you in.
+    // The drone starts beside the exit: it guards the archive door.
     weights: { territory: 0 },
     concept: "When the AI knows your goal",
     briefing:
-      "You need proof. Grab both evidence drives (the glowing blue cases) before the exit unlocks. The Wardens know exactly what you need, so they don't chase you: they guard the drives and the door. When an AI knows your goal, your moves become easy to predict.",
+      "You need proof. Grab both evidence drives (the glowing blue cases) before the exit unlocks. The Wardens know exactly what you need, so they wait where you HAVE to go: by the drives and on the way out. The Drone guards the door itself. When an AI knows your goal, your moves become easy to predict.",
     hints: [
       "They predict your route from your goal: drive, drive, exit. Grab the drives in the order they don't expect.",
       "Watch which drive their red dots head for. Go for the other one first.",
+      "The Drone sits by the door. Lure it away first, or come out of a vent where it can't reach you in one dash.",
       "The exit stays locked until you hold every drive, and they know it. Don't rush the door.",
     ],
     maze: [
       "###############",
       "#P#1........#2#",
-      "#.###.###.#.#.#",
-      "#......1#...#.#",
-      "#.#.#####G#.#.#",
-      "#.#.....#.#.#.#",
-      "#.###.#K#.#.#.#",
-      "#.....#.#.#...#",
-      "#.#.###.#.2##.#",
+      "#.###.#...###.#",
+      "#.....#1......#",
+      "#....###.G....#",
+      "#.#....#..#.#.#",
+      "#..##..K..#.#.#",
+      "##.......##...#",
+      "###.###.#.2##.#",
       "#.......#.#...#",
-      "#.#####.#K#.###",
-      "#.G.....#.#.#.#",
-      "#.#.###.#.#D#.#",
-      "#.........#...E",
+      "#.#####.#K#..##",
+      "#.G#..#...#.###",
+      "#.#.#.#.###.#.#",
+      "##.......##..DE",
       "###############",
     ],
-    // No custom look yet (the basement look is too dark for a maze this big): plain lit walls in archive colours,
-    // kept low so solid walls never hide you.
-    theme: { wallHeight: 1.1, wallColor: "#8a6a4a", floorColor: "#2a2018", ghostColor: "#ff4d5e", droneColor: "#ffb020", fog: 0.018, light: 1.1 },
+    // style "archive": the records room, shelves of everyone's files (game_server/archive.js + archive.css).
+    // Shelves kept low so they never hide you.
+    theme: { style: "archive", wallHeight: 1.2, wallColor: "#3a2516", floorColor: "#2a1a10", ghostColor: "#ff4d5e", droneColor: "#ffb020", fog: 0.016, light: 1.1 },
   },
   {
     id: 6,
@@ -221,7 +228,7 @@ export const LEVELS = Object.freeze([
       "#....2#K.....D#.E",
       "#################",
     ],
-    // Reuses Level 3's glass look: the broadcast studio at the top of the tower.
-    theme: { style: "core", wallHeight: 2.0, wallColor: "#e4e2dd", floorColor: "#120f18", ghostColor: "#ff1f3d", droneColor: "#ffb020", fog: 0.02, light: 1.0 },
+    // style "uplink": the roof of the tower at night (game_server/uplink.js + uplink.css).
+    theme: { style: "uplink", wallHeight: 1.3, wallColor: "#7d8493", floorColor: "#1c1e28", ghostColor: "#ff1f3d", droneColor: "#ffb020", fog: 0.014, light: 1.0 },
   },
 ]);

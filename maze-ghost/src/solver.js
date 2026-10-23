@@ -4,9 +4,9 @@
 // situation. So the whole game is decided by where everyone stands, and a breadth-first search over
 // those positions finds the SHORTEST winning route, or proves no route exists.
 
-import { parseMaze, samePos } from "./maze.js";
+import { distancesFrom, parseMaze, samePos } from "./maze.js";
 import { chooseGhostMoves } from "./ai.js";
-import { exitsOpen, moveGhosts, movePlayer, outcome, playerMoves } from "./rules.js";
+import { averageSpeed, exitsOpen, moveGhosts, movePlayer, outcome, playerMoves } from "./rules.js";
 
 /** @typedef {import("./maze.js").Dir} Dir */
 /** @typedef {{ maze: string[], lookahead: number, weights?: object, dronePattern?: number[], learns?: boolean }} LevelSpec */
@@ -112,4 +112,49 @@ export function naiveRoute(maze) {
     }
   }
   return null;
+}
+
+/**
+ * How close does an enemy HAVE to get? The largest safety margin d (in enemy turns) such that some
+ * winning route keeps every enemy at least d turns away after each of their moves. A small margin
+ * (1-2) means every escape is a close dodge; a big one means there's a route that never meets them
+ * (the "obvious path that bypasses the wardens"). Explores positions widest-margin first.
+ * If it gives up after maxStates, the result is an upper bound (`capped: true`).
+ * @param {LevelSpec} level
+ * @returns {{ margin: number, capped: boolean }}  margin -1 = not winnable at all
+ */
+export function safestMargin(level, { maxStates = 60_000, brain = ghostBrain(level), cap = 8 } = {}) {
+  const start = stateFromLevel(level);
+  const near = (s) => {
+    const cols = s.grid[0].length, p = s.player.r * cols + s.player.c;
+    let n = cap;
+    s.ghosts.forEach((g, i) => {
+      const d = distancesFrom(s.grid, g, "ghost")[p];
+      if (d >= 0) n = Math.min(n, Math.ceil(d / averageSpeed(s, i)));
+    });
+    return n;
+  };
+  const best = new Map([[positionKey(start), cap]]);
+  const buckets = Array.from({ length: cap + 1 }, () => []);
+  buckets[cap].push([start, cap]);
+  let count = 0;
+  for (let b = cap; b >= 0; b--) {
+    while (buckets[b].length) {
+      const [s, B] = buckets[b].pop();
+      if (best.get(positionKey(s)) > B) continue;
+      if (++count > maxStates) return { margin: b, capped: true };
+      for (const m of playerMoves(s)) {
+        const a = movePlayer(s, m);
+        const end = outcome(a);
+        if (end === "escaped") return { margin: B, capped: false };
+        if (end) continue;
+        const next = moveGhosts(a, brain(a).to);
+        if (outcome(next)) continue;
+        const nb = Math.min(B, near(next));
+        const k = positionKey(next);
+        if ((best.get(k) ?? -1) < nb) { best.set(k, nb); buckets[nb].push([next, nb]); }
+      }
+    }
+  }
+  return { margin: -1, capped: false };
 }

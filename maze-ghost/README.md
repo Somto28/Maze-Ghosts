@@ -6,20 +6,21 @@ A turn-based maze escape. You move, then the enemies move. The Wardens use **adv
 
 | Level | Maze | Enemies | New idea | What it feels like |
 | --- | --- | --- | --- | --- |
-| 1 · The Basement | 9 × 9 | 1 ghost, looks 1 move ahead, 2 exits | It guards the way out | It doesn't chase you, it blocks you. Make it commit to one exit, then take the other |
+| 1 · The Basement | 9 × 11 | 1 ghost that only reacts | Reacting isn't predicting | It chases you everywhere but can't get ahead of you. Lure it, then race it to the exit, and avoid dead ends |
 | 2 · The Server Halls | 11 × 11 | 1 warden, 3 moves ahead + 1 vent | Predicting where you'll be | It heads for where you WILL be, including the far end of the vent |
 | 3 · The Core | 13 × 13 | 2 wardens + 2 vents | Teamwork | One guards the way out while the other hunts you |
-| 4 · The Data Vault | 13 × 15 | 2 wardens + 1 drone + 2 vents | Fast rules vs. slow thinking | The drone dashes 2 tiles at you, then recharges. Fast, but 100% predictable |
-| 5 · The Archive | 15 × 15 | 2 wardens + drone + 2 vents + 2 evidence drives | When the AI knows your goal | They guard the drives you need. Grab them in the order they don't expect |
+| 4 · The Data Vault | 13 × 15 | 2 wardens + 1 drone + 2 vents | Fast rules vs. slow thinking | The drone dashes 2 tiles at you, then recharges. Lure them, crawl through a vent, sprint for the vault door |
+| 5 · The Archive | 15 × 15 | 2 wardens + drone + 2 vents + 2 evidence drives | When the AI knows your goal | They wait where you have to go, and the drone guards the door |
 | 6 · The Uplink | 15 × 17 | 2 wardens + drone + 3 vents + evidence | Learning from your data | Every time they catch you, they study your route and set up ambushes on it |
 
 Plain JavaScript (ES modules), no dependencies. The 3D example loads Three.js from a CDN.
 
 ```bash
-npm test               # 51 tests, including level guarantees and the difficulty curve
+npm test               # 52 tests, including level guarantees and the difficulty curve
 npm run play           # play in the terminal (add -- --think to see the ghosts' scores)
-npm run 3d             # then open http://localhost:5173/examples/ for the 3D version
+npm run 3d             # then open http://localhost:5173/game_server/ for the 3D version
 npm run check-levels   # after editing a maze: is it still beatable, and how hard does it feel?
+npm run classroom      # how far a simulated class gets in 10 minutes
 ```
 
 ## How the ghosts think (`src/ai.js`)
@@ -35,6 +36,8 @@ The ghosts and the player are opponents. The ghosts are **MAX** (want a high sco
 5. They pick the highest-scoring team move. Ties always go the same way, so the wardens are predictable and the levels can be checked.
 
 Because the team move is searched as one, two wardens coordinate on their own: in a corridor they squeeze you from both ends instead of following each other. Each extra warden multiplies the work by about 5, so `MAX_GHOSTS` is 3.
+
+**Level 1 is the exception.** Its `weights` switch the safe-run judgment off (`cutoff: 0`, `territory: 0`, `playerFromExit: 0`), so its ghost is a pure chaser: it only reacts to where you are now. That's the starting point the later levels improve on, so players feel the jump when Level 2's warden starts predicting.
 
 Walking distance is measured with breadth-first search through the corridors, not in a straight line. Enemies can't step onto exit tiles (so they can't park on the exit) or onto vent grates.
 
@@ -96,13 +99,24 @@ The rules stay on a flat grid; only the drawing is 3D. `buildLayout3D(level)` re
 - `camera`: a suggested tilted overhead view
 - `theme`: wall height, colors, fog and lighting per level. Walls get taller as levels get harder.
 
-Use `gridToWorld({ r, c })` to place a model on a tile and `worldToGrid({ x, z })` to turn a click on the floor back into a tile. `examples/three-view.js` is a complete Three.js version with keyboard and on-screen buttons.
+Use `gridToWorld({ r, c })` to place a model on a tile and `worldToGrid({ x, z })` to turn a click on the floor back into a tile. `game_server/three-view.js` is a complete Three.js version with keyboard and on-screen buttons.
 
-A level's `theme.style` gives it custom art and a matching HUD: `"basement"` (Levels 1 and 5, `examples/basement.*`), `"server-halls"` (Levels 2 and 4, `examples/server-halls.*`) and `"core"` (Levels 3 and 6, `examples/core.*`). Levels 4-6 reuse a look for now; the page sets `body[data-level]` so each CSS file relabels its HUD for them (e.g. "Data Vault" instead of "Server floor"). Drones, evidence drives, vents (floor grates), the locked exit (red until you hold every drive) and learned-habit arrows are drawn by `three-view.js` on top of any look; `theme.droneColor` colours the drone. `examples/quality.js` keeps the frame rate smooth by lowering the render resolution on slower devices, and `examples/ghost-worker.js` does the ghosts' thinking off the main thread.
+Every level has its own art and a matching HUD, picked by `theme.style`, each in a `game_server/<style>.js` (the 3D set) plus `<style>.css` (the HUD skin):
+
+| Level | `style` | The place in the story | The look | The HUD |
+| --- | --- | --- | --- | --- |
+| 1 | `basement` | The secret sub-level where it starts | Brick, damp concrete, one swinging bulb | A memo taped up under the bulb |
+| 2 | `server-halls` | The company's server floor | Racks with blinking LEDs, security cameras | Security camera feed, "REC" light |
+| 3 | `core` | The executive floor | Glass offices, desks, violet test zones | Bright corporate dashboard |
+| 4 | `vault` | The Data Vault: cold storage for everything Clearpath collects | Frosted steel data monoliths with teal seams where data streams up, glowing hex cooling ports, floating holographic data cubes, a hex-etched black floor, a giant vault door at the exit | Chamfered sci-fi terminal, "VAULT-07 // COLD STORAGE", access alerts |
+| 5 | `archive` | The records room with a file on everyone | Wooden shelves of binders and name-labelled file boxes, green banker's lamps, drifting dust, loose papers on parquet | A manila case folder with a CONFIDENTIAL stamp, an index card, typewriter keys, stamped results |
+| 6 | `uplink` | The roof, where the evidence is broadcast | Rooftop HVAC units and cabinets, antenna masts with blinking red lights, a satellite dish, a light beam at the exit (red while locked, cyan once you hold the evidence), city skyline and stars | A live broadcast feed: "● LIVE", signal bars, a news-ticker message line |
+
+A look can also paint a full-screen `background` (the vault hall, the archive stacks, the night skyline), set the `fogColor`, and react to the exit unlocking (`setExitOpen`). Shared helpers for all of this are in `game_server/art-kit.js`. Drones, evidence drives, vents (floor grates), the locked exit (red until you hold every drive) and learned-habit arrows are drawn by `three-view.js` on top of any look; `theme.droneColor` colours the drone. `game_server/quality.js` keeps the frame rate smooth by lowering the render resolution on slower devices, and `game_server/ghost-worker.js` does the ghosts' thinking off the main thread.
 
 Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance), `?intro=0` skips the opening cutscene, `?title=0` skips the home screen.
 
-## Home screen (`examples/title-screen.js`)
+## Home screen (`game_server/title-screen.js`)
 
 The game, **Clearpath**, opens on a pixel-art home screen with its own chiptune theme ("Lookahead", A minor, 96 BPM). The menu has **Start story** (prologue, cutscene, then Level 1), **Choose level**, **How the Wardens think** (minimax, lookahead, and the data-consent question in kid-friendly language) and a sound toggle. Press **M** during the game to come back to it.
 
@@ -110,7 +124,7 @@ The monitor on the home screen is a live demo, not a recording: a simple bot pla
 
 `showTitleScreen({ levels })` resolves with `{ mode: "story" }` or `{ mode: "level", index }`. Like the cutscene, it swallows every key while it's open and `three-view.js` pauses the 3D rendering.
 
-## Prologue (`examples/prologue.js`)
+## Prologue (`game_server/prologue.js`)
 
 **Start story** begins with the prologue, which doubles as the tutorial. It opens on a Clearpath TV ad hosted by Pip, a friendly mascot robot, that teaches the game's ideas with examples an 8th grader can follow:
 
@@ -124,7 +138,7 @@ The camera then pulls back out of the TV into a dark living room. Someone on the
 
 Answers use the mouse or keys 1-3; Enter continues, Space pauses the ad, Esc skips. The questions and the ad's lines are plain text in `STEPS`, so they're easy to edit.
 
-## Opening cutscene (`examples/cutscene.js`)
+## Opening cutscene (`game_server/cutscene.js`)
 
 Before Level 1, a 1:44 pixel-art cutscene ("After Hours") tells the story: a Clearpath employee takes the elevator down to a secret sub-level, finds Dr. Voss feeding private data into the Wardens, and has to run. It ends with a Warden's view of its minimax search and predicted escape routes, which sets up the levels.
 
@@ -133,37 +147,50 @@ Before Level 1, a 1:44 pixel-art cutscene ("After Hours") tells the story: a Cle
 - Players can pause (Space), skip (Esc or the Skip button) and mute it. It waits for a click or key press first because browsers only allow sound after one.
 - Each shot in `SHOTS` has its length, dialogue lines, sound cues and a `draw(t)` function. Character and place names are placeholders.
 
-## Level guarantees and difficulty (`tests/levels.test.js`, `src/playtest.js`)
+## Level guarantees and difficulty (`tests/levels.test.js`, `src/playtest.js`, `demo/classroom.js`)
 
-Because the enemies are predictable, `solveLevel()` can search every situation and prove a level is beatable. That says nothing about how hard a level *feels*, so `playtest()` plays each level hundreds of times with simulated players. Runs are seeded, so the numbers never change unless the level does.
+Because the enemies are predictable, `solveLevel()` can search every situation and prove a level is beatable. That says nothing about how hard a level *feels*, so the levels are also measured with simulated players and two "feel" checks. Runs are seeded, so the numbers never change unless the level does.
 
-- **beginner / average / strong** head for the goal, keep away from the enemies and slip up now and then (15% / 8% / 1% of moves). They only *guess* what the wardens will do ("it steps toward me"): a kid who ignores the red dots.
-- **thinker** *reads* the wardens' prediction (it knows how they'll really answer each move, which is what the plan dots show) and plans 3 of its own moves ahead. That's the kid the game is trying to grow.
+Simulated players (`SKILLS` in `src/playtest.js`):
 
-| First-try escape rate | Beginner | Average | Strong | Thinker |
-| --- | --- | --- | --- | --- |
-| Level 1 · The Basement | 9% | 2% | 0% | 51% |
-| Level 2 · The Server Halls | 0% | 0% | 0% | 41% |
-| Level 3 · The Core | 0% | 2% | 0% | 41% |
-| Level 4 · The Data Vault | 0% | 0% | 0% | 20% |
-| Level 5 · The Archive | 1% | 2% | 0% | 14% |
-| Level 6 · The Uplink | 0% | 0% | 0% | 4% |
+- **beginner / average / strong** head for the goal, keep away from the enemies and slip now and then (15% / 8% / 1% of moves). They only *guess* what the enemies will do: a kid who ignores the red dots.
+- **thinker** *reads* the wardens' prediction (it knows how they'll answer each move, which is what the plan dots show), plans 3 moves ahead and slips 3% of the time. This is the kid the game is trying to grow, and the main difficulty ladder.
+- **expert** reads the plan perfectly, plans 4 moves ahead, never slips: an adult tester.
 
-Players who don't read the wardens' plan essentially never escape. A player who reads it and thinks 3 moves ahead wins about half the time on Level 1 and almost never on Level 6. On Level 6 the wardens also learn: a thinker retrying the level escapes by try 1-4 only 0% / 2% / 2% / 5% of the time, against 2% / 5% / 5% / 7% if the wardens forgot between tries.
+The two feel checks, which matched the team's playtesting (the levels that felt too easy scored badly on both):
 
-The wardens' judgment (the safe-run `cutoff`, see "How the ghosts think") is what made this possible: with it, all three of the original mazes became impossible, so every level was rebuilt around tools the player has (two exits on Level 1, vents from Level 2 on).
+- **Threat**: how often an enemy is within 2 moves of you while you play. The levels that felt right sit around 40-45%; the old Levels 1, 4 and 5 had 0%, 22% and 8%.
+- **Safest margin** (`safestMargin()` in `src/solver.js`): on the *safest* winning route, how close does an enemy still have to get? 1-2 means every escape is a close dodge. The old Level 1 had 8: a route that walked around the ghost.
 
-How the mazes were made: each new layout was generated (a random maze with extra loops, then enemies, drives and vents placed by distance) and scored against a target curve with these simulated players; the closest one was kept, then hand-checked for readability. Small changes matter a lot: moving one evidence drive on Level 5 swung the thinker from 84% to 3%, and Levels 5 and 6 are fine-tuned with their own `weights` (Level 5's wardens don't try to box you in; Level 6's care more about the goal and close in harder). Always run `npm run check-levels` after editing a maze (add a level number, e.g. `npm run check-levels -- 5`, to check just one).
+| Level | Kids who read the plan (first try) | Threat | Safest margin | Shortest escape | Class time (see below) |
+| --- | --- | --- | --- | --- | --- |
+| 1 · The Basement | 60% | 67% | 2 | 19 moves | 36 s |
+| 2 · The Server Halls | 41% | 45% | 2 | 37 moves | 291 s |
+| 3 · The Core | 41% | 45% | 4 | 17 moves | 46 s |
+| 4 · The Data Vault | 21% | 63% | 2 | 21 moves | 125 s |
+| 5 · The Archive | 13% | 46% | 1 | 43 moves | 169 s |
+| 6 · The Uplink | 4% | 39% | 2 | 41 moves | 140 s |
+
+Players who don't read the plan almost never escape from Level 2 on. Level 1's ghost only reacts, so quick reflexes can beat it (strong players 91%): that's the point of Level 1, and the contrast with Level 2. The expert escapes Level 1 every time, about a quarter of the time on Level 3, almost never on Levels 4 and 6, and usually on Level 5 (a careful adult who reads every plan finds Level 5's dodges; kids rarely do).
+
+**The 10-minute class** (`npm run classroom`): 40 simulated thinkers play the levels in order on a 10-minute clock, retrying each level and remembering what got them caught (1.3 s per move, 4 s per "Caught!" screen, 15 s per briefing; the story is extra). Median tries per level: 1, 2, 2, 3, 7, 6. By the end, 18 of 40 have reached Level 5, 6 have reached Level 6, and none have beaten it. Level 2 is where a class spends the most time: you can circle its warden safely for a long while before you find the vent trick. The story (prologue about 3¾ minutes, cutscene 1:44) comes on top of the 10 minutes; `?intro=0` skips it.
+
+How the mazes were made: each new layout was generated or adapted (random mazes with loops, then enemies, drives and vents placed by distance), then tuned move by move (moving a wall, an enemy or a drive) against target numbers for every measure above, and finally checked by replaying the winning route. Small changes matter a lot: moving Level 5's drone a few tiles swings kids from 3% to 13%. Always run `npm run check-levels` after editing a maze (`npm run check-levels -- 5` checks just one).
 
 The tests check that:
 
 - every level can be beaten against its own enemies, and running straight for the exit gets you caught;
-- each level adds its new idea (lookahead, vents, a team, a drone, evidence, learning) and comes with a briefing and hints;
+- no level has a free path: on every level the safest escape still passes close to an enemy;
+- each level adds its new idea (a reacting ghost, lookahead and vents, a team, a drone, evidence, learning) and comes with a briefing and hints;
 - on Level 2, a route that fools a 1-move warden doesn't get past the real 3-move warden;
-- each level is harder than the last for a thinker, every level can still be won by one, and players who ignore the prediction almost never escape;
+- each level is harder than the last for a thinker, in steps of no more than 22 points; every level can still be won by one; from Level 2 on, players who ignore the prediction almost never escape;
 - on Level 6, replaying a route that got you caught never gets further against the learning wardens than against forgetful ones, and some get caught sooner.
 
-`npm test` takes about two minutes, mostly proving Levels 5 and 6 beatable. These are simulated players; playtesting with real kids is the real test.
+`npm test` takes about three minutes, mostly proving Levels 5 and 6 beatable. These are simulated players; playtesting with real kids is the real test.
+
+## Gameplay logging (`game_server/gameLogger.js`, `game_server/log.js`)
+
+Each attempt (level 1-6, attempt number, moves, prologue answers, win or death and where) is saved to Firestore by `gameLogger.js`; `clearpath/firestore.rules` checks every record. The game talks to it only through `log.js`, which loads it in the background: if Firebase can't load (offline, a school network that blocks Google's CDN, or the config not filled in yet), the game still starts and logging is simply off. The game engine in `src/` doesn't log anything, so the tests and the level checker run in Node. `firebaseConfig` in `gameLogger.js` still needs the real project values.
 
 ## Changing things
 

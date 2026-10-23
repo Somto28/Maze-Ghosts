@@ -116,7 +116,3 @@ body[data-style="server-halls"] #overlay button:focus-visible { outline: 2px sol
 @media (prefers-reduced-motion: reduce) {
   body[data-style="server-halls"] #hud::after { animation: none; }
 }
-
-/* ---------- Level 4 reuses this look as the Data Vault ---------- */
-body[data-style="server-halls"][data-level="4"] #hud::before { content: "REC   CAM 07 · DATA VAULT"; }
-body[data-style="server-halls"][data-level="4"] #level-name::before { content: "sys://vault/cold-storage"; }

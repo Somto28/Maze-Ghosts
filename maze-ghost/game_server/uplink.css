@@ -1,0 +1,105 @@
+/* uplink.css — Level 6's HUD: the broadcast feed from the roof. A live-TV look: dark translucent panels
+   with a red top rule, a blinking "LIVE" dot, signal-strength bars, condensed Bebas Neue headlines and
+   a news-ticker style message line. Results arrive as broadcast alerts.
+   Applies only while three-view.js sets <body data-style="uplink">. Gameplay colours stay the same. */
+
+body[data-style="uplink"] {
+  --ink: #f1f2ff;
+  --muted: #a4a8c8;
+  --line: rgba(255, 255, 255, 0.12);
+  --red: #ff3a4a;
+  --cyan: #5ff6ff;
+  --orange: #ff9a2a;
+  --head: "Bebas Neue", "Oswald", Impact, system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  background: #05061a;
+}
+
+/* ---------- Over the 3D view: night vignette with a faint broadcast scanline ---------- */
+body[data-style="uplink"] #mood {
+  display: block;
+  background: radial-gradient(ellipse 72% 68% at 58% 52%, transparent 52%, rgba(4, 4, 18, 0.75) 100%);
+}
+body[data-style="uplink"] #mood::after {
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 4px);
+}
+
+/* ---------- Panels: dark glass with a red broadcast rule on top ---------- */
+body[data-style="uplink"] .panel {
+  color: var(--ink);
+  font-family: var(--mono);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--red);
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgba(14, 14, 38, 0.92), rgba(6, 6, 20, 0.94));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
+}
+
+/* HUD header: LIVE dot, uplink status and signal bars. */
+body[data-style="uplink"] #hud { padding-top: 10px; }
+body[data-style="uplink"] #hud::before {
+  content: "LIVE · UPLINK STANDBY";
+  display: block; margin-bottom: 6px; padding-left: 16px;
+  font: 400 15px/18px var(--head); letter-spacing: 0.12em; color: var(--red);
+  background:
+    radial-gradient(circle at 5px 9px, var(--red) 0 4px, transparent 5px) no-repeat,
+    linear-gradient(var(--muted), var(--muted)) right 0 bottom 3px / 3px 5px no-repeat,
+    linear-gradient(var(--muted), var(--muted)) right 5px bottom 3px / 3px 8px no-repeat,
+    linear-gradient(var(--ink), var(--ink)) right 10px bottom 3px / 3px 11px no-repeat,
+    linear-gradient(var(--ink), var(--ink)) right 15px bottom 3px / 3px 14px no-repeat;
+  animation: uplink-live 1.4s steps(1) infinite;
+}
+@keyframes uplink-live { 50% { background-image: none, linear-gradient(var(--muted), var(--muted)), linear-gradient(var(--muted), var(--muted)), linear-gradient(var(--ink), var(--ink)), linear-gradient(var(--ink), var(--ink)); } }
+@media (prefers-reduced-motion: reduce) { body[data-style="uplink"] #hud::before { animation: none; } }
+body[data-style="uplink"] #level-name { font: 400 28px/1.05 var(--head); letter-spacing: 0.04em; color: #fff; }
+body[data-style="uplink"] #level-name::before {
+  content: "Clearpath tower · Roof";
+  display: block; margin-bottom: 2px;
+  font: 600 10px/1.3 var(--mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--orange);
+}
+body[data-style="uplink"] #depth { color: var(--muted); }
+body[data-style="uplink"] #depth b { color: var(--red); }
+/* The message line as a lower-third ticker. */
+body[data-style="uplink"] #message {
+  margin: 6px -14px 0; padding: 5px 14px; color: #fff; font-weight: 600;
+  background: linear-gradient(90deg, rgba(255, 58, 74, 0.28), rgba(255, 58, 74, 0.04));
+  border-left: 4px solid var(--red);
+}
+
+body[data-style="uplink"] #thinking { border-top-color: var(--line); }
+body[data-style="uplink"] #thinking .title { color: var(--muted); }
+body[data-style="uplink"] #thinking .opt.chosen { color: #fff; background: rgba(255, 58, 74, 0.2); }
+body[data-style="uplink"] .chip { font-family: var(--mono); }
+body[data-style="uplink"] .chip.ok { color: var(--cyan); border-color: rgba(95, 246, 255, 0.5); }
+
+/* Controls: broadcast desk buttons. */
+body[data-style="uplink"] #pad button {
+  border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.16); color: #fff;
+  background: linear-gradient(180deg, #20223e, #0e0f22);
+  box-shadow: inset 0 -3px 0 rgba(255, 58, 74, 0.6), 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+body[data-style="uplink"] #pad button:active { background: var(--red); }
+body[data-style="uplink"] #help { font: 13px/1.4 var(--head); letter-spacing: 0.14em; }
+
+/* ---------- Result: a broadcast alert ---------- */
+body[data-style="uplink"] #overlay { background: rgba(3, 3, 14, 0.7); }
+body[data-style="uplink"] #overlay .card { padding: 0 28px 24px; max-width: 440px; overflow: hidden; }
+body[data-style="uplink"] #overlay .card::before {
+  display: block; margin: 0 -28px 16px; padding: 8px 16px; text-align: left;
+  font: 400 17px/1.1 var(--head); letter-spacing: 0.14em;
+}
+body[data-style="uplink"] #overlay[data-kind="lose"] .card::before { content: "● SIGNAL LOST · TRANSMISSION BLOCKED"; color: #fff; background: var(--red); }
+body[data-style="uplink"] #overlay[data-kind="win"] .card::before { content: "● ON AIR · BROADCASTING TO THE WORLD"; color: #04141a; background: var(--cyan); }
+body[data-style="uplink"] #overlay[data-kind="brief"] .card::before { content: "● TRANSMISSION BRIEF · FINAL LEVEL"; color: #1a0e00; background: var(--orange); }
+body[data-style="uplink"] #overlay h2 { font: 400 40px/1 var(--head); letter-spacing: 0.04em; color: var(--red); }
+body[data-style="uplink"] #overlay[data-kind="win"] h2 { color: var(--cyan); }
+body[data-style="uplink"] #overlay[data-kind="brief"] h2 { color: #fff; }
+body[data-style="uplink"] #overlay p { color: var(--muted); }
+body[data-style="uplink"] #overlay p.hint { color: #ffd9a8; background: rgba(255, 154, 42, 0.12); }
+body[data-style="uplink"] #overlay button {
+  font: 400 18px/1 var(--head); letter-spacing: 0.12em; border-radius: 4px; padding: 11px 22px;
+  background: var(--red); color: #fff;
+}
+body[data-style="uplink"] #overlay[data-kind="win"] button { background: var(--cyan); color: #04141a; }
+body[data-style="uplink"] #overlay button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }

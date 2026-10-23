@@ -34,6 +34,9 @@ export const SKILLS = Object.freeze({
   average: { depth: 1, mistakes: 0.08 },
   strong: { depth: 1, mistakes: 0.01 },
   thinker: { depth: 3, mistakes: 0.03, reads: true },
+  // An adult tester: reads the plan perfectly, looks 4 moves ahead, never slips, and keeps exploring
+  // (a long memory of where it has been) instead of circling somewhere safe.
+  expert: { depth: 4, mistakes: 0, reads: true, memory: 40, wander: 3 },
 });
 
 /**
@@ -48,7 +51,7 @@ export const SKILLS = Object.freeze({
  *   stuck = still alive after maxTurns without finding the way out (counts as a loss: a kid would give up).
  */
 export function playtest(level, { skill = "average", games = 200, seed = 1, maxTurns = 150, brain = null, attempts = 1, record = false } = {}) {
-  const { depth, mistakes, reads = false } = SKILLS[skill];
+  const { depth, mistakes, reads = false, memory = 8, wander = 1.5 } = SKILLS[skill];
   const rnd = seededRandom(seed);
   const tally = { escaped: 0, caught: 0, stuck: 0, games };
   const escapedBy = new Array(attempts).fill(0);
@@ -67,7 +70,7 @@ export function playtest(level, { skill = "average", games = 200, seed = 1, maxT
         if (!brains.has(key)) brains.set(key, ghostBrain(level, habits));
         think = brains.get(key);
       }
-      const { result, steps, keys } = playOnce(level, think, rnd, depth, mistakes, maxTurns, reads, avoid);
+      const { result, steps, keys } = playOnce(level, think, rnd, depth, mistakes, maxTurns, reads, avoid, memory, wander);
       if (a === 0) tally[result]++;
       if (record) played.push({ result, steps });
       if (result === "escaped") {
@@ -81,7 +84,7 @@ export function playtest(level, { skill = "average", games = 200, seed = 1, maxT
   return { ...tally, rate: tally.escaped / games, byAttempt: escapedBy.map((n) => n / games), ...(record ? { played } : {}) };
 }
 
-function playOnce(level, brain, rnd, depth, mistakes, maxTurns, reads, avoid) {
+function playOnce(level, brain, rnd, depth, mistakes, maxTurns, reads, avoid, memory = 8, wander = 1.5) {
   let s = stateFromLevel(level);
   const recent = [];
   const steps = [];
@@ -99,13 +102,13 @@ function playOnce(level, brain, rnd, depth, mistakes, maxTurns, reads, avoid) {
       let best = -Infinity, bests = [];
       for (const m of moves) {
         const after = movePlayer(s, m);
-        const v = (reads ? readAhead(after, depth, brain) : lookAhead(after, depth)) - 1.5 * recent.filter((p) => samePos(p, m)).length;
+        const v = (reads ? readAhead(after, depth, brain) : lookAhead(after, depth)) - wander * recent.filter((p) => samePos(p, m)).length;
         if (v > best) { best = v; bests = [m]; } else if (v === best) bests.push(m);
       }
       pick = bests[Math.floor(rnd() * bests.length)];
     }
     recent.push({ r: pick.r, c: pick.c });
-    if (recent.length > 8) recent.shift();
+    if (recent.length > memory) recent.shift();
     steps.push({ r: s.player.r, c: s.player.c, dir: pick.dir });
     keys.push(`${here}|${pick.dir}`);
 

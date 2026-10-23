@@ -12,7 +12,6 @@ import { LEVELS } from "./levels.js";
 import { habitsFrom } from "./learning.js";
 import { exitsOpen, keysHeld, moveGhosts, movePlayer, outcome, playerMoves } from "./rules.js";
 import { stateFromLevel } from "./solver.js";
-import { logger } from "/game_server/gameLogger.js";
 
 /** @typedef {import("./maze.js").Dir} Dir */
 /** @typedef {"playing" | "caught" | "levelComplete" | "gameComplete"} Status */
@@ -56,7 +55,6 @@ export class MazeGame {
 
   /** @param {number} index */
   startLevel(index) {
-    logger.startAttempt(index);
     if (!Number.isInteger(index) || index < 0 || index >= this.levels.length) throw new RangeError(`No level ${index}`);
     this.levelIndex = index;
     this.state = stateFromLevel(this.level);

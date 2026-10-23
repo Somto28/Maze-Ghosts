@@ -7,14 +7,19 @@ import { canvasTexture, floorDecal } from "./art-kit.js";
 import { buildBasement } from "./basement.js";
 import { buildCore } from "./core.js";
 import { buildServerHalls } from "./server-halls.js";
+import { buildVault } from "./vault.js";
+import { buildArchive } from "./archive.js";
+import { buildUplink } from "./uplink.js";
 import { createQuality } from "./quality.js";
 import { cutsceneActive, playCutscene } from "./cutscene.js";
 import { showTitleScreen, titleActive } from "./title-screen.js";
 import { playPrologue, prologueActive } from "./prologue.js";
+import { logger } from "./log.js";
 
 const TILE = 1;
 const STEP_MS = 220; // pause between your move and the ghosts', so the turns are visible
-const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core: buildCore }; // theme.style -> custom art
+// theme.style -> custom art for that level
+const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core: buildCore, vault: buildVault, archive: buildArchive, uplink: buildUplink };
 const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 // ?level=2 starts on Level 2, ?fps shows the frame rate, ?res=1 pins the render resolution (testing),
 // ?intro=0 skips the opening cutscene, ?title=0 skips the home screen.
@@ -199,6 +204,7 @@ function drawEvidence() {
   const s = game.state;
   drives.forEach((d, i) => { d.visible = !((s.collected >> i) & 1); });
   for (const pad of exitPads) pad.material.color.set(exitOpen ? 0x2bd36a : 0xd23b3b);
+  look?.setExitOpen?.(exitOpen); // e.g. the Uplink's beam turns from red to cyan
 }
 
 // ---------- Scene from the level's 3D layout ----------
@@ -217,8 +223,9 @@ function buildScene() {
 
   scene = new THREE.Scene();
   const bg = new THREE.Color(t.floorColor).multiplyScalar(0.6);
-  scene.background = bg;
-  scene.fog = new THREE.FogExp2(bg, t.fog);
+  // A look can paint its own backdrop (the vault hall, the archive stacks, the night skyline).
+  scene.background = look?.background ?? bg;
+  scene.fog = new THREE.FogExp2(look?.fogColor ? new THREE.Color(look.fogColor) : bg, t.fog);
   scene.add(look ? look.group : defaultLights(t, c, span));
 
   const floor = new THREE.Mesh(
@@ -332,6 +339,7 @@ function resetActors() {
 
 // Builds the scene only when the level changes; restarting the same level just resets the actors.
 function showLevel(message) {
+  logger.startAttempt(game.level.id); // every start, restart and next level is a new attempt
   if (game.levelIndex === builtLevel) resetActors();
   else buildScene();
   updateHud(message);
@@ -576,17 +584,20 @@ function finish() {
   const n = game.level.lookahead;
   const e = enemy();
   if (game.status === "caught") {
-    logger.endAttempt("death", {x: game.state.player.c, y: game.state.player.r});
+    logger.endAttempt("death", { x: game.state.player.c, y: game.state.player.r });
     const hints = game.level.hints ?? [];
     const hint = hints.length ? hints[catches++ % hints.length] : "";
     const byDrone = game.state.ghosts.some((g, i) => isDrone(i) && g.r === game.state.player.r && g.c === game.state.player.c);
+    const reactive = game.level.weights?.cutoff === 0; // Level 1's ghost only chases, it doesn't predict
     let text = byDrone
       ? "The drone dashed straight at you. It never plans, but it's fast."
-      : `The ${e.name} predicted your moves ${n} step${n > 1 ? "s" : ""} ahead.`;
+      : reactive
+        ? `The ${e.name} caught you. It doesn't plan: it just steps toward wherever you are, every single turn.`
+        : `The ${e.name} predicted your moves ${n} step${n > 1 ? "s" : ""} ahead.`;
     if (game.level.learns) text += ` They've now studied ${game.attemptsStudied} of your attempts.`;
     showOverlay("lose", "Caught!", text, "Try again", () => restart("Try again!"), hint);
   } else if (game.status === "levelComplete") {
-    logger.endAttempt("success", {x: game.state.player.c, y: game.state.player.r});
+    logger.endAttempt("win", { x: game.state.player.c, y: game.state.player.r });
     catches = 0;
     const next = game.levels[game.levelIndex + 1];
     showOverlay("win", "Escaped!", `Next: Level ${next.id} · ${next.name}. ${next.briefing ?? describeLevel(next).line}`, `Start Level ${next.id}`, goToNextLevel, next.concept ? `New idea: ${next.concept}` : "");
@@ -661,6 +672,7 @@ renderer.setAnimationLoop((now) => {
 
 buildScene();
 updateHud(startMessage());
+logger.startAttempt(game.level.id);
 if (params.has("level") || params.get("title") === "0") showBriefing();
 
 // The home screen opens first. ?level= or ?title=0 go straight into the game (the story still plays

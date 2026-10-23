@@ -1,0 +1,100 @@
+/* vault.css — Level 4's HUD: the Data Vault's own security terminal. Sci-fi and clean: chamfered
+   (cut-corner) panels of dark glass with a teal-to-violet edge, Orbitron display type, a hexagonal
+   status badge, and frost creeping in at the edges of the view. Results arrive as vault access alerts.
+   Applies only while three-view.js sets <body data-style="vault">. Gameplay colours stay the same. */
+
+body[data-style="vault"] {
+  --ink: #e4fbff;
+  --muted: #86b9c4;
+  --line: rgba(47, 243, 224, 0.25);
+  --teal: #2ff3e0;
+  --ice: #bff6ff;
+  --violet: #9a7bff;
+  --display: "Orbitron", "JetBrains Mono", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --cut: 14px;
+  background: #02070b;
+}
+
+/* ---------- Over the 3D view: frost at the corners and a faint hex lattice ---------- */
+body[data-style="vault"] #mood {
+  display: block;
+  background:
+    radial-gradient(ellipse 70% 66% at 58% 52%, transparent 52%, rgba(2, 10, 16, 0.75) 100%),
+    radial-gradient(circle at 0 0, rgba(200, 245, 255, 0.16), transparent 30%),
+    radial-gradient(circle at 100% 100%, rgba(200, 245, 255, 0.12), transparent 28%);
+}
+
+/* ---------- Panels: chamfered dark glass with a glowing gradient edge ---------- */
+body[data-style="vault"] .panel {
+  color: var(--ink);
+  font-family: var(--mono);
+  border: 1px solid transparent;
+  border-radius: 0;
+  background:
+    linear-gradient(180deg, rgba(6, 20, 28, 0.94), rgba(3, 10, 16, 0.96)) padding-box,
+    linear-gradient(135deg, var(--teal), rgba(47, 243, 224, 0.15) 45%, var(--violet)) border-box;
+  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
+  box-shadow: inset 0 0 28px rgba(47, 243, 224, 0.06);
+}
+
+/* HUD header: the vault's status line with a hexagonal badge. */
+body[data-style="vault"] #hud { padding-top: 12px; }
+body[data-style="vault"] #hud::before {
+  content: "VAULT-07 // COLD STORAGE";
+  display: block; margin-bottom: 8px; padding-left: 22px;
+  font: 700 10px/16px var(--display); letter-spacing: 0.22em; color: var(--teal);
+  background: no-repeat left center / 14px 16px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 16'%3E%3Cpath d='M7 1l6 3.5v7L7 15l-6-3.5v-7z' fill='none' stroke='%232ff3e0' stroke-width='1.6'/%3E%3Ccircle cx='7' cy='8' r='2.2' fill='%232ff3e0'/%3E%3C/svg%3E");
+  text-shadow: 0 0 10px rgba(47, 243, 224, 0.5);
+}
+body[data-style="vault"] #level-name { font: 700 18px/1.25 var(--display); letter-spacing: 0.04em; color: #fff; text-transform: uppercase; }
+body[data-style="vault"] #level-name::before {
+  content: "Sublevel 4 · Access tier Ω";
+  display: block; margin-bottom: 3px;
+  font: 600 10px/1.3 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+}
+body[data-style="vault"] #depth { color: var(--muted); }
+body[data-style="vault"] #depth b { color: #ff5a7a; }
+body[data-style="vault"] #message { color: var(--ice); }
+body[data-style="vault"] #message::before { content: "› "; color: var(--teal); }
+
+body[data-style="vault"] #thinking {
+  border-top: 0; margin-top: 10px; padding: 8px 8px 6px;
+  background: linear-gradient(90deg, rgba(47, 243, 224, 0.08), rgba(154, 123, 255, 0.05));
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+body[data-style="vault"] #thinking .title { color: var(--muted); font-size: 11px; }
+body[data-style="vault"] #thinking .opt { border-radius: 0; color: #9fc8d1; }
+body[data-style="vault"] #thinking .opt.chosen { color: #fff; background: rgba(255, 90, 122, 0.16); box-shadow: inset 2px 0 0 #ff5a7a; }
+body[data-style="vault"] .chip { border-radius: 0; font-family: var(--mono); clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%); padding: 2px 12px; }
+
+/* Controls: chamfered teal keys. */
+body[data-style="vault"] #pad button {
+  border: 1px solid rgba(47, 243, 224, 0.5); border-radius: 0; color: var(--teal);
+  background: linear-gradient(180deg, rgba(10, 32, 42, 0.95), rgba(4, 14, 20, 0.95));
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+body[data-style="vault"] #pad button:active { background: rgba(47, 243, 224, 0.3); color: #fff; }
+body[data-style="vault"] #help { font: 11px/1.4 var(--display); letter-spacing: 0.12em; text-transform: uppercase; }
+
+/* ---------- Result: a vault access alert ---------- */
+body[data-style="vault"] #overlay { background: rgba(1, 6, 10, 0.72); }
+body[data-style="vault"] #overlay .card { padding: 0 28px 24px; max-width: 440px; }
+body[data-style="vault"] #overlay .card::before {
+  display: block; margin: 0 -28px 18px; padding: 9px 16px;
+  font: 700 11px/1.3 var(--display); letter-spacing: 0.2em; text-align: left;
+}
+body[data-style="vault"] #overlay[data-kind="lose"] .card::before { content: "⬢ ACCESS DENIED · INTRUDER CONTAINED"; color: #ffd0da; background: rgba(255, 60, 100, 0.26); }
+body[data-style="vault"] #overlay[data-kind="win"] .card::before { content: "⬢ VAULT BREACH · ROUTE OPEN"; color: #d2fff9; background: rgba(47, 243, 224, 0.22); }
+body[data-style="vault"] #overlay[data-kind="brief"] .card::before { content: "⬢ SECURITY PROTOCOL Δ-4 · DRONE ONLINE"; color: var(--ice); background: rgba(154, 123, 255, 0.22); }
+body[data-style="vault"] #overlay h2 { font: 800 26px/1.15 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: #ff5a7a; text-shadow: 0 0 18px rgba(255, 90, 122, 0.4); }
+body[data-style="vault"] #overlay[data-kind="win"] h2, body[data-style="vault"] #overlay[data-kind="brief"] h2 { color: var(--teal); text-shadow: 0 0 18px rgba(47, 243, 224, 0.4); }
+body[data-style="vault"] #overlay p { color: #a9d4dd; font-size: 13px; }
+body[data-style="vault"] #overlay p.hint { color: var(--ice); background: rgba(47, 243, 224, 0.1); border-radius: 0; box-shadow: inset 2px 0 0 var(--teal); }
+body[data-style="vault"] #overlay button {
+  font: 700 13px/1 var(--display); letter-spacing: 0.14em; text-transform: uppercase;
+  border-radius: 0; padding: 13px 22px; color: #02141a; background: var(--teal);
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+body[data-style="vault"] #overlay button:focus-visible { outline: 2px solid var(--ice); outline-offset: 3px; }
