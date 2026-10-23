@@ -22,12 +22,13 @@ import {
 // Paste YOUR config from Firebase console → Project settings → General → Your apps.
 // These values are safe to ship in front-end code; security rules protect the data.
 const firebaseConfig = {
-  apiKey: "PASTE_HERE",
-  authDomain: "clearpath-3fb96-4t89.firebaseapp.com",
-  projectId: "clearpath-3fb96-4t89",
-  storageBucket: "PASTE_HERE",
-  messagingSenderId: "PASTE_HERE",
-  appId: "PASTE_HERE",
+  apiKey: "AIzaSyBmRWXcOMt_OFFiXA_QhYtlRUc7xBOmD6E",
+  authDomain: "clearpath-3fb96.firebaseapp.com",
+  projectId: "clearpath-3fb96",
+  storageBucket: "clearpath-3fb96.firebasestorage.app",
+  messagingSenderId: "708316665515",
+  appId: "1:708316665515:web:51cf517455b77f03e2c9ee",
+  measurementId: "G-ZMT6L7C8JS"
 };
 
 const app = initializeApp(firebaseConfig);
