@@ -573,6 +573,7 @@ export function playPrologue({ autoStart = false } = {}) {
       choicesEl.firstChild?.focus({ preventScroll: true });
     }
     function answer(k) {
+      logger.recordAnswer(questionId, choice, correct);
       if (!ask || ask.phase !== "choose") return;
       const s = STEPS[si], c = s.choices[k];
       ask.phase = "reply"; ask.choice = k; ask.replyAt = lt; ask.readFor = 2.2 + c.reply.length / 16;

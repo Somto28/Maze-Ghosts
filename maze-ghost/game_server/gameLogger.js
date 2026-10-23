@@ -1,4 +1,4 @@
- b // gameLogger.js — Maze Ghosts gameplay logging to Firestore
+// gameLogger.js — Maze Ghosts gameplay logging to Firestore
 // No npm or build tool needed: Firebase loads straight from Google's CDN.
 //
 // Add to your HTML, BEFORE your game scripts:

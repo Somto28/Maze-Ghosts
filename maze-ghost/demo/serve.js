@@ -1,5 +1,5 @@
 // Tiny static server for the 3D example (browsers block ES modules opened straight from disk).
-// npm run 3d  ->  open http://localhost:5173/examples/
+// npm run 3d  ->  open http://localhost:5173/game_server/
 
 import http from "node:http";
 import fs from "node:fs/promises";
@@ -13,7 +13,7 @@ const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/cs
 http
   .createServer(async (req, res) => {
     const pathname = decodeURIComponent(new URL(req.url, "http://x").pathname);
-    if (pathname === "/") return res.writeHead(302, { location: "/examples/" }).end();
+    if (pathname === "/") return res.writeHead(302, { location: "/game_server/" }).end();
 
     let file = path.join(root, pathname);
     if (!file.startsWith(root)) return res.writeHead(403).end();
@@ -26,4 +26,4 @@ http
       res.writeHead(404).end("Not found");
     }
   })
-  .listen(port, () => console.log(`3D example: http://localhost:${port}/examples/`));
+  .listen(port, () => console.log(`3D example: http://localhost:${port}/game_server/`));
