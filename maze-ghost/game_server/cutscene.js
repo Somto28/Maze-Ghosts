@@ -13,6 +13,8 @@
 // Each shot in SHOTS has: dur (seconds), lines (dialogue: [start, end, speaker, text]), ev (sound cues)
 // and draw(t), which paints the frame for time t within the shot.
 
+import { followVolume, sound } from "./sound-settings.js";
+
 let ctx = null;
 const W = 320, H = 180;
 const RM = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -682,15 +684,19 @@ const SCENES={
 };
 
 /* ---------- audio ---------- */
-let AC=null,master=null,NB=null,soundOn=true;
+let AC=null,master=null,musicBus=null,sfxBus=null,bus=null,NB=null,soundOn=true,unfollow=[];
+const TRIM={music:15,effects:6}; // evens the cutscenes out with the rest of the game (see sound-settings.js)
 const mf=m=>440*Math.pow(2,(m-69)/12);
-function ensureAudio(){try{if(!AC){AC=new(window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=.4;master.connect(AC.destination);}if(AC.state==='suspended')AC.resume();}catch(e){AC=null;}}
+function ensureAudio(){try{if(!AC){AC=new(window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=.4;master.connect(AC.destination);
+  // Music and effects on their own buses, so the player's music and effects volumes apply.
+  musicBus=AC.createGain();musicBus.connect(master);sfxBus=AC.createGain();sfxBus.connect(master);bus=sfxBus;
+  unfollow=[followVolume(AC,musicBus,'music',TRIM.music),followVolume(AC,sfxBus,'effects',TRIM.effects)];}if(AC.state==='suspended')AC.resume();}catch(e){AC=null;}}
 function tone(f,d,type,v,slide=0,delay=0){if(!AC||!soundOn)return;const t=AC.currentTime+delay,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,t);
   if(slide)o.frequency.linearRampToValueAtTime(Math.max(20,f+slide),t+d);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+d);
-  o.connect(g).connect(master);o.start(t);o.stop(t+d+.03);}
+  o.connect(g).connect(bus);o.start(t);o.stop(t+d+.03);}
 function noise(d,v,ff,ft='lowpass',delay=0){if(!AC||!soundOn)return;if(!NB){NB=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const a=NB.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=Math.random()*2-1;}
   const t=AC.currentTime+delay,s=AC.createBufferSource(),fl=AC.createBiquadFilter(),g=AC.createGain();s.buffer=NB;fl.type=ft;fl.frequency.value=ff;
-  g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+Math.min(d,.95));s.connect(fl).connect(g).connect(master);s.start(t,Math.random()*.02);s.stop(t+Math.min(d,.95)+.03);}
+  g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+Math.min(d,.95));s.connect(fl).connect(g).connect(bus);s.start(t,Math.random()*.02);s.stop(t+Math.min(d,.95)+.03);}
 const SFX={
   step:()=>noise(.035,.12,700),softstep:()=>noise(.03,.05,450),runstep:()=>noise(.03,.14,900),
   beep:()=>tone(988,.09,'square',.1),ding:()=>{tone(1319,.6,'sine',.18);tone(1047,.8,'sine',.14,0,.18);},
@@ -719,14 +725,15 @@ const MUS={
 };
 let lastKey='';
 function fireEvents(a,b){if(b-a>.5)return;SH.forEach(s=>{if(s.start>b||s.start+s.dur<a)return;for(const[at,n]of s.ev){const g=s.start+at;if(g>a&&g<=b&&SFX[n])SFX[n]();}});}
-function music(i,lt){const s=SH[i],m=s.music&&s.music(lt);if(!m||!MUS[m])return;const idx=Math.floor(lt*MUS[m].rate),k=i+m+idx;if(k!==lastKey){lastKey=k;MUS[m].play(idx);}}
+function music(i,lt){const s=SH[i],m=s.music&&s.music(lt);if(!m||!MUS[m])return;const idx=Math.floor(lt*MUS[m].rate),k=i+m+idx;if(k!==lastKey){lastKey=k;bus=musicBus;MUS[m].play(idx);bus=sfxBus;}}
 
 function closeAudio() {
+  unfollow.forEach((stop) => stop()); unfollow = [];
   if (!AC) return;
   const ac = AC;
   try { master.gain.setTargetAtTime(0.0001, ac.currentTime, 0.08); } catch {}
   setTimeout(() => { try { ac.close(); } catch {} }, 500);
-  AC = null; master = null; NB = null;
+  AC = null; master = musicBus = sfxBus = bus = null; NB = null;
 }
 
 /* ---------- player ---------- */
@@ -772,8 +779,11 @@ export function playCutscene({ autoStart = false, scene = "afterHours" } = {}) {
     ctx.imageSmoothingEnabled = false;
 
     let T = 0, playing = false, started = false, last = null, raf = 0, dlgKey = "", curShot = -1;
-    soundOn = true;
     lastKey = "";
+    // Mute follows the game-wide switch; the Sound button shows it.
+    const showSound = () => { soundOn = sound.on; const b = q(".cs-sound"); if (b) { b.textContent = soundOn ? "Sound on" : "Sound off"; b.setAttribute("aria-pressed", String(soundOn)); } };
+    const unsubSound = sound.subscribe(showSound);
+    showSound();
     const shotAt = (t) => { for (let i = SH.length - 1; i >= 0; i--) if (t >= SH[i].start) return i; return 0; };
 
     function render(t) {
@@ -810,6 +820,7 @@ export function playCutscene({ autoStart = false, scene = "afterHours" } = {}) {
     function finish() {
       if (!active) return;
       active = false;
+      unsubSound();
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKey, true);
       closeAudio();
@@ -832,10 +843,8 @@ export function playCutscene({ autoStart = false, scene = "afterHours" } = {}) {
     startBtn.addEventListener("click", begin);
     q(".cs-skip").addEventListener("click", finish);
     q(".cs-sound").addEventListener("click", (e) => {
-      soundOn = !soundOn;
-      e.currentTarget.textContent = soundOn ? "Sound on" : "Sound off";
-      e.currentTarget.setAttribute("aria-pressed", String(soundOn));
-      if (soundOn) ensureAudio();
+      sound.toggleMute(); // the same mute as the sound panel in the corner
+      if (sound.on) ensureAudio();
     });
     if (autoStart) begin(); else startBtn.focus();
 

@@ -120,7 +120,7 @@ Every level has its own art and a matching HUD, picked by `theme.style`, each in
 
 A look can also paint a full-screen `background` (the vault hall, the executive suite's windows, the night skyline), set the `fogColor`, and react to the exit unlocking (`setExitOpen`). Shared helpers for all of this are in `game_server/art-kit.js`. Drones, evidence drives, vents (floor grates), the locked exit (red until you hold every drive) and the animated characters (`game_server/sprites.js`) are drawn by `three-view.js` on top of any look; `theme.droneColor` colours the drone. `game_server/quality.js` keeps the frame rate smooth by lowering the render resolution on slower devices, and `game_server/ghost-worker.js` does the ghosts' thinking off the main thread.
 
-Keys while playing: arrows or WASD move, **R** restarts, **M** opens the menu, **G** arms the glitch (once unlocked), **N** turns sound on or off.
+Keys while playing: arrows or WASD move, **R** restarts, **M** opens the menu, **G** arms the glitch (once unlocked), **N** mutes and unmutes. The speaker button in the top-right corner opens the volume sliders.
 
 Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance), `?intro=0` skips the story cutscenes, `?title=0` skips the home screen, `?glitch=1` unlocks the glitch on every level, `?scene=core` previews the Level 3 cutscene.
 
@@ -149,12 +149,18 @@ Every level has its own track, synthesized live with the Web Audio API (no audio
 | 5 · The Archive | "Floor 88" | D minor, 90 BPM, swung | Nu jazz on synths: FM electric piano, a soft supersaw pad, a plucked synth bass walking between ninth chords, dub skanks, vinyl crackle, the woozy detuned lead of a casino lounge | Sneaking through the bosses' floor |
 | 6 · The Uplink | "Broadcast" | G minor, 116 BPM | Synthwave finale: huge sidechained supersaws, a filtered arpeggio, punchy drums with tom fills, a soaring saw lead playing the motif as an anthem, radio static and morse beeps | The evidence goes out to the world |
 
-Each track loops through sections: an intro (the first time only), a groove, the lead melody, a breakdown with a noise riser, then everything together. The music also reacts to danger: when an enemy gets within a few tiles, a low heartbeat and a filtered arpeggio come in and the hats double up.
+Each track is 32 bars: an intro, a groove, the lead melody, a breakdown with a noise riser, then everything together. At the end it starts again from the top, for as long as you're on that level. Tracks never bleed into each other: each one plays through its own private reverb and echo, and when the level changes the old track and all its echoes stop at once before the new one starts from its intro. The music also reacts to danger: when an enemy gets within a few tiles, a low heartbeat and a filtered arpeggio come in and the hats double up.
 
-- **Caught:** the music tape-stops (the pitch dives and the sound closes down) while the caught sting plays: a heavy hit, the Warden's lock-on chatter, a falling two-tone "uh-oh" alarm and a dark detuned chord. The groove comes back when you try again.
+- **Caught:** the caught sting plays (a heavy hit, the Warden's lock-on chatter, a falling two-tone "uh-oh" alarm and a dark detuned chord) while the music dips for a moment. The music keeps going: a failed attempt or a restart never restarts the track.
 - **Escaped:** a short rising chime.
 - The music fades out while a cutscene, the prologue or the home screen is up (they have their own sound), and starts on your first click or key press (browsers block sound before that).
-- **N** or the ♪ button in the corner of the arrow pad turns sound on or off; the choice is remembered on that device.
+- **N** mutes and unmutes in a level.
+
+## Sound settings and levels (`game_server/sound-settings.js`)
+
+A speaker button sits in the top-right corner on every screen (the home screen, the prologue, the cutscenes and the levels; bottom-left on phones). It opens three sliders, **Volume** (everything), **Music** and **Effects**, and a **Mute all** switch. The settings are remembered on that device and apply everywhere at once: the level music and effects (`music.js`), the home screen, the prologue and both cutscenes all multiply their own levels by them. The home screen's "Sound: on/off" item, the cutscenes' Sound button and **N** in a level are the same mute switch. Keys pressed on the panel (arrows on a slider, Enter, Escape) stay on the panel, so adjusting the volume never moves Sam or skips a scene.
+
+The game's sound is evened out so nothing jumps out: every part was measured at the default settings (the average loudness of what reaches the speakers) and trimmed (the `TRIM` values in `title-screen.js`, `prologue.js` and `cutscene.js`, and each track's `gain` in `music.js`). The six level tracks sit within about 1.5 dB of each other, and the home screen and story scenes sit a couple of dB under the levels (before, the story scenes were about 25 dB quieter than the level music). Level music and effects also go through a gentle compressor.
 
 ## Home screen (`game_server/title-screen.js`)
 

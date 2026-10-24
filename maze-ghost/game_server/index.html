@@ -36,9 +36,6 @@
     #pad #glitch-btn { grid-area: 2 / 2; font-size: 22px; color: #ff7be5; border-color: rgba(255, 123, 229, 0.6) !important;
       text-shadow: -1.5px 0 #00e5ff, 1.5px 0 #ff2bd6; }
     #pad #glitch-btn[hidden] { display: none; }
-    /* Sound toggle: the pad's bottom-right corner, smaller than the arrows; struck through when off. */
-    #pad #music-btn { grid-area: 3 / 3; font-size: 17px; opacity: 0.85; }
-    #pad #music-btn.off { opacity: 0.4; text-decoration: line-through; }
     #pad #glitch-btn:disabled { opacity: 0.35; cursor: default; }
     #pad #glitch-btn.armed { background: #ff3bd4 !important; color: #fff; animation: glitch-armed 0.7s ease-in-out infinite alternate; }
     @keyframes glitch-armed { to { box-shadow: 0 0 22px rgba(255, 59, 212, 0.9); } }
@@ -130,7 +127,6 @@
     <button data-dir="left" aria-label="Left">←</button>
     <button data-dir="right" aria-label="Right">→</button>
     <button data-dir="down" aria-label="Down">↓</button>
-    <button id="music-btn" data-act="music" aria-label="Sound on or off (N)" aria-pressed="true" title="Sound (N)">♪</button>
     <button id="glitch-btn" data-act="glitch" aria-label="Glitch: the enemies lose their next turn (G)" aria-pressed="false" title="Glitch (G): the enemies lose their next turn" hidden>⚡</button>
   </div>
 

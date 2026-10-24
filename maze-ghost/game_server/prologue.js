@@ -21,6 +21,7 @@
 // Text lives in STEPS (the ad's lines and the questions), so it's easy to edit.
 
 import { logger } from "./log.js";
+import { followVolume, sound } from "./sound-settings.js";
 
 const W = 320, H = 180;
 const RM = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -327,15 +328,17 @@ function drawPhone(k, now) {
 }
 
 /* ---------- audio ---------- */
-let AC = null, master = null, musicBus = null, sfxBus = null, NB = null, rainNode = null, soundOn = true;
+let AC = null, master = null, musicBus = null, sfxBus = null, NB = null, rainNode = null, soundOn = true, unfollow = [];
+const TRIM = { music: 30, effects: 10 }; // evens this scene out with the rest of the game (see sound-settings.js)
 const mf = (m) => 440 * Math.pow(2, (m - 69) / 12);
 function ensureAudio() {
   try {
     if (!AC) {
       AC = new (window.AudioContext || window.webkitAudioContext)();
-      master = AC.createGain(); master.gain.value = soundOn ? 0.42 : 0; master.connect(AC.destination);
-      musicBus = AC.createGain(); musicBus.gain.value = 0.5; musicBus.connect(master);
-      sfxBus = AC.createGain(); sfxBus.gain.value = 0.9; sfxBus.connect(master);
+      master = AC.createGain(); master.gain.value = 0.42; master.connect(AC.destination);
+      musicBus = AC.createGain(); musicBus.connect(master);
+      sfxBus = AC.createGain(); sfxBus.connect(master);
+      unfollow = [followVolume(AC, musicBus, "music", 0.5 * TRIM.music), followVolume(AC, sfxBus, "effects", 0.9 * TRIM.effects)];
     }
     if (AC.state === "suspended") AC.resume();
   } catch { AC = null; }
@@ -413,6 +416,7 @@ function setMusic(mode) {
 }
 function closeAudio() {
   clearInterval(seqTimer); seqTimer = null; musicMode = null; rainNode = null;
+  unfollow.forEach((stop) => stop()); unfollow = [];
   if (!AC) return;
   const ac = AC;
   try { master.gain.setTargetAtTime(0.0001, ac.currentTime, 0.1); } catch {}
@@ -599,6 +603,10 @@ export function playPrologue({ autoStart = false } = {}) {
       } else if (s.kind === "say" || s.kind === "phone") { if (lt > 1.2) enterStep(si + 1); }
     }
     nextBtn.addEventListener("click", advance);
+    // Mute follows the game-wide switch; the Sound button shows it.
+    const showSound = () => { soundOn = sound.on; const b = q(".cs-sound"); b.textContent = soundOn ? "Sound on" : "Sound off"; b.setAttribute("aria-pressed", String(soundOn)); };
+    const unsubSound = sound.subscribe(showSound);
+    showSound();
 
     function begin() {
       if (started) return;
@@ -607,6 +615,7 @@ export function playPrologue({ autoStart = false } = {}) {
     function finish() {
       if (!active) return;
       active = false; cancelAnimationFrame(raf);
+      unsubSound();
       window.removeEventListener("keydown", onKey, true);
       closeAudio();
       root.classList.add("cs-out"); setTimeout(() => root.remove(), 350);
@@ -635,9 +644,8 @@ export function playPrologue({ autoStart = false } = {}) {
     startBtn.addEventListener("click", begin);
     q(".cs-skip").addEventListener("click", finish);
     q(".cs-sound").addEventListener("click", (e) => {
-      soundOn = !soundOn; e.currentTarget.textContent = soundOn ? "Sound on" : "Sound off"; e.currentTarget.setAttribute("aria-pressed", String(soundOn));
-      if (soundOn) ensureAudio();
-      if (master) master.gain.setTargetAtTime(soundOn ? 0.42 : 0, AC.currentTime, 0.05);
+      sound.toggleMute(); // the same mute as the sound panel in the corner
+      if (sound.on) ensureAudio();
     });
 
     function setDialogue(line, s) {

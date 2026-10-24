@@ -11,6 +11,7 @@
 // Drawn in code on a 320×180 canvas (no image files); music is synthesized with the Web Audio API.
 
 import { MazeGame, describeLevel, distancesFrom, playerMoves } from "../src/index.js";
+import { followVolume, sound } from "./sound-settings.js";
 
 const W = 320, H = 180;
 const RM = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -40,16 +41,19 @@ const tw = (s, sc = 1) => String(s).length * 4 * sc - sc;
 const txtC = (s, cx, y, c, sc = 1) => txt(s, Math.round(cx - tw(s, sc) / 2), y, c, sc);
 
 /* ---------- audio ---------- */
-let AC = null, master = null, musicBus = null, sfxBus = null, NB = null, soundOn = true;
+let AC = null, master = null, musicBus = null, sfxBus = null, NB = null, unfollow = [];
+const TRIM = { music: 8, effects: 8 }; // evens this screen out with the rest of the game (see sound-settings.js)
 const mf = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
 function ensureAudio() {
   try {
     if (!AC) {
       AC = new (window.AudioContext || window.webkitAudioContext)();
-      master = AC.createGain(); master.gain.value = soundOn ? 0.4 : 0; master.connect(AC.destination);
-      musicBus = AC.createGain(); musicBus.gain.value = 0.6; musicBus.connect(master);
-      sfxBus = AC.createGain(); sfxBus.gain.value = 0.9; sfxBus.connect(master);
+      master = AC.createGain(); master.gain.value = 0.4; master.connect(AC.destination);
+      musicBus = AC.createGain(); musicBus.connect(master);
+      sfxBus = AC.createGain(); sfxBus.connect(master);
+      // The player's volume settings (and mute) apply here too.
+      unfollow = [followVolume(AC, musicBus, "music", 0.6 * TRIM.music), followVolume(AC, sfxBus, "effects", 0.9 * TRIM.effects)];
     }
     if (AC.state === "suspended") AC.resume();
   } catch { AC = null; }
@@ -111,6 +115,7 @@ function startMusic() {
 }
 function closeAudio() {
   clearInterval(seqTimer); seqTimer = null;
+  unfollow.forEach((stop) => stop()); unfollow = [];
   if (!AC) return;
   const ac = AC;
   try { master.gain.setTargetAtTime(0.0001, ac.currentTime, 0.12); } catch {}
@@ -314,7 +319,7 @@ export function showTitleScreen({ levels, skipPress = false }) {
           <button type="button" data-act="story">Start story</button>
           <button type="button" data-act="levels">Choose level</button>
           <button type="button" data-act="learn">How the Wardens think</button>
-          <button type="button" data-act="sound" aria-pressed="true">Sound: on</button>
+          <button type="button" data-act="sound" aria-pressed="${!sound.on}">Sound: ${sound.on ? "on" : "off"}</button>
         </nav>
         <button type="button" class="ts-press" aria-label="Press any key to start"></button>
         <section class="ts-panel" data-panel="levels" hidden aria-label="Choose a level">
@@ -359,9 +364,13 @@ export function showTitleScreen({ levels, skipPress = false }) {
       else menu.querySelector(`[data-act="${lastPanel}"]`)?.focus();
     }
     let lastPanel = "levels";
+    // Keep the Sound button in step with the mute switch (it can also change from the sound panel).
+    const showSound = () => { soundBtn.textContent = `Sound: ${sound.on ? "on" : "off"}`; soundBtn.setAttribute("aria-pressed", String(!sound.on)); };
+    const unsubSound = sound.subscribe(showSound);
     function done(choice) {
       if (!active) return;
       active = false;
+      unsubSound();
       SFX.start();
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKey, true);
@@ -376,10 +385,7 @@ export function showTitleScreen({ levels, skipPress = false }) {
       if (!act) return;
       if (act === "story") done({ mode: "story" });
       else if (act === "sound") {
-        soundOn = !soundOn;
-        soundBtn.textContent = `Sound: ${soundOn ? "on" : "off"}`;
-        soundBtn.setAttribute("aria-pressed", String(soundOn));
-        if (master) master.gain.setTargetAtTime(soundOn ? 0.4 : 0, AC.currentTime, 0.05);
+        sound.toggleMute(); // the same mute as the sound panel in the corner
       } else { lastPanel = act; SFX.select(); show(act); }
     });
     root.querySelectorAll(".ts-back").forEach((b) => b.addEventListener("click", () => { SFX.back(); show(null); }));
