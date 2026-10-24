@@ -8,10 +8,11 @@ import { buildBasement } from "./basement.js";
 import { buildCore } from "./core.js";
 import { buildServerHalls } from "./server-halls.js";
 import { buildVault } from "./vault.js";
-import { buildArchive } from "./archive.js";
+import { buildExecutive } from "./executive.js";
 import { buildUplink } from "./uplink.js";
 import { createQuality } from "./quality.js";
 import { makeActor, SPRITE_DEPTH } from "./sprites.js";
+import { music } from "./music.js";
 import { cutsceneActive, playCutscene } from "./cutscene.js";
 import { showTitleScreen, titleActive } from "./title-screen.js";
 import { playPrologue, prologueActive } from "./prologue.js";
@@ -21,7 +22,7 @@ const TILE = 1;
 const STEP_MS = 220; // pause between your move and the ghosts', so the turns are visible
 const PLAYER_Y = 0, WARDEN_Y = 0, DRONE_Y = 0.42; // the characters stand on the floor; drones hover
 // theme.style -> custom art for that level
-const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core: buildCore, vault: buildVault, archive: buildArchive, uplink: buildUplink };
+const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core: buildCore, vault: buildVault, executive: buildExecutive, uplink: buildUplink };
 const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 // ?level=2 starts on Level 2, ?fps shows the frame rate, ?res=1 pins the render resolution (testing),
 // ?intro=0 skips the story cutscenes, ?title=0 skips the home screen, ?glitch=1 unlocks the glitch,
@@ -170,7 +171,7 @@ function buildScene() {
 
   scene = new THREE.Scene();
   const bg = new THREE.Color(t.floorColor).multiplyScalar(0.6);
-  // A look can paint its own backdrop (the vault hall, the archive stacks, the night skyline).
+  // A look can paint its own backdrop (the vault hall, the executive suite's windows, the night skyline).
   scene.background = look?.background ?? bg;
   scene.fog = new THREE.FogExp2(look?.fogColor ? new THREE.Color(look.fogColor) : bg, t.fog);
   scene.add(look ? look.group : defaultLights(t, c, span));
@@ -283,6 +284,8 @@ function resetActors() {
 // Builds the scene only when the level changes; restarting the same level just resets the actors.
 function showLevel(message) {
   logger.startAttempt(game.level.id); // every start, restart and next level is a new attempt
+  music.setLevel(game.levelIndex);
+  music.resume(); // after a catch, the groove comes back in
   if (game.levelIndex === builtLevel) resetActors();
   else buildScene();
   updateHud(message);
@@ -547,9 +550,17 @@ async function takeTurn(dir) {
   }
   g.paths.forEach((path, i) => placeAlong(ghosts[i], path.length ? path : [g.to[i]], ghosts[i].userData.hover));
   drawPlan(g.thinking);
+  updateTension();
   updateHud(g.event === "caught" ? "" : `${picked(result)}${enemy().Name} moved ${g.dir}.`);
   busy = false;
   if (g.event === "caught") finish();
+}
+
+// The music leans in when an enemy is close: 1 when one is next to you, 0 at 5+ tiles away.
+function updateTension() {
+  const { r, c } = game.state.player;
+  const near = Math.min(...game.state.ghosts.map((g) => Math.abs(g.r - r) + Math.abs(g.c - c)));
+  music.setTension((5 - near) / 4);
 }
 
 // What happened on your own move, for the HUD message.
@@ -588,6 +599,7 @@ function finish() {
   const n = game.level.lookahead;
   const e = enemy();
   if (game.status === "caught") {
+    music.caught();
     logger.endAttempt("death", { x: game.state.player.c, y: game.state.player.r });
     const hints = game.level.hints ?? [];
     const hint = hints.length ? hints[catches++ % hints.length] : "";
@@ -608,12 +620,14 @@ function finish() {
     }
     showOverlay("lose", "Caught!", text, "Try again", () => restart("Try again!"), hint);
   } else if (game.status === "levelComplete") {
+    music.escaped();
     logger.endAttempt("win", { x: game.state.player.c, y: game.state.player.r });
     catches = 0;
     const next = game.levels[game.levelIndex + 1];
     if (next.cutscene && params.get("intro") !== "0") showOverlay("win", "Escaped!", `You made it out. Next: Level ${next.id} · ${next.name}. But someone was watching...`, "Continue", goToNextLevel);
     else showOverlay("win", "Escaped!", `Next: Level ${next.id} · ${next.name}. ${next.briefing ?? describeLevel(next).line}`, `Start Level ${next.id}`, goToNextLevel, next.concept ? `New idea: ${next.concept}` : "");
   } else if (game.status === "gameComplete") {
+    music.escaped();
     showOverlay("win", "Evidence uploaded!", `You outthought every ${e.one} and the world can finally see what Clearpath was doing. Every Warden was only ever as good as its predictions, and you learned to read them.`, "Main menu", () => openMenu());
   }
 }
@@ -621,8 +635,25 @@ function finish() {
 // ---------- Input: keyboard and on-screen buttons ----------
 const KEYS = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right" };
 
+// Browsers only allow sound after a click or key press, so the music starts on the first one.
+for (const type of ["keydown", "pointerdown"]) window.addEventListener(type, () => music.start(), { capture: true });
+
+function toggleMusic() {
+  const on = music.toggle();
+  updateMusicButton();
+  if (!overlayAction) updateHud(on ? "Sound on." : "Sound off.");
+}
+function updateMusicButton() {
+  const btn = $("music-btn");
+  btn.classList.toggle("off", !music.on);
+  btn.setAttribute("aria-pressed", String(music.on));
+  btn.title = music.on ? "Sound on (N to mute)" : "Sound off (N to turn on)";
+}
+updateMusicButton();
+
 window.addEventListener("keydown", (e) => {
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (key === "n" && !titleActive() && !cutsceneActive() && !prologueActive()) return toggleMusic();
   if (overlayAction) {
     if (key === "Enter" || key === " ") { e.preventDefault(); overlayAction(); }
     else if (key === "r" && game.status === "caught") restart("Try again!");
@@ -638,6 +669,7 @@ for (const btn of document.querySelectorAll("#pad button[data-dir]")) {
   btn.addEventListener("click", () => takeTurn(btn.dataset.dir));
 }
 $("glitch-btn").addEventListener("click", toggleGlitch);
+$("music-btn").addEventListener("click", toggleMusic);
 
 // ---------- Render loop ----------
 const clock = new THREE.Clock();
@@ -646,7 +678,9 @@ if (fpsLabel) fpsLabel.hidden = false;
 let frame = 0;
 
 renderer.setAnimationLoop((now) => {
-  if (cutsceneActive() || titleActive() || prologueActive()) return; // a full-screen scene is up; give the device's time to it instead of the maze
+  const storyUp = cutsceneActive() || titleActive() || prologueActive();
+  music.setActive(!storyUp); // the cutscenes and the home screen play their own music
+  if (storyUp) return; // a full-screen scene is up; give the device's time to it instead of the maze
   quality.frame(now);
   const time = clock.getElapsedTime();
 

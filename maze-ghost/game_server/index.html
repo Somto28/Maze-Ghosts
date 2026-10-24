@@ -36,6 +36,9 @@
     #pad #glitch-btn { grid-area: 2 / 2; font-size: 22px; color: #ff7be5; border-color: rgba(255, 123, 229, 0.6) !important;
       text-shadow: -1.5px 0 #00e5ff, 1.5px 0 #ff2bd6; }
     #pad #glitch-btn[hidden] { display: none; }
+    /* Sound toggle: the pad's bottom-right corner, smaller than the arrows; struck through when off. */
+    #pad #music-btn { grid-area: 3 / 3; font-size: 17px; opacity: 0.85; }
+    #pad #music-btn.off { opacity: 0.4; text-decoration: line-through; }
     #pad #glitch-btn:disabled { opacity: 0.35; cursor: default; }
     #pad #glitch-btn.armed { background: #ff3bd4 !important; color: #fff; animation: glitch-armed 0.7s ease-in-out infinite alternate; }
     @keyframes glitch-armed { to { box-shadow: 0 0 22px rgba(255, 59, 212, 0.9); } }
@@ -87,12 +90,12 @@
     }
   </style>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Manrope:wght@600;700;800&family=Special+Elite&family=Silkscreen&family=VT323&family=Orbitron:wght@600;700;800&family=Courier+Prime:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Bebas+Neue&family=Chakra+Petch:wght@500;600;700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Manrope:wght@600;700;800&family=Special+Elite&family=Silkscreen&family=VT323&family=Orbitron:wght@600;700;800&family=Courier+Prime:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Bebas+Neue&family=Chakra+Petch:wght@500;600;700&family=Cormorant+Garamond:wght@500;600;700&display=swap" />
   <link rel="stylesheet" href="./basement.css" />
   <link rel="stylesheet" href="./server-halls.css" />
   <link rel="stylesheet" href="./core.css" />
   <link rel="stylesheet" href="./vault.css" />
-  <link rel="stylesheet" href="./archive.css" />
+  <link rel="stylesheet" href="./executive.css" />
   <link rel="stylesheet" href="./uplink.css" />
   <link rel="stylesheet" href="./cutscene.css" />
   <link rel="stylesheet" href="./title-screen.css" />
@@ -120,13 +123,14 @@
     <div id="thinking"></div>
   </div>
 
-  <div id="help" class="panel">Arrows / WASD move · R restart · M menu</div>
+  <div id="help" class="panel">Arrows / WASD move · R restart · M menu · N sound</div>
 
   <div id="pad" aria-label="Move controls">
     <button data-dir="up" aria-label="Up">↑</button>
     <button data-dir="left" aria-label="Left">←</button>
     <button data-dir="right" aria-label="Right">→</button>
     <button data-dir="down" aria-label="Down">↓</button>
+    <button id="music-btn" data-act="music" aria-label="Sound on or off (N)" aria-pressed="true" title="Sound (N)">♪</button>
     <button id="glitch-btn" data-act="glitch" aria-label="Glitch: the enemies lose their next turn (G)" aria-pressed="false" title="Glitch (G): the enemies lose their next turn" hidden>⚡</button>
   </div>
 

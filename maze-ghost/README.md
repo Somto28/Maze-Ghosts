@@ -115,10 +115,12 @@ Every level has its own art and a matching HUD, picked by `theme.style`, each in
 | 2 | `server-halls` | The company's server floor | Racks with blinking LEDs, security cameras | Security camera feed, "REC" light |
 | 3 | `core` | The Core's proving ground, Test Floor 3, where the Wardens are built and field-tested | Grey lab partitions with hazard-striped skirts and LED strips; on top, workbenches with half-built Warden heads, prototypes charging in their cradles, training racks, shipping crates, prediction consoles and lidar masts; a graphite floor with yellow test-lane lines, a calibration grid with tile coordinates and charging bays where the Wardens start; turning amber beacons and a scanner beam sweeping the floor; a hangar of Warden prototypes behind | The test controller's console: graphite panels with a hazard stripe, a blinking "TRIAL 03 · LIVE" light, a monospace prediction log, industrial keys, results filed as trial logs |
 | 4 | `vault` | The Data Vault: cold storage for everything Clearpath collects | Frosted steel data monoliths with teal seams where data streams up, glowing hex cooling ports, floating holographic data cubes, a hex-etched black floor, a giant vault door at the exit | Chamfered sci-fi terminal, "VAULT-07 // COLD STORAGE", access alerts |
-| 5 | `archive` | The records room with a file on everyone | Wooden shelves of binders and name-labelled file boxes, green banker's lamps, drifting dust, loose papers on parquet | A manila case folder with a CONFIDENTIAL stamp, an index card, typewriter keys, stamped results |
+| 5 | `executive` | The Archive on Floor 88: the executive suite, where the chiefs keep the company's most confidential files | Walnut and smoked-glass partitions with brass trim and warm cove lights; biometric records cabinets marked EYES ONLY with classified folders; the CEO's desk with a holographic subject file; boardroom tables; Project Warden data safes; leather lounges and planters; holograms of people's files turning over holo-tables; a midnight art-deco carpet with black-marble and gold borders; floor-to-ceiling windows onto the city at night with rain on the glass | Smoked-glass panels with gold hairlines, an EYES ONLY tab, a serif display face, a board-briefing prediction log, results as executive memos |
 | 6 | `uplink` | The roof, where the evidence is broadcast | Rooftop HVAC units and cabinets, antenna masts with blinking red lights, a satellite dish, a light beam at the exit (red while locked, cyan once you hold the evidence), city skyline and stars | A live broadcast feed: "● LIVE", signal bars, a news-ticker message line |
 
-A look can also paint a full-screen `background` (the vault hall, the archive stacks, the night skyline), set the `fogColor`, and react to the exit unlocking (`setExitOpen`). Shared helpers for all of this are in `game_server/art-kit.js`. Drones, evidence drives, vents (floor grates), the locked exit (red until you hold every drive) and the animated characters (`game_server/sprites.js`) are drawn by `three-view.js` on top of any look; `theme.droneColor` colours the drone. `game_server/quality.js` keeps the frame rate smooth by lowering the render resolution on slower devices, and `game_server/ghost-worker.js` does the ghosts' thinking off the main thread.
+A look can also paint a full-screen `background` (the vault hall, the executive suite's windows, the night skyline), set the `fogColor`, and react to the exit unlocking (`setExitOpen`). Shared helpers for all of this are in `game_server/art-kit.js`. Drones, evidence drives, vents (floor grates), the locked exit (red until you hold every drive) and the animated characters (`game_server/sprites.js`) are drawn by `three-view.js` on top of any look; `theme.droneColor` colours the drone. `game_server/quality.js` keeps the frame rate smooth by lowering the render resolution on slower devices, and `game_server/ghost-worker.js` does the ghosts' thinking off the main thread.
+
+Keys while playing: arrows or WASD move, **R** restarts, **M** opens the menu, **G** arms the glitch (once unlocked), **N** turns sound on or off.
 
 Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance), `?intro=0` skips the story cutscenes, `?title=0` skips the home screen, `?glitch=1` unlocks the glitch on every level, `?scene=core` previews the Level 3 cutscene.
 
@@ -133,6 +135,22 @@ Sam, the Wardens and the drones are animated pixel-art sprites in the cutscenes'
 Each character keeps its coloured glow on the floor (blue for Sam, red for Wardens, amber for drones) and a soft contact shadow. A card that faces the camera leans back over the tile behind it, so for depth it's treated as standing a little closer to the camera (`SPRITE_DEPTH.pull`, worked out per level from the wall height and camera angle): walls behind a character never cut into it, while walls in front still hide it. Where they do, a coloured silhouette shows through the wall. The plan dots are drawn on top of everything, so a character or a wall never hides the prediction. While a glitch fires, the enemies flicker between magenta and cyan.
 
 The browser tab shows a Warden favicon (`game_server/favicon.svg`, with `favicon-32.png` and `apple-touch-icon.png` for browsers and phones that want a PNG): the robot's head from the cutscenes with its red eye lit.
+
+## Music and sound in the levels (`game_server/music.js`)
+
+While you play, a soundtrack called "Floor Plan" runs under the maze. It's synthesized live with the Web Audio API (no audio files): a slow, swung, late-night groove in D minor in the spirit of a casino-lounge card game's theme, with a woozy, detuned lead over jazzy ninth chords. It blends:
+
+- **Chillwave / chillsynth:** wide detuned-saw pads that pump with the beat, tape hiss, vinyl crackle and a slow tape "wow" that bends every note a few cents.
+- **Nu jazz:** a Rhodes-style electric piano comping minor-ninth chords, swung 16ths, a walking bass that slides chromatically into each chord.
+- **Progressive electronic:** a filtered 16th-note arpeggio that builds from Level 4 on.
+- **Ambient dub:** offbeat chord "skanks" and rimshots thrown into a dotted-eighth echo that darkens as it repeats, plus a long reverb.
+
+It's a 16-bar loop with two sections and an original lead melody. It grows with the levels: Level 1 is sparse, and each level adds layers (rimshots, ghost notes, dub skanks, shaker, arpeggio), nudges the tempo up (86 to 94 BPM) and, from Level 4, moves the key up. It also reacts to danger: when an enemy gets within a few tiles the hats double up, the arpeggio fades in and opens up, and a low heartbeat joins.
+
+- **Caught:** the music tape-stops (the pitch dives and the sound closes down) while the caught sting plays: a heavy hit, the Warden's lock-on chatter, a falling two-tone "uh-oh" alarm and a dark detuned chord. The groove comes back when you try again.
+- **Escaped:** a short rising chime.
+- The music fades out while a cutscene, the prologue or the home screen is up (they have their own sound), and starts on your first click or key press (browsers block sound before that).
+- **N** or the ♪ button in the corner of the arrow pad turns sound on or off; the choice is remembered on that device.
 
 ## Home screen (`game_server/title-screen.js`)
 
