@@ -164,7 +164,7 @@ export const LEVELS = Object.freeze([
     lookahead: 3,
     dronePattern: [2, 0],
     // These wardens only guard the drives and the door; they don't also try to box you in.
-    // The drone starts beside the exit: it guards the archive door.
+    // The drone starts beside the exit: it guards the executives' private lift.
     weights: { territory: 0 },
     concept: "When the AI knows your goal",
     briefing:
@@ -192,9 +192,9 @@ export const LEVELS = Object.freeze([
       "##.......##..DE",
       "###############",
     ],
-    // style "archive": the records room, shelves of everyone's files (game_server/archive.js + archive.css).
-    // Shelves kept low so they never hide you.
-    theme: { style: "archive", wallHeight: 1.2, wallColor: "#3a2516", floorColor: "#2a1a10", ghostColor: "#ff4d5e", droneColor: "#ffb020", fog: 0.016, light: 1.1 },
+    // style "executive": the C-suite on Floor 88, where the chiefs keep the confidential files
+    // (game_server/executive.js + executive.css). Furniture kept low so it never hides you.
+    theme: { style: "executive", wallHeight: 1.2, wallColor: "#4a2c1a", floorColor: "#151a2a", ghostColor: "#ff4d5e", droneColor: "#ffb020", fog: 0.016, light: 1.1 },
   },
   {
     id: 6,

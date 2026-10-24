@@ -58,8 +58,11 @@
 .ts-panel h2 { margin: 0; font: clamp(14px, 2.6cqw, 30px)/1.1 var(--ts-pixel); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ts-teal); text-wrap: balance; }
 .ts-note { margin: -0.6cqw 0 0; color: var(--ts-muted); }
 
-.ts-levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 1.2cqw; }
+/* Flex, not grid: each card grows to fill its row, so a level left alone on the last row (Level 6
+   under Levels 1-5) stretches across the whole width instead of sitting in a corner. */
+.ts-levels { display: flex; flex-wrap: wrap; gap: 1.2cqw; }
 .ts-level {
+  flex: 1 1 min(100%, 180px);
   display: grid; grid-template-columns: auto 1fr; gap: 0.3cqw 1.2cqw; align-content: start;
   padding: 1.4cqw; text-align: left; cursor: pointer;
   color: var(--ts-ink); background: #0a1a1a; border: 1px solid #1d3b3a; font: inherit;
