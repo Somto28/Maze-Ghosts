@@ -733,6 +733,7 @@ renderer.setAnimationLoop((now) => {
 
 buildScene();
 updateHud(startMessage());
+music.setLevel(game.levelIndex);
 logger.startAttempt(game.level.id);
 if (params.has("level") || params.get("title") === "0") showBriefing();
 

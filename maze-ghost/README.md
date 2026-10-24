@@ -138,14 +138,18 @@ The browser tab shows a Warden favicon (`game_server/favicon.svg`, with `favicon
 
 ## Music and sound in the levels (`game_server/music.js`)
 
-While you play, a soundtrack called "Floor Plan" runs under the maze. It's synthesized live with the Web Audio API (no audio files): a slow, swung, late-night groove in D minor in the spirit of a casino-lounge card game's theme, with a woozy, detuned lead over jazzy ninth chords. It blends:
+Every level has its own track, synthesized live with the Web Audio API (no audio files). The six tracks are one family: they share a five-note **Warden motif** (fifth, fourth, minor third, root, second; in A minor that's E-D-C-A-B) that opens every lead melody, the same synth palette (supersaws, pulse-width pads, FM bells and electric piano, plucks, reese and acid-style basses, synthesized drums), a slow tape wobble on every note and a dub echo. Each one then fits its place in the story:
 
-- **Chillwave / chillsynth:** wide detuned-saw pads that pump with the beat, tape hiss, vinyl crackle and a slow tape "wow" that bends every note a few cents.
-- **Nu jazz:** a Rhodes-style electric piano comping minor-ninth chords, swung 16ths, a walking bass that slides chromatically into each chord.
-- **Progressive electronic:** a filtered 16th-note arpeggio that builds from Level 4 on.
-- **Ambient dub:** offbeat chord "skanks" and rimshots thrown into a dotted-eighth echo that darkens as it repeats, plus a long reverb.
+| Level | Track | Key, tempo | Sound | Story |
+| --- | --- | --- | --- | --- |
+| 1 · The Basement | "Lights Out" | A minor, 80 BPM | Ambient dub: dark pulse-width pads, dub chord stabs echoing into the dark, sub and reese bass, a half-time rimshot, water drips, the hum of a failing tube light, a lonely whistle lead | You've just found the lab, alone |
+| 2 · The Server Halls | "Racks" | E minor, 98 BPM | Chillsynth: pumping supersaw pads, a square-wave "data" arpeggio with flipped bits, blinking-LED blips, four-on-the-floor, server-fan noise, a bright saw lead | The Wardens start predicting you |
+| 3 · The Core | "Proving Ground" | D minor, 108 BPM | Progressive electronic: a driving octave bass whose filter keeps opening, gated supersaw stabs, metallic percussion, a robotic formant lead, scanner sweeps, machine rumble | Dr. Voss has just fed them your data |
+| 4 · The Data Vault | "Cold Storage" | F# minor, 88 BPM | Chillwave: glassy FM bells, a shimmering high supersaw pad, a slow reese bass, a half-time beat, a crystal arpeggio, cold air | A careful, quiet heist |
+| 5 · The Archive | "Floor 88" | D minor, 90 BPM, swung | Nu jazz on synths: FM electric piano, a soft supersaw pad, a plucked synth bass walking between ninth chords, dub skanks, vinyl crackle, the woozy detuned lead of a casino lounge | Sneaking through the bosses' floor |
+| 6 · The Uplink | "Broadcast" | G minor, 116 BPM | Synthwave finale: huge sidechained supersaws, a filtered arpeggio, punchy drums with tom fills, a soaring saw lead playing the motif as an anthem, radio static and morse beeps | The evidence goes out to the world |
 
-It's a 16-bar loop with two sections and an original lead melody. It grows with the levels: Level 1 is sparse, and each level adds layers (rimshots, ghost notes, dub skanks, shaker, arpeggio), nudges the tempo up (86 to 94 BPM) and, from Level 4, moves the key up. It also reacts to danger: when an enemy gets within a few tiles the hats double up, the arpeggio fades in and opens up, and a low heartbeat joins.
+Each track loops through sections: an intro (the first time only), a groove, the lead melody, a breakdown with a noise riser, then everything together. The music also reacts to danger: when an enemy gets within a few tiles, a low heartbeat and a filtered arpeggio come in and the hats double up.
 
 - **Caught:** the music tape-stops (the pitch dives and the sound closes down) while the caught sting plays: a heavy hit, the Warden's lock-on chatter, a falling two-tone "uh-oh" alarm and a dark detuned chord. The groove comes back when you try again.
 - **Escaped:** a short rising chime.
