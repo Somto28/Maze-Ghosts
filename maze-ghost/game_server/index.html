@@ -4,6 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Clearpath</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="./favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+  <meta name="theme-color" content="#0b0e14">
   <style>
     :root { --ink: #e8eef8; --muted: #93a3bb; --panel: rgba(10, 14, 22, 0.8); --line: rgba(255,255,255,0.1); --accent: #5ab0ff; --danger: #ff5a6e; --gold: #ffd166; }
     * { box-sizing: border-box; }
@@ -25,6 +29,29 @@
     .chip.warn { color: var(--danger); border-color: rgba(255, 90, 110, 0.45); }
     .chip.ok { color: #4ade80; border-color: rgba(74, 222, 128, 0.45); }
     .chip.vent { color: #2ee6c8; border-color: rgba(46, 230, 200, 0.5); }
+    .chip.glitch { color: #ff7be5; border-color: rgba(255, 123, 229, 0.55); }
+    .chip.glitch.armed { color: #fff; background: rgba(255, 60, 220, 0.35); }
+
+    /* The glitch button sits in the middle of the pad; it pulses while armed. */
+    #pad #glitch-btn { grid-area: 2 / 2; font-size: 22px; color: #ff7be5; border-color: rgba(255, 123, 229, 0.6) !important;
+      text-shadow: -1.5px 0 #00e5ff, 1.5px 0 #ff2bd6; }
+    #pad #glitch-btn[hidden] { display: none; }
+    #pad #glitch-btn:disabled { opacity: 0.35; cursor: default; }
+    #pad #glitch-btn.armed { background: #ff3bd4 !important; color: #fff; animation: glitch-armed 0.7s ease-in-out infinite alternate; }
+    @keyframes glitch-armed { to { box-shadow: 0 0 22px rgba(255, 59, 212, 0.9); } }
+
+    /* When it fires: the whole view stutters with an RGB split for under a second. */
+    body.glitching #view canvas { animation: glitch-view 0.9s steps(1) both; }
+    @keyframes glitch-view {
+      0% { transform: translate(6px, 0); filter: hue-rotate(90deg) saturate(1.6); }
+      12% { transform: translate(-8px, 2px); filter: hue-rotate(-60deg) contrast(1.4); }
+      25% { transform: translate(3px, -3px); filter: invert(0.15) hue-rotate(160deg); }
+      40% { transform: translate(-4px, 0); filter: none; }
+      55% { transform: translate(7px, 1px); filter: hue-rotate(60deg) saturate(2); }
+      70% { transform: none; filter: none; }
+    }
+    body.glitching #mood { display: block !important; background: repeating-linear-gradient(0deg, rgba(255, 43, 214, 0.12) 0 3px, transparent 3px 9px), repeating-linear-gradient(0deg, rgba(0, 229, 255, 0.1) 0 2px, transparent 2px 14px) !important; }
+    @media (prefers-reduced-motion: reduce) { body.glitching #view canvas { animation: none; } #pad #glitch-btn.armed { animation: none; } }
     #thinking em.habit { font-style: normal; font-size: 11px; padding: 0 5px; border-radius: 4px; background: rgba(255, 59, 92, 0.25); color: #ffb3c0; }
     .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; color: var(--muted); font-size: 12px; }
     .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
@@ -100,6 +127,7 @@
     <button data-dir="left" aria-label="Left">←</button>
     <button data-dir="right" aria-label="Right">→</button>
     <button data-dir="down" aria-label="Down">↓</button>
+    <button id="glitch-btn" data-act="glitch" aria-label="Glitch: the enemies lose their next turn (G)" aria-pressed="false" title="Glitch (G): the enemies lose their next turn" hidden>⚡</button>
   </div>
 
   <div id="overlay"><div class="card panel"><h2 id="overlay-title"></h2><p id="overlay-text"></p><p id="overlay-hint" class="hint" hidden></p><button id="overlay-btn"></button></div></div>

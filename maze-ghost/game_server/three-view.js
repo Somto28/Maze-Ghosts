@@ -22,10 +22,13 @@ const STEP_MS = 220; // pause between your move and the ghosts', so the turns ar
 const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core: buildCore, vault: buildVault, archive: buildArchive, uplink: buildUplink };
 const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 // ?level=2 starts on Level 2, ?fps shows the frame rate, ?res=1 pins the render resolution (testing),
-// ?intro=0 skips the opening cutscene, ?title=0 skips the home screen.
+// ?intro=0 skips the story cutscenes, ?title=0 skips the home screen, ?glitch=1 unlocks the glitch,
+// ?scene=core previews the Level 3 cutscene.
 const params = new URLSearchParams(location.search);
 
 const game = new MazeGame();
+// ?glitch=1 starts with the glitch already unlocked on every level (for testing and demos).
+if (params.get("glitch") === "1") game.catches.fill(game.glitchAfter);
 const startAt = Number(params.get("level")) - 1;
 if (startAt > 0 && startAt < game.levels.length) game.startLevel(startAt);
 const $ = (id) => document.getElementById(id);
@@ -470,6 +473,11 @@ function updateHud(message) {
   const { r, c } = game.state.player, grid = game.state.grid;
   const ventNear = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].map(([y, x]) => grid[y]?.[x]).find((tile) => tile >= "1" && tile <= "4");
   if (ventNear && game.status === "playing") chips.push(`<span class="chip vent">Vent ${ventNear} next to you: step onto the grate to crawl out of the other grate ${ventNear}</span>`);
+  if (game.glitchUnlocked) {
+    const label = game.glitchArmed ? "⚡ Glitch armed: your next move is free" : game.glitchUsed ? "⚡ Glitch used this attempt" : "⚡ Glitch ready: press G";
+    chips.push(`<span class="chip glitch ${game.glitchArmed ? "armed" : ""}">${label}</span>`);
+  }
+  updateGlitchButton();
   if (game.level.learns) {
     const n = game.attemptsStudied;
     chips.push(`<span class="chip ${n ? "warn" : ""}">${n ? `Studied ${n} of your attempts` : "No data on you yet"}</span>`);
@@ -510,8 +518,15 @@ $("overlay-btn").addEventListener("click", () => overlayAction?.());
 function restart(message = "Restarted.") {
   game.restartLevel(); hideOverlay(); showLevel(message);
 }
-function goToNextLevel() {
-  game.nextLevel(); hideOverlay(); showLevel(startMessage());
+// Some levels open with a story scene (Level 3: Dr. Voss feeds the Wardens Sam's data). It plays between
+// the "Escaped!" card and the next level, unless ?intro=0. Then the level's briefing comes up.
+async function goToNextLevel() {
+  const next = game.levels[game.levelIndex + 1];
+  hideOverlay();
+  const scene = next?.cutscene && params.get("intro") !== "0";
+  if (scene) await playCutscene({ autoStart: true, scene: next.cutscene });
+  game.nextLevel(); showLevel(startMessage());
+  if (scene) showBriefing();
 }
 
 // Before a level: what's new and what to think about. The briefing is the level's lesson.
@@ -556,6 +571,8 @@ async function takeTurn(dir) {
   const result = game.playerMove(dir);
   if (result.event === "blocked") return updateHud("That's a wall.");
   if (result.event === "locked") return updateHud(`The exit is locked: you still need ${game.evidence.total - game.evidence.held} evidence drive${game.evidence.total - game.evidence.held === 1 ? "" : "s"}.`);
+  const glitching = game.glitchArmed; // this move gets no reply: the enemies lose their turn
+  if (glitching) logger.recordMove("glitch");
   logger.recordMove(dir);
   placeAt(player, game.state.player, 0.37, !!result.vent); // a vent crawl pops you out of the other grate
   if (result.pickedUp) drawEvidence();
@@ -563,19 +580,57 @@ async function takeTurn(dir) {
 
   busy = true;
   const token = turnToken;
-  updateHud(`${enemy().Name} ${enemy().plural ? "are" : "is"} thinking…`);
+  updateHud(glitching ? "GLITCH!" : `${enemy().Name} ${enemy().plural ? "are" : "is"} thinking…`);
   // Think while the player's move animates; wait at least STEP_MS so the turns stay readable.
-  const [decision] = await Promise.all([thinkInBackground(), new Promise((r) => setTimeout(r, STEP_MS))]);
+  const [decision] = await Promise.all([glitching ? null : thinkInBackground(), new Promise((r) => setTimeout(r, STEP_MS))]);
   if (token !== turnToken) return; // restarted while they were thinking
 
-  const g = game.ghostMove(decision ?? chooseGhostMoves(game.ghostSearch.state, game.ghostSearch.lookahead, game.ghostSearch.options));
+  const g = glitching
+    ? game.ghostMove()
+    : game.ghostMove(decision ?? chooseGhostMoves(game.ghostSearch.state, game.ghostSearch.lookahead, game.ghostSearch.options));
+  if (g.event === "glitched") {
+    playGlitchEffect();
+    drawPlan(null);
+    const their = enemy().plural ? "their" : "its";
+    updateHud(`${picked(result)}GLITCH! The ${enemy().name} froze and lost ${their} turn. Your move.`);
+    busy = false;
+    return;
+  }
   g.paths.forEach((path, i) => placeAlong(ghosts[i], path.length ? path : [g.to[i]], ghosts[i].userData.hover));
   drawPlan(g.thinking);
-  const picked = (result.vent ? `You crawled through vent ${result.vent}. ` : "") +
-    (result.pickedUp ? `Evidence drive picked up${game.evidence.exitOpen ? ": the exit is unlocked!" : "."} ` : "");
-  updateHud(g.event === "caught" ? "" : `${picked}${enemy().Name} moved ${g.dir}.`);
+  updateHud(g.event === "caught" ? "" : `${picked(result)}${enemy().Name} moved ${g.dir}.`);
   busy = false;
   if (g.event === "caught") finish();
+}
+
+// What happened on your own move, for the HUD message.
+const picked = (result) => (result.vent ? `You crawled through vent ${result.vent}. ` : "") +
+  (result.pickedUp ? `Evidence drive picked up${game.evidence.exitOpen ? ": the exit is unlocked!" : "."} ` : "");
+
+// ---------- The glitch (unlocks after GLITCH_AFTER catches on a level; see src/game.js) ----------
+function toggleGlitch() {
+  if (busy || overlayAction || game.status !== "playing") return;
+  if (!game.glitchUnlocked) return;
+  if (game.glitchUsed) return updateHud("You've used your glitch this attempt. You get a new one if they catch you.");
+  const armed = game.toggleGlitch();
+  updateHud(armed ? "Glitch armed: your next move gets no reply. Pick it carefully." : "Glitch disarmed.");
+}
+
+let glitchUntil = 0;
+function playGlitchEffect() {
+  glitchUntil = clock.getElapsedTime() + 0.9;
+  document.body.classList.remove("glitching");
+  void document.body.offsetWidth; // restart the CSS animation
+  document.body.classList.add("glitching");
+  setTimeout(() => document.body.classList.remove("glitching"), 900);
+}
+
+function updateGlitchButton() {
+  const btn = $("glitch-btn");
+  btn.hidden = !game.glitchUnlocked;
+  btn.disabled = game.glitchUsed || game.status !== "playing";
+  btn.classList.toggle("armed", game.glitchArmed);
+  btn.setAttribute("aria-pressed", String(game.glitchArmed));
 }
 
 // Caught: say HOW they caught you, then one nudge to think about their prediction.
@@ -595,12 +650,20 @@ function finish() {
         ? `The ${e.name} caught you. It doesn't plan: it just steps toward wherever you are, every single turn.`
         : `The ${e.name} predicted your moves ${n} step${n > 1 ? "s" : ""} ahead.`;
     if (game.level.learns) text += ` They've now studied ${game.attemptsStudied} of your attempts.`;
+    if (game.catches[game.levelIndex] === game.glitchAfter) {
+      // The moment the glitch unlocks: explain it instead of the usual hint.
+      text += ` That's ${game.glitchAfter} catches on this level, so you've unlocked a new ability.`;
+      showOverlay("lose", "Caught! · Glitch unlocked", text, "Try again", () => restart("Glitch ready: press G or the ⚡ button, then move."),
+        `GLITCH: once per attempt, press G (or the ⚡ button), then make a move. The ${e.name} ${e.plural ? "glitch and lose their" : "glitches and loses its"} turn, so you get one free move. ${e.plural ? "Their" : "Its"} whole plan assumes ${e.plural ? "they get" : "it gets"} to answer every move you make.`);
+      return;
+    }
     showOverlay("lose", "Caught!", text, "Try again", () => restart("Try again!"), hint);
   } else if (game.status === "levelComplete") {
     logger.endAttempt("win", { x: game.state.player.c, y: game.state.player.r });
     catches = 0;
     const next = game.levels[game.levelIndex + 1];
-    showOverlay("win", "Escaped!", `Next: Level ${next.id} · ${next.name}. ${next.briefing ?? describeLevel(next).line}`, `Start Level ${next.id}`, goToNextLevel, next.concept ? `New idea: ${next.concept}` : "");
+    if (next.cutscene && params.get("intro") !== "0") showOverlay("win", "Escaped!", `You made it out. Next: Level ${next.id} · ${next.name}. But someone was watching...`, "Continue", goToNextLevel);
+    else showOverlay("win", "Escaped!", `Next: Level ${next.id} · ${next.name}. ${next.briefing ?? describeLevel(next).line}`, `Start Level ${next.id}`, goToNextLevel, next.concept ? `New idea: ${next.concept}` : "");
   } else if (game.status === "gameComplete") {
     showOverlay("win", "Evidence uploaded!", `You outthought every ${e.one} and the world can finally see what Clearpath was doing. Every Warden was only ever as good as its predictions, and you learned to read them.`, "Main menu", () => openMenu());
   }
@@ -618,12 +681,14 @@ window.addEventListener("keydown", (e) => {
   }
   if (key === "r") return restart();
   if (key === "m") return openMenu();
+  if (key === "g") return toggleGlitch();
   if (key in KEYS) { e.preventDefault(); takeTurn(KEYS[key]); }
 });
 
-for (const btn of document.querySelectorAll("#pad button")) {
+for (const btn of document.querySelectorAll("#pad button[data-dir]")) {
   btn.addEventListener("click", () => takeTurn(btn.dataset.dir));
 }
+$("glitch-btn").addEventListener("click", toggleGlitch);
 
 // ---------- Render loop ----------
 const clock = new THREE.Clock();
@@ -648,8 +713,12 @@ renderer.setAnimationLoop((now) => {
   }
   for (const d of drives) d.userData.spin(time);
   const charged = (game.level.dronePattern ?? [2])[dronePhase(game.state)] > 0;
+  const glitchy = time < glitchUntil && !still;
   ghosts.forEach((g, i) => {
     g.position.y = g.userData.hover + Math.sin(time * 3 + i * 1.7) * 0.05; // gentle hover, out of step with each other
+    // Glitching: they stutter sideways and blink out for a frame here and there.
+    g.visible = !glitchy || Math.random() > 0.25;
+    if (glitchy) g.position.x += (Math.random() - 0.5) * 0.08;
     g.userData.charge?.(charged);
     g.userData.spin?.(time + i);
     ghostGlows[i].position.x = g.position.x;
@@ -677,7 +746,9 @@ if (params.has("level") || params.get("title") === "0") showBriefing();
 
 // The home screen opens first. ?level= or ?title=0 go straight into the game (the story still plays
 // before Level 1 unless ?intro=0).
-if (params.has("level") || params.get("title") === "0") {
+if (params.get("scene")) {
+  playCutscene({ scene: params.get("scene") }).then(showBriefing); // ?scene=core previews a story scene
+} else if (params.has("level") || params.get("title") === "0") {
   if (game.levelIndex === 0 && params.get("intro") !== "0") playStory(false);
 } else {
   openMenu(false);

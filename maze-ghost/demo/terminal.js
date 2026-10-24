@@ -41,7 +41,7 @@ function draw() {
       console.log(`  ${o.chosen ? "->" : "  "} ${o.dir.padEnd(n > 1 ? 15 : 5)} score ${String(o.score).padStart(5)}   expects you to go: ${o.predictedPlayerReply ?? "-"}`);
     }
   }
-  console.log("\nArrows/WASD move · r restart · q quit");
+  console.log("\nArrows/WASD move · g glitch (after 10 catches) · r restart · q quit");
 }
 
 readline.emitKeypressEvents(process.stdin);
@@ -55,6 +55,11 @@ process.stdin.on("keypress", (_str, key) => {
   if (game.status === "levelComplete") { game.nextLevel(); message = game.level.briefing ?? "Next level."; return draw(); }
   if (game.status === "gameComplete") process.exit(0);
   if (key.name === "r") { game.restartLevel(); message = "Restarted."; return draw(); }
+  if (key.name === "g") {
+    message = !game.glitchUnlocked ? `The glitch unlocks after ${game.glitchAfter} catches on this level.`
+      : game.toggleGlitch() ? "Glitch armed: your next move gets no reply." : game.glitchUsed ? "Glitch already used this attempt." : "Glitch disarmed.";
+    return draw();
+  }
 
   const dir = KEYS[key.name];
   if (!dir) return;
@@ -64,6 +69,7 @@ process.stdin.on("keypress", (_str, key) => {
   else if (game.status === "caught") message = `CAUGHT! ${(game.level.hints ?? [])[0] ?? ""} Press r to try again.`;
   else if (game.status === "levelComplete") message = "ESCAPED! Press any key for the next level.";
   else if (game.status === "gameComplete") message = "You escaped every level! Press any key to quit.";
+  else if (ghost?.event === "glitched") message = "GLITCH! They lost their turn.";
   else message = `${game.state.ghosts.length > 1 ? "They" : "It"} moved ${ghost.dir}.`;
   draw();
 });

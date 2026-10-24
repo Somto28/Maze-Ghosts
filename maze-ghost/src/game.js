@@ -16,6 +16,14 @@ import { stateFromLevel } from "./solver.js";
 /** @typedef {import("./maze.js").Dir} Dir */
 /** @typedef {"playing" | "caught" | "levelComplete" | "gameComplete"} Status */
 
+/**
+ * GLITCH: after this many catches on one level, the player gets a "glitch" for every later attempt
+ * on that level. Arm it, then move: every enemy (wardens and drones) loses its next turn, so you get
+ * one free move. Once per attempt; being caught (or restarting) gives you a fresh one.
+ * A level can set its own `glitchAfter`.
+ */
+export const GLITCH_AFTER = 10;
+
 export class MazeGame {
   /**
    * @param {{ levels?: typeof LEVELS, pruning?: boolean, rng?: (() => number) | null }} [options]
@@ -28,6 +36,8 @@ export class MazeGame {
     this.searchOptions = { pruning, rng };
     /** Learning levels: every caught attempt, per level index (see learning.js). Kept across restarts. */
     this.attempts = levels.map(() => []);
+    /** How many times you've been caught on each level (unlocks the glitch). Kept across restarts. */
+    this.catches = levels.map(() => 0);
     this.startLevel(0);
   }
 
@@ -47,6 +57,14 @@ export class MazeGame {
   /** Evidence on this level: how many there are and how many you hold. */
   get evidence() { return { total: this.state.keys.length, held: keysHeld(this.state), exitOpen: exitsOpen(this.state) }; }
   get isLastLevel() { return this.levelIndex === this.levels.length - 1; }
+  /** Catches needed on this level before the glitch unlocks. */
+  get glitchAfter() { return this.level.glitchAfter ?? GLITCH_AFTER; }
+  /** True once you've been caught `glitchAfter` times on this level (stays true for this level). */
+  get glitchUnlocked() { return this.catches[this.levelIndex] >= this.glitchAfter; }
+  /** Can you arm the glitch right now? (Unlocked, not used yet this attempt, and it's your turn.) */
+  get glitchReady() {
+    return this.glitchUnlocked && !this.glitchUsed && !this.glitchArmed && this.status === "playing" && this.state.turn === "player";
+  }
   /** Directions the player can move right now (for disabling buttons, or hints). */
   get availableMoves() {
     if (this.status !== "playing" || this.state.turn !== "player") return [];
@@ -64,7 +82,20 @@ export class MazeGame {
     this.lastThinking = null;
     /** Your moves this attempt, so learning wardens can study them if you're caught. */
     this.currentAttempt = [];
+    /** Glitch state for this attempt: armed = your next move freezes the enemies; used = spent. */
+    this.glitchArmed = false;
+    this.glitchUsed = false;
     return this.state;
+  }
+
+  /**
+   * Arm the glitch (or disarm it again before you move). Your next move then gets no reply:
+   * the enemies lose that turn. Returns true if it's armed afterwards.
+   */
+  toggleGlitch() {
+    if (this.glitchArmed) this.glitchArmed = false;
+    else if (this.glitchReady) this.glitchArmed = true;
+    return this.glitchArmed;
   }
 
   restartLevel() { return this.startLevel(this.levelIndex); }
@@ -72,8 +103,9 @@ export class MazeGame {
   /** Learning wardens forget everything (e.g. a "reset their data" button). */
   forgetAttempts() { this.attempts[this.levelIndex] = []; }
 
-  // Caught on a learning level: the wardens keep a record of this attempt.
+  // Caught: count it (for the glitch); on a learning level the wardens also keep a record of this attempt.
   recordCatch() {
+    this.catches[this.levelIndex]++;
     if (this.level.learns && this.currentAttempt.length) this.attempts[this.levelIndex].push(this.currentAttempt);
     this.currentAttempt = [];
   }
@@ -118,11 +150,21 @@ export class MazeGame {
    * `dirs`, `from` and `to` have one entry per ghost; `dir` is a label like "left" or "left + up".
    * @param {ReturnType<typeof chooseGhostMoves>} [decision] the search result, if it was already worked out
    *   elsewhere (e.g. in a Web Worker so the page stays smooth). See `ghostSearch` for its inputs.
+   * If the glitch is armed, the enemies lose this turn instead: event "glitched", nobody moves.
    */
   ghostMove(decision) {
     const from = this.state.ghosts;
     if (this.status !== "playing" || this.state.turn !== "ghost") {
       return { event: "notYourTurn", from, to: from, thinking: null, status: this.status };
+    }
+    if (this.glitchArmed) {
+      // The enemies glitch: they stay where they are and it's your turn again. (Drones don't advance
+      // their dash pattern either: the whole turn is lost.)
+      this.glitchArmed = false;
+      this.glitchUsed = true;
+      this.state = { ...this.state, turn: "player" };
+      this.lastThinking = null;
+      return { event: "glitched", dir: "glitched", dirs: from.map(() => "glitched"), from, to: from, paths: from.map(() => []), thinking: null, status: this.status };
     }
     const { move, thinking } = decision ?? chooseGhostMoves(this.state, this.level.lookahead, this.ghostSearch.options);
     this.state = moveGhosts(this.state, move.to);
