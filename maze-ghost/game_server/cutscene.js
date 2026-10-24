@@ -1,10 +1,12 @@
-// cutscene.js — the opening cutscene ("After Hours"), shown before Level 1.
+// cutscene.js — the story cutscenes: "After Hours" (before Level 1) and "Watching" (between
+// Level 2 and Level 3, where Dr. Voss feeds the Wardens Sam's personal data).
 //
 // Pixel art drawn in code on a 320×180 canvas and scaled up without smoothing, so there are no image
 // files to load. Music and sound effects are synthesized with the Web Audio API.
 //
 //   import { playCutscene, cutsceneActive } from "./cutscene.js";
-//   await playCutscene();   // resolves when the cutscene ends or the player skips it
+//   await playCutscene();                    // "After Hours"; resolves when it ends or is skipped
+//   await playCutscene({ scene: "core" });   // "Watching", before Level 3
 //
 // While it plays it covers the screen and swallows every key, so the maze underneath can't move.
 // Placeholder names to change: "Sam Reyes", "Dr. Voss", "Sub-Level 7" (search this file for them).
@@ -521,7 +523,156 @@ const SHOTS=[
   ctx.globalAlpha=1;if(t>2.6){const on=Math.floor(t*2)%3!==0;R(150,138,6,3,on?'#ff2e3e':'#3a1015');R(164,138,6,3,on?'#ff2e3e':'#3a1015');if(on){A(146,135,14,9,'#ff2e3e',.2);A(160,135,14,9,'#ff2e3e',.2);}}
  }},
 ];
-let acc=0;SHOTS.forEach(s=>{s.start=acc;acc+=s.dur;});const TOTAL=acc;
+function timeline(shots){let acc=0;shots.forEach(s=>{s.start=acc;acc+=s.dur;});return acc;}
+let SH=SHOTS,TOTAL=timeline(SHOTS); // the scene that's playing (set by playCutscene)
+
+/* ---------- "Watching": the Core through a security camera, then Dr. Voss feeds the Wardens (before Level 3) ---------- */
+// The lesson: the more the Wardens know about Sam, the sharper and more confident their prediction gets.
+let off=null,offCtx=null;
+function drawOff(fn){ // draw with the normal helpers, but into an offscreen canvas (the camera feed)
+  if(!off){off=document.createElement('canvas');off.width=W;off.height=H;offCtx=off.getContext('2d');offCtx.imageSmoothingEnabled=false;}
+  const keep=ctx;ctx=offCtx;home();R(0,0,W,H,'#000000');fn();home();ctx=keep;}
+const VENT={x:26,y:118,w:30,h:22},CORE_GY=160;
+// Sam's x on the feed at time t: crawls out, stands, sneaks right, stops to glance at the camera.
+function samX(t){if(t<3.6)return lerp(VENT.x+4,VENT.x+44,seg(t,1.4,3.4));const mv=Math.max(0,t-4.2)-clamp(t-5.4,0,1.2);return VENT.x+44+mv*17;}
+function samCrawl(x,gy,f){
+  const k=f%2;
+  R(x-12,gy-8,4,4,EMP.pants);R(x-15+k,gy-4,6,3,EMP.pants);R(x-16+k,gy-2,3,2,EMP.shoe);R(x-9,gy-4,3,4,EMP.pantsD);
+  R(x-10,gy-10,14,6,EMP.shirt);R(x-10,gy-10,14,1,EMP.shirtD);R(x-8,gy-13,5,4,EMP.bag);
+  R(x+1-k,gy-5,2,5,EMP.shirtD);R(x+1-k,gy-1,3,1,EMP.skin);
+  R(x+3,gy-15,7,7,EMP.skin);R(x+3,gy-16,7,2,EMP.hair);R(x+2,gy-15,2,4,EMP.hair);R(x+8,gy-13,1,2,'#1a1a1a');}
+function drawCoreHall(t){
+  R(0,0,W,22,'#1b1a22');for(let x=20;x<W;x+=80){R(x,20,40,2,'#fff4dc');A(x-10,22,60,46,'#fff2d0',.08);}
+  R(0,22,W,118,'#c9cbd2');
+  for(let ox=74;ox<W;ox+=82){R(ox,32,70,82,'#2a2837');A(ox,32,70,82,'#bcd2ff',.12);
+    R(ox+10,84,50,6,'#6b4a32');R(ox+22,72,22,12,'#15171c');R(ox+24,74,18,8,'#6d4dff');R(ox+14,90,4,24,'#4a3524');R(ox+52,90,4,24,'#4a3524');
+    R(ox,32,70,2,'#e8eaef');R(ox,112,70,2,'#e8eaef');R(ox,32,2,82,'#e8eaef');R(ox+68,32,2,82,'#e8eaef');R(ox+34,32,2,82,'#d8dbe2');A(ox+8,38,18,40,'#ffffff',.12);}
+  R(0,136,W,4,'#8b8f99');
+  R(VENT.x-2,VENT.y-2,VENT.w+4,VENT.h+2,'#8b8f99');R(VENT.x,VENT.y,VENT.w,VENT.h,'#07080b');
+  R(0,140,W,40,'#2a2733');for(let y=144;y<180;y+=6)R(0,y,W,1,'#332f3e');
+  const g=t<1?0:seg(t,1,1.3); // the grate pops off and drops to the floor
+  if(g<1){const gx=VENT.x+g*10,gy=VENT.y+g*20;R(gx,gy,VENT.w,VENT.h,'#9aa0aa');for(let k=3;k<VENT.w-2;k+=4)R(gx+k,gy+3,2,VENT.h-6,'#5a606b');}
+  else{R(VENT.x+10,154,VENT.w,4,'#9aa0aa');for(let k=3;k<VENT.w-2;k+=4)R(VENT.x+10+k,154,2,1,'#5a606b');}
+  const x=Math.round(samX(t));
+  if(t>=1.4&&t<3.6){ctx.save();ctx.beginPath();ctx.rect(VENT.x,0,W,H);ctx.clip();samCrawl(x,CORE_GY,Math.floor(t*6));ctx.restore();}
+  else if(t>=3.6&&x<W+12){if(t>5.4&&t<6.6)empFront(x,CORE_GY,{expr:'worried'});else emp(x,CORE_GY,{dir:1,pose:t<4.2?'idle':'sneak',frame:Math.floor(t*6)});}
+}
+// The camera feed, drawn grey-green, scanlined and grainy into a rectangle of the screen.
+function cctv(t,rx,ry,rw,rh,full){
+  drawOff(()=>drawCoreHall(t));
+  ctx.save();ctx.imageSmoothingEnabled=false;
+  try{ctx.filter='grayscale(0.85) contrast(1.2) brightness(0.72)';}catch(e){}
+  ctx.drawImage(off,0,0,W,H,Math.round(rx),Math.round(ry),Math.round(rw),Math.round(rh));
+  try{ctx.filter='none';}catch(e){}
+  ctx.restore();
+  A(rx,ry,rw,rh,'#7dffb0',.07);
+  for(let y=Math.round(ry);y<ry+rh;y+=2)A(rx,y,rw,1,'#000000',.16);
+  const n=full?180:40;for(let i=0;i<n;i++){const k=hash(i+Math.floor(t*24)*131);R(rx+k*rw,ry+hash(i*7+k)*rh,1,1,k>.5?'#e8ffe8':'#141414');}
+  if(!full)return;
+  const C='#e8ffe8';
+  for(const[x,y,dx,dy]of[[8,12,1,1],[311,12,-1,1],[8,167,1,-1],[311,167,-1,-1]]){line(x,y,x+10*dx,y,C);line(x,y,x,y+10*dy,C);}
+  txt('CAM 14  /  THE CORE  /  EXEC FLOOR',14,16,C);
+  if(Math.floor(t*2)%2){R(268,16,5,5,'#ff3b4a');}txt('REC',276,16,C);
+  const sec=41+Math.floor(t);txt(`23:58:${String(sec%60).padStart(2,'0')}`,14,160,C);
+  if(t>1&&t<3.6&&Math.floor(t*3)%2)txt('MOTION DETECTED',120,160,'#ffb347');
+  if(t>4.4){const x=Math.round(samX(t)),bx=x-10,by=CORE_GY-34,C2='#ff3b4a';
+    for(const[px,py,dx,dy]of[[bx,by,1,1],[bx+22,by,-1,1],[bx,by+36,1,-1],[bx+22,by+36,-1,-1]]){line(px,py,px+4*dx,py,C2);line(px,py,px,py+4*dy,C2);}
+    const lab=typed('EMP 0417  S.REYES',t,4.6,26),lx=clamp(bx,4,W-tw('EMP 0417  S.REYES')-4);txt(lab,lx,by-16,C2);
+    if(t>5.4)txt('FACE MATCH 99.1%',lx,by-8,'#ffb347');}
+}
+const PROFILE=[ // [time in the shot, label, value, colour]
+  [4.6,'EMPLOYEE ID','0417'],[6.0,'AGE','27'],[6.9,'HT / WT','5 FT 10 / 162 LB'],
+  [9.0,'BADGE SWIPES','2,914 IN 2 YEARS'],[10.4,'USUAL ROUTE','STAIRWELL B'],
+  [12.8,'PREFERS','STAIRS, AISLE SEATS'],[14.2,'WHEN SCARED','TURNS LEFT (83%)'],
+  [16.6,'SOURCES','HR, BADGES, HEALTH PLAN','#ffb347'],[17.6,'CONSENT','NONE','#ff4656'],
+];
+const CONF=[23,31,36,45,58,67,76,89,93,94];       // prediction confidence after 0..9 facts
+const POINTS=[3,12,19,27,2941,2968,3110,3402,4861,4861]; // data points the Wardens hold
+function controlRoom(t,{screenOn=1}={}){
+  R(0,0,W,H,'#07090e');A(0,0,W,90,'#1b2340',.35);
+  R(8,14,112,66,'#1b1f2a');R(10,16,108,62,'#05070a'); // the camera monitor (the feed is drawn into it)
+  R(56,80,16,4,'#1b1f2a');
+  R(0,138,W,42,'#10131b');R(0,138,W,2,'#2a3142');
+  R(72,118,40,20,'#1c2230');R(72,118,40,2,'#3a4458');for(let k=0;k<4;k++)R(77+k*8,122,6,2,'#3a4458');A(72,118,40,6,'#3fd0c9',.12+.06*Math.sin(t*5)); // the console
+  R(122,12,192,128,'#1b1f2a');R(124,14,188,124,'#030609');
+  if(screenOn>0){A(124,14,188,124,'#0b2b2a',screenOn*.6);A(124,14,188,1,'#3fd0c9',screenOn);}
+}
+function profilePanel(lt){
+  const n=PROFILE.filter(([at])=>lt>=at).length,conf=CONF[n],pts=POINTS[n],T='#3fd0c9',D='#7d8d92';
+  txt('WARDEN MODEL INPUT  //  SUBJECT S.REYES',130,19,T);line(130,26,306,26,'#1d4a47');
+  R(130,30,22,26,'#0e1a1c');R(134,36,14,15,EMP.skin);R(134,34,14,4,EMP.hair);R(133,35,2,6,EMP.hair);R(137,42,2,2,'#1a1a1a');R(143,42,2,2,'#1a1a1a');R(132,51,18,5,EMP.shirt);A(130,30,22,26,'#3fd0c9',.12);
+  PROFILE.forEach(([at,label,val,c],i)=>{if(lt<at)return;const y=30+i*7,fresh=lt-at<.5;txt(label,158,y,D);txt(typed(val,lt,at,30),212,y,c||(fresh?'#ffffff':'#d9e8ea'));if(fresh)A(156,y-1,152,7,'#3fd0c9',.15*(1-(lt-at)/.5));});
+  // Confidence bar.
+  const shown=Math.round(lerp(CONF[Math.max(0,n-1)],conf,seg(lt,(PROFILE[n-1]?.[0]??0),(PROFILE[n-1]?.[0]??0)+.6)));
+  const bc=shown>85?'#ff3b4a':shown>60?'#ffb347':T;
+  txt('PREDICTION CONFIDENCE',130,96,D);txt(`${shown}%`,306-tw(`${shown}%`,2),92,bc,2);
+  R(130,104,176,5,'#0e1a1c');R(130,104,Math.round(176*shown/100),5,bc);for(let k=1;k<10;k++)R(130+k*17.6,104,1,5,'#030609');
+  // Where will Sam go next? Four options; more data concentrates the guess on one.
+  R(130,111,176,26,'#06100f');line(130,111,305,111,'#1d4a47');
+  const left=shown/100,rest=1-left,P=[['LEFT',left,[-24,0]],['RIGHT',rest*.5,[24,0]],['UP',rest*.3,[0,-9]],['DOWN',rest*.2,[0,9]]];
+  const top=P.reduce((a,b)=>b[1]>a[1]?b:a),cx=172,cy=124;
+  P.forEach(([name,pr,[dx,dy]])=>{const c=pr===top[1]?(shown>60?'#ff3b4a':'#ffb347'):pr>.15?'#2f7f7a':'#1d3b39';
+    line(cx,cy,cx+dx,cy+dy,c,pr<.15?2:0,lt*6);R(cx+dx-1,cy+dy-1,3,3,c);
+    const lab=`${Math.round(pr*100)}%`;txt(lab,dx<0?cx+dx-tw(lab)-3:dx>0?cx+dx+4:cx+5,dy<0?cy+dy-3:dy>0?cy+dy-3:cy-2,c);});
+  R(cx-2,cy-2,5,5,'#5ab0ff');
+  txt('PREDICTED NEXT MOVE',214,114,D);txt(shown<40?'???':top[0],214,121,shown>60?'#ff3b4a':'#ffb347',2);
+  txt(`DATA POINTS ${pts.toLocaleString('en-US')}`,214,132,T);
+}
+const CORE_SHOTS=[
+{name:'Camera',note:'Security camera on the executive floor: a vent grate pops off, Sam crawls out, glances at the camera, gets tagged.',dur:8,fi:.6,top:true,music:()=>'tense',
+ ev:[[0,'camclick'],[1,'clank'],...evEvery('softstep',4.3,5.4,.3),[4.6,'beep'],[5.4,'radar']],
+ lines:[[5.5,7.9,'SAM','...Is that camera following me?']],
+ draw(t){cctv(t,0,0,W,H,true);}},
+{name:'Pull back',note:'The feed shrinks onto a monitor in Dr. Voss\'s control room. The Warden console powers up.',dur:6,music:()=>'tense',
+ ev:[[4.4,'boot']],
+ lines:[[.8,5.6,'DR. VOSS','There you are, Sam. Right on schedule.']],
+ draw(t){
+  const k=ease(seg(t,0,2.6));
+  controlRoom(t,{screenOn:seg(t,4.4,5.6)});
+  doctor(62,138,{dir:1,pose:t>3?'type':'idle',frame:Math.floor(t*7),glint:t>2.8&&t<3.3});
+  cctv(8+t,lerp(0,10,k),lerp(0,16,k),lerp(W,108,k),lerp(H,62,k),k<.02);
+  if(t>4.8){txt(typed('WARDEN TRAINING CONSOLE',t,4.8,30),130,19,'#3fd0c9');}
+ }},
+{name:'Feeding the Wardens',note:'Voss types Sam\'s personal data into the Wardens. Each fact raises the prediction confidence and narrows where they expect Sam to go.',dur:20,music:()=>'tense',
+ ev:[...evEvery('key',.3,19.5,.18),...PROFILE.map(([at])=>[at,'data']),[17.6,'sting']],
+ lines:[[.2,2.3,'DR. VOSS','You keep slipping past my Wardens.'],[2.4,4.3,'DR. VOSS','They just don\'t know you well enough. Yet.'],
+        [4.4,6.4,'DR. VOSS','Employee ID. Age.'],[6.5,8.6,'DR. VOSS','Height and weight: how fast you can run.'],
+        [8.8,10.3,'DR. VOSS','Two years of badge swipes.'],[10.4,12.6,'DR. VOSS','Every door you open. Every route you take.'],
+        [12.7,14.3,'DR. VOSS','You always take the stairs.'],[14.4,16.4,'DR. VOSS','And when you\'re scared, you turn left.'],
+        [16.5,18.4,'DR. VOSS','Every fact I give them makes their guess sharper.'],[18.5,20,'DR. VOSS','And they never asked you.']],
+ draw(t){
+  controlRoom(t);
+  doctor(62,138,{dir:1,pose:'type',frame:Math.floor(t*7),glint:t>17.4&&t<17.9,grin:t>18.2});
+  cctv(14+t,10,16,108,62,false);txt('CAM 14',12,18,'#e8ffe8');if(Math.floor(t*2)%2)R(40,18,3,3,'#ff3b4a');
+  profilePanel(t);
+ }},
+{name:'Upgrade',note:'Warden POV: the model updates; two Wardens wake up and deploy to the Core as a team.',dur:7.5,music:t=>t<1?null:'chase',
+ ev:[[.4,'boot'],[.9,'boot'],[1.6,'sting'],...evEvery('radar',2,7,.5)],
+ lines:[[.6,3.3,'DR. VOSS','Now they don\'t have to guess where you\'ll go.'],[3.4,5.4,'DR. VOSS','They\'ll already be there.']],
+ draw(t){
+  R(0,0,W,H,'#14040a');for(let y=0;y<H;y+=2)A(0,y,W,1,'#000000',.25);
+  const C='#ff3b4a',CD='#8a1a24';
+  R(60,132,200,2,CD);
+  warden(118,132,{eye:seg(t,.4,.6),t,look:1,step:0});warden(202,132,{eye:seg(t,.9,1.1),t,look:-1,step:1});
+  const info=[['MODEL UPDATED: SUBJECT S.REYES',.3],['PREDICTION CONFIDENCE  23%  >  94%',1.1],['DATA POINTS  3  >  4,861',1.8],['DEPLOY  W-03 + W-04  >  THE CORE',2.5],['MODE: TEAM PURSUIT',3.2]];
+  info.forEach(([s,at],i)=>{if(t>=at)txt(typed(s,t,at,40),10,14+i*9,i===1?'#ffb347':C);});
+  if(t>5.5){const msg='MORE DATA. SHARPER PREDICTIONS.';txtO(typed(msg,t,5.5,22),Math.round(160-tw(msg,2)/2),150,C,2);}
+ }},
+{name:'Level card',note:'Hand-off into Level 3.',dur:5,fi:.4,nobars:true,music:()=>null,
+ ev:[[.3,'end']],lines:[],
+ draw(t){
+  R(0,0,W,H,'#050608');
+  ctx.globalAlpha=seg(t,.2,1);txtC('LEVEL 3',160,46,'#8891a6',2);txtC('THE CORE',160,62,'#3fd0c9',3);
+  ctx.globalAlpha=seg(t,1.3,2.1);txtC('THEY KNOW MORE ABOUT YOU NOW.',160,98,'#d9dfeb');txtC('TWO WARDENS. ONE PLAN. MAKE THEM GUESS WRONG.',160,108,'#ffb347');
+  ctx.globalAlpha=1;
+ }},
+];
+
+/* ---------- the scenes ---------- */
+const SCENES={
+  afterHours:{shots:SHOTS,label:'Opening cutscene',canvasLabel:'Pixel-art cutscene: an employee finds Clearpath\'s secret Warden lab',start:'Start the story',skip:'Skip intro ›',poster:2.9},
+  core:{shots:CORE_SHOTS,label:'Cutscene: Dr. Voss feeds the Wardens more data',canvasLabel:'Pixel-art cutscene: a security camera watches Sam climb out of a vent into the Core, while Dr. Voss feeds the Wardens his personal data and their prediction confidence rises',start:'Continue the story',skip:'Skip ›',poster:5.6},
+};
 
 /* ---------- audio ---------- */
 let AC=null,master=null,NB=null,soundOn=true;
@@ -549,6 +700,8 @@ const SFX={
   alarm:()=>{tone(660,.33,'square',.05,220);tone(880,.33,'square',.05,-220,.35);},
   radar:()=>tone(1760,.06,'sine',.07),stomp:()=>tone(90,.12,'square',.08,-40),
   hit:()=>{noise(.6,.3,800);tone(55,1.2,'sawtooth',.18,-20);},
+  data:()=>{tone(1568,.06,'square',.06);tone(2093,.08,'square',.05,0,.07);},
+  camclick:()=>{noise(.04,.12,2500,'highpass');tone(1200,.03,'square',.04);},
   end:()=>[57,60,64].forEach((n,i)=>tone(mf(n),2.4,'triangle',.06,0,i*.12)),
 };
 const MUS={
@@ -558,8 +711,8 @@ const MUS={
   chase:{rate:8,play(i){tone(mf([33,33,45,33,36,33,45,38][i%8]),.1,'sawtooth',.05);if(i%2===0)noise(.03,.035,6000,'highpass');}},
 };
 let lastKey='';
-function fireEvents(a,b){if(b-a>.5)return;SHOTS.forEach(s=>{if(s.start>b||s.start+s.dur<a)return;for(const[at,n]of s.ev){const g=s.start+at;if(g>a&&g<=b&&SFX[n])SFX[n]();}});}
-function music(i,lt){const s=SHOTS[i],m=s.music&&s.music(lt);if(!m||!MUS[m])return;const idx=Math.floor(lt*MUS[m].rate),k=i+m+idx;if(k!==lastKey){lastKey=k;MUS[m].play(idx);}}
+function fireEvents(a,b){if(b-a>.5)return;SH.forEach(s=>{if(s.start>b||s.start+s.dur<a)return;for(const[at,n]of s.ev){const g=s.start+at;if(g>a&&g<=b&&SFX[n])SFX[n]();}});}
+function music(i,lt){const s=SH[i],m=s.music&&s.music(lt);if(!m||!MUS[m])return;const idx=Math.floor(lt*MUS[m].rate),k=i+m+idx;if(k!==lastKey){lastKey=k;MUS[m].play(idx);}}
 
 function closeAudio() {
   if (!AC) return;
@@ -576,28 +729,33 @@ let active = false;
 export const cutsceneActive = () => active;
 
 /**
- * Show the opening cutscene full-screen. Resolves when it ends or is skipped.
- * @param {{ autoStart?: boolean }} [options] autoStart: begin right away. Use it only when the player has
- *   just clicked or pressed a key (browsers block sound until then); otherwise it waits on a start button.
+ * Show a story cutscene full-screen. Resolves when it ends or is skipped.
+ * @param {{ autoStart?: boolean, scene?: keyof typeof SCENES }} [options]
+ *   autoStart: begin right away. Use it only when the player has just clicked or pressed a key
+ *   (browsers block sound until then); otherwise it waits on a start button.
+ *   scene: "afterHours" (default, before Level 1) or "core" (before Level 3).
  */
-export function playCutscene({ autoStart = false } = {}) {
+export function playCutscene({ autoStart = false, scene = "afterHours" } = {}) {
   if (active) return Promise.resolve();
+  const sc = SCENES[scene] ?? SCENES.afterHours;
+  SH = sc.shots;
+  TOTAL = timeline(SH);
   active = true;
   return new Promise((resolve) => {
     const root = document.createElement("div");
     root.className = "cutscene";
     root.setAttribute("role", "dialog");
-    root.setAttribute("aria-label", "Opening cutscene");
+    root.setAttribute("aria-label", sc.label);
     root.innerHTML = `
       <div class="cs-stage">
-        <canvas width="320" height="180" aria-label="Pixel-art cutscene: an employee finds Clearpath's secret Warden lab"></canvas>
+        <canvas width="320" height="180" aria-label="${sc.canvasLabel}"></canvas>
         <div class="cs-dlg" hidden><span class="cs-who"></span><span class="cs-line"></span></div>
-        <button class="cs-start" type="button"><span class="cs-tri" aria-hidden="true"></span><span>Start the story</span><small>Click or press any key · sound on</small></button>
+        <button class="cs-start" type="button"><span class="cs-tri" aria-hidden="true"></span><span>${sc.start}</span><small>Click or press any key · sound on</small></button>
       </div>
       <div class="cs-bar">
         <button type="button" class="cs-btn cs-sound" aria-pressed="true">Sound on</button>
         <span class="cs-hint">Space pause · Esc skip</span>
-        <button type="button" class="cs-btn cs-skip">Skip intro ›</button>
+        <button type="button" class="cs-btn cs-skip">${sc.skip}</button>
       </div>`;
     document.body.appendChild(root);
 
@@ -609,10 +767,10 @@ export function playCutscene({ autoStart = false } = {}) {
     let T = 0, playing = false, started = false, last = null, raf = 0, dlgKey = "", curShot = -1;
     soundOn = true;
     lastKey = "";
-    const shotAt = (t) => { for (let i = SHOTS.length - 1; i >= 0; i--) if (t >= SHOTS[i].start) return i; return 0; };
+    const shotAt = (t) => { for (let i = SH.length - 1; i >= 0; i--) if (t >= SH[i].start) return i; return 0; };
 
     function render(t) {
-      const i = shotAt(Math.min(t, TOTAL - 1e-4)), s = SHOTS[i], lt = Math.min(t, TOTAL - 1e-4) - s.start;
+      const i = shotAt(Math.min(t, TOTAL - 1e-4)), s = SH[i], lt = Math.min(t, TOTAL - 1e-4) - s.start;
       home(); R(0, 0, W, H, "#000000");
       s.draw(lt); home();
       let f = 0;
@@ -660,7 +818,7 @@ export function playCutscene({ autoStart = false } = {}) {
       if (e.key === "Escape") { e.preventDefault(); finish(); return; }
       if (!started) { e.preventDefault(); begin(); return; }
       if (e.key === " ") { e.preventDefault(); playing = !playing; last = null; }
-      else if (e.key === "Enter" && T >= TOTAL - SHOTS[SHOTS.length - 1].dur) { e.preventDefault(); finish(); }
+      else if (e.key === "Enter" && T >= TOTAL - SH[SH.length - 1].dur) { e.preventDefault(); finish(); }
     }
     window.addEventListener("keydown", onKey, true);
 
@@ -684,7 +842,7 @@ export function playCutscene({ autoStart = false } = {}) {
         fireEvents(prev, T);
         if (T >= TOTAL) { render(TOTAL); finish(); return; }
       }
-      const lt = render(started ? T : 2.9); // before starting, show the title card as a poster
+      const lt = render(started ? T : sc.poster); // before starting, show a still as a poster
       if (playing && soundOn) music(curShot, lt);
       raf = requestAnimationFrame(frame);
     }

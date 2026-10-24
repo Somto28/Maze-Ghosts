@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  MazeGame, chooseGhostMoves, droneMove, evaluate, exitsOpen, goalDistance, habitGrid, habitsFrom, moveGhosts, movePlayer,
+  GLITCH_AFTER, MazeGame, chooseGhostMoves, droneMove, evaluate, exitsOpen, goalDistance, habitGrid, habitsFrom, moveGhosts, movePlayer,
   outcome, parseMaze, playerMoves, speedOf, stateFromLevel, LEVELS, WIN,
 } from "../src/index.js";
 
@@ -139,4 +139,71 @@ test("drones' dashes come with the tiles they pass, for animation", () => {
   const { ghost } = game.takeTurn("right");
   assert.equal(ghost.paths[0].length, 2);
   assert.deepEqual(ghost.paths[0][1], ghost.to[0]);
+});
+
+// ---------- The glitch (unlocks after GLITCH_AFTER catches on a level) ----------
+
+const glitchLevels = () => [
+  { id: 1, name: "G", lookahead: 1, maze: ["#########", "#P.....G#", "#.......E", "#########"] },
+  { id: 2, name: "H", lookahead: 1, maze: ["#########", "#P.....G#", "#.......E", "#########"] },
+];
+// Walk right into the warden until caught; returns how many catches that took (1).
+function getCaught(game) {
+  while (game.status === "playing") game.takeTurn(game.availableMoves.includes("right") ? "right" : game.availableMoves[0]);
+  assert.equal(game.status, "caught");
+  game.restartLevel();
+}
+
+test("the glitch unlocks after GLITCH_AFTER catches on a level, not before", () => {
+  const game = new MazeGame({ levels: glitchLevels() });
+  assert.equal(GLITCH_AFTER, 10);
+  for (let i = 0; i < GLITCH_AFTER - 1; i++) getCaught(game);
+  assert.equal(game.glitchUnlocked, false);
+  assert.equal(game.toggleGlitch(), false, "can't arm it yet");
+  getCaught(game);
+  assert.equal(game.catches[0], GLITCH_AFTER);
+  assert.equal(game.glitchUnlocked, true);
+  assert.equal(game.glitchReady, true);
+});
+
+test("a glitch freezes every enemy for one turn, once per attempt, and comes back after a catch", () => {
+  const levels = [{ id: 1, name: "G", lookahead: 1, glitchAfter: 1, dronePattern: [2, 0],
+    maze: ["###########", "#P.......G#", "#.......D.#", "#.........E", "###########"] }];
+  const game = new MazeGame({ levels });
+  getCaught(game);
+  assert.ok(game.glitchReady);
+
+  const before = game.state.ghosts.map((g) => ({ ...g }));
+  const tick = game.state.tick;
+  assert.equal(game.toggleGlitch(), true);
+  const { player, ghost } = game.takeTurn("down");
+  assert.equal(player.event, "moved");
+  assert.equal(ghost.event, "glitched");
+  assert.deepEqual(game.state.ghosts, before, "nobody moved, drones included");
+  assert.equal(game.state.tick, tick, "the drone's dash pattern didn't advance either");
+  assert.equal(game.state.turn, "player");
+  assert.equal(game.glitchUsed, true);
+  assert.equal(game.glitchReady, false, "only once per attempt");
+  assert.equal(game.toggleGlitch(), false);
+
+  assert.equal(game.takeTurn("right").ghost.event === "glitched", false, "the next turn is a normal one");
+
+  getCaught(game);
+  assert.equal(game.glitchReady, true, "fresh glitch on the next attempt");
+});
+
+test("arming the glitch can be undone before you move, and catches are counted per level", () => {
+  const game = new MazeGame({ levels: glitchLevels().map((l) => ({ ...l, glitchAfter: 2 })) });
+  getCaught(game); getCaught(game);
+  assert.equal(game.toggleGlitch(), true);
+  assert.equal(game.toggleGlitch(), false, "disarmed");
+  assert.equal(game.takeTurn("down").ghost.event, "moved");
+  assert.equal(game.glitchUsed, false, "disarming doesn't spend it");
+
+  // Level 2 starts from zero catches.
+  const g2 = new MazeGame({ levels: glitchLevels().map((l) => ({ ...l, glitchAfter: 2 })) });
+  getCaught(g2); getCaught(g2);
+  g2.state = { ...g2.state }; g2.status = "levelComplete";
+  g2.nextLevel();
+  assert.equal(g2.glitchUnlocked, false);
 });

@@ -51,6 +51,10 @@ Vent grates come in numbered pairs (`1`-`4` in a maze). Step onto a grate and yo
 
 A drone (`D` in a maze) doesn't search at all. Each enemy turn it moves along its `dronePattern` (Levels 4 and 6 use `[2, 0]`: dash 2 tiles, then recharge for a turn) straight toward where you are *now*, ending as close to you as it can. If you're in a vent it hovers at the opening nearest you. The wardens know that rule, so inside their search they move the drones exactly as the drones really will, and plan around them. The contrast is the lesson: the drone is faster than anything, but a player who learns its rule can lead it anywhere.
 
+### Glitch: a lifeline after 10 catches (every level)
+
+Get caught 10 times on the same level and you unlock **Glitch** for the rest of your tries on that level. Press **G** (or the ⚡ button in the middle of the arrow pad) to arm it; your next move gets no reply, because every enemy (wardens *and* drones) glitches and loses its turn. It's one use per attempt and comes back each time you're caught or restart. Pressing it again before you move puts it away unused. Restarting with **R** doesn't count as a catch, and the count is per level (`game.catches[levelIndex]`), so struggling on Level 4 doesn't unlock it on Level 5. The 10th "Caught!" card announces it. `GLITCH_AFTER` in `src/game.js` sets the number (a level can override it with `glitchAfter`), and `?glitch=1` unlocks it straight away for demos. It's there so nobody spends the whole class stuck on one level; the simulated class in `npm run classroom` doesn't use it.
+
 ### Learning wardens (Level 6, `src/learning.js`)
 
 On a level with `learns: true`, every attempt where you're caught is recorded: on each tile, which way you went. `habitsFrom(attempts)` turns that into one habit per tile (most common direction, ties to the latest try). Next attempt, whenever several of their moves are equally good, they pick the one that sets up an ambush on that route (a tile on it they can reach before you). They never play a worse move because of your habits, so learning can only help them. The game draws your old route as red arrows and marks predictions that match it `habit` in the HUD. Repeat yourself and they're waiting. It's also the ethics question in miniature: they got better at predicting you by collecting data about you.
@@ -77,6 +81,8 @@ game.evidence;        // { total, held, exitOpen }
 game.attemptsStudied; // learning levels: how many caught attempts the wardens have studied
 game.habits;          // learning levels: { "row,col": "dir" } they expect you to repeat
 game.status;          // "playing" | "caught" | "levelComplete" | "gameComplete"
+game.toggleGlitch();  // after 10 catches on this level: arm (or put away) the glitch; the next ghostMove() returns event "glitched"
+game.glitchUnlocked;  // true once this level has caught you game.glitchAfter (10) times; game.glitchReady: usable right now
 game.restartLevel();  // learning wardens keep what they learned; game.forgetAttempts() wipes it
 game.nextLevel();     // only after "levelComplete"
 game.level;           // { id, name, lookahead, maze, theme, enemy?, weights?, dronePattern?, learns?, concept, briefing, hints }
@@ -114,7 +120,9 @@ Every level has its own art and a matching HUD, picked by `theme.style`, each in
 
 A look can also paint a full-screen `background` (the vault hall, the archive stacks, the night skyline), set the `fogColor`, and react to the exit unlocking (`setExitOpen`). Shared helpers for all of this are in `game_server/art-kit.js`. Drones, evidence drives, vents (floor grates), the locked exit (red until you hold every drive) and learned-habit arrows are drawn by `three-view.js` on top of any look; `theme.droneColor` colours the drone. `game_server/quality.js` keeps the frame rate smooth by lowering the render resolution on slower devices, and `game_server/ghost-worker.js` does the ghosts' thinking off the main thread.
 
-Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance), `?intro=0` skips the opening cutscene, `?title=0` skips the home screen.
+Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance), `?intro=0` skips the story cutscenes, `?title=0` skips the home screen, `?glitch=1` unlocks the glitch on every level, `?scene=core` previews the Level 3 cutscene.
+
+The browser tab shows a Warden favicon (`game_server/favicon.svg`, with `favicon-32.png` and `apple-touch-icon.png` for browsers and phones that want a PNG): the robot's head from the cutscenes with its red eye lit.
 
 ## Home screen (`game_server/title-screen.js`)
 
@@ -147,6 +155,18 @@ Before Level 1, a 1:44 pixel-art cutscene ("After Hours") tells the story: a Cle
 - Players can pause (Space), skip (Esc or the Skip button) and mute it. It waits for a click or key press first because browsers only allow sound after one.
 - Each shot in `SHOTS` has its length, dialogue lines, sound cues and a `draw(t)` function. Character and place names are placeholders.
 
+## Level 3 cutscene: "Watching" (`CORE_SHOTS` in `game_server/cutscene.js`)
+
+After escaping Level 2, the "Escaped!" card says someone was watching and a 46-second scene plays before Level 3 (skipped by `?intro=0`; the level's `cutscene: "core"` field in `src/levels.js` triggers it):
+
+1. **Camera 14.** Grainy security-camera footage of the Core's executive floor. A vent grate pops off, Sam crawls out and sneaks past the glass offices, glances up at the camera, and gets tagged: `EMP 0417 S.REYES · FACE MATCH 99.1%`.
+2. **Pull back.** The feed shrinks onto a monitor in Dr. Voss's control room. "There you are, Sam. Right on schedule."
+3. **Feeding the Wardens.** Voss types Sam's personal data into the Warden model, one fact at a time: employee ID, age, height and weight, two years of badge swipes, usual route, preferences, and what he does when he's scared. After each fact the **prediction confidence** bar climbs (23% → 94%) and the **predicted next move** diagram narrows from four even guesses to one (LEFT). The last rows show the sources (HR file, badge logs, health plan) and **consent: none**.
+4. **Upgrade.** A Warden's-eye view: model updated, confidence 23% → 94%, data points 3 → 4,861, two Wardens deployed to the Core as a team.
+5. **Level card.** "Level 3 · The Core. They know more about you now."
+
+The lesson for students: more data about a person makes predictions stronger and more confident, and that data can be collected without asking. It sets up Level 3, where two wardens plan together. `playCutscene({ scene: "core" })` plays it; the `SCENES` table at the bottom of the shot lists is where to register another one.
+
 ## Level guarantees and difficulty (`tests/levels.test.js`, `src/playtest.js`, `demo/classroom.js`)
 
 Because the enemies are predictable, `solveLevel()` can search every situation and prove a level is beatable. That says nothing about how hard a level *feels*, so the levels are also measured with simulated players and two "feel" checks. Runs are seeded, so the numbers never change unless the level does.
@@ -173,7 +193,7 @@ The two feel checks, which matched the team's playtesting (the levels that felt 
 
 Players who don't read the plan almost never escape from Level 2 on. Level 1's ghost only reacts, so quick reflexes can beat it (strong players 91%): that's the point of Level 1, and the contrast with Level 2. The expert escapes Level 1 every time, about a quarter of the time on Level 3, almost never on Levels 4 and 6, and usually on Level 5 (a careful adult who reads every plan finds Level 5's dodges; kids rarely do).
 
-**The 10-minute class** (`npm run classroom`): 40 simulated thinkers play the levels in order on a 10-minute clock, retrying each level and remembering what got them caught (1.3 s per move, 4 s per "Caught!" screen, 15 s per briefing; the story is extra). Median tries per level: 1, 2, 2, 3, 7, 6. By the end, 18 of 40 have reached Level 5, 6 have reached Level 6, and none have beaten it. Level 2 is where a class spends the most time: you can circle its warden safely for a long while before you find the vent trick. The story (prologue about 3¾ minutes, cutscene 1:44) comes on top of the 10 minutes; `?intro=0` skips it.
+**The 10-minute class** (`npm run classroom`): 40 simulated thinkers play the levels in order on a 10-minute clock, retrying each level and remembering what got them caught (1.3 s per move, 4 s per "Caught!" screen, 15 s per briefing; the story is extra). Median tries per level: 1, 2, 2, 3, 7, 6. By the end, 18 of 40 have reached Level 5, 6 have reached Level 6, and none have beaten it. Level 2 is where a class spends the most time: you can circle its warden safely for a long while before you find the vent trick. The story (prologue about 3¾ minutes, opening cutscene 1:44, Level 3 cutscene 46 s) comes on top of the 10 minutes; `?intro=0` skips it.
 
 How the mazes were made: each new layout was generated or adapted (random mazes with loops, then enemies, drives and vents placed by distance), then tuned move by move (moving a wall, an enemy or a drive) against target numbers for every measure above, and finally checked by replaying the winning route. Small changes matter a lot: moving Level 5's drone a few tiles swings kids from 3% to 13%. Always run `npm run check-levels` after editing a maze (`npm run check-levels -- 5` checks just one).
 

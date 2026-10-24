@@ -1,4 +1,4 @@
-export { MazeGame } from "./game.js";
+export { MazeGame, GLITCH_AFTER } from "./game.js";
 export { LEVELS } from "./levels.js";
 export { chooseGhostMoves, droneMove, evaluate, habitGrid, searchScore, WEIGHTS, WIN } from "./ai.js";
 export { DIRS, MAX_DRONES, MAX_GHOSTS, parseMaze, legalMoves, canEnter, mazeDistance, distancesFrom, samePos } from "./maze.js";

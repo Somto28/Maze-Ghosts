@@ -94,6 +94,7 @@ export const LEVELS = Object.freeze([
   {
     id: 3,
     name: "The Core",
+    cutscene: "core", // story scene before this level (game_server/cutscene.js): Dr. Voss feeds the Wardens Sam's data
     enemy: "warden",
     lookahead: 3,
     concept: "Teamwork: searching together",
