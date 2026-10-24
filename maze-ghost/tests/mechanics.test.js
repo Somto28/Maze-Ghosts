@@ -207,3 +207,20 @@ test("arming the glitch can be undone before you move, and catches are counted p
   g2.nextLevel();
   assert.equal(g2.glitchUnlocked, false);
 });
+
+test("beating a level locks the glitch again, so replaying it starts from zero catches", () => {
+  const levels = [
+    { id: 1, name: "G", lookahead: 1, glitchAfter: 1, maze: ["#######", "#G..P.E", "#######"] },
+    { id: 2, name: "H", lookahead: 1, maze: ["#######", "#G..P.E", "#######"] },
+  ];
+  const game = new MazeGame({ levels });
+  while (game.status === "playing") game.takeTurn("left"); // walk into the warden
+  assert.equal(game.status, "caught");
+  game.restartLevel();
+  assert.equal(game.glitchUnlocked, true);
+  game.takeTurn("right"); game.takeTurn("right");
+  assert.equal(game.status, "levelComplete");
+  assert.equal(game.catches[0], 0);
+  game.startLevel(0); // come back to it from the menu
+  assert.equal(game.glitchUnlocked, false, "the glitch is locked again after a win");
+});

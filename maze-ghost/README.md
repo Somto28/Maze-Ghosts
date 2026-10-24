@@ -6,7 +6,7 @@ A turn-based maze escape. You move, then the enemies move. The Wardens use **adv
 
 | Level | Maze | Enemies | New idea | What it feels like |
 | --- | --- | --- | --- | --- |
-| 1 · The Basement | 9 × 11 | 1 ghost that only reacts | Reacting isn't predicting | It chases you everywhere but can't get ahead of you. Lure it, then race it to the exit, and avoid dead ends |
+| 1 · The Basement | 9 × 11 | 1 warden that only reacts | Reacting isn't predicting | It chases you everywhere but can't get ahead of you. Lure it, then race it to the exit, and avoid dead ends |
 | 2 · The Server Halls | 11 × 11 | 1 warden, 3 moves ahead + 1 vent | Predicting where you'll be | It heads for where you WILL be, including the far end of the vent |
 | 3 · The Core | 13 × 13 | 2 wardens + 2 vents | Teamwork | One guards the way out while the other hunts you |
 | 4 · The Data Vault | 13 × 15 | 2 wardens + 1 drone + 2 vents | Fast rules vs. slow thinking | The drone dashes 2 tiles at you, then recharges. Lure them, crawl through a vent, sprint for the vault door |
@@ -37,7 +37,7 @@ The ghosts and the player are opponents. The ghosts are **MAX** (want a high sco
 
 Because the team move is searched as one, two wardens coordinate on their own: in a corridor they squeeze you from both ends instead of following each other. Each extra warden multiplies the work by about 5, so `MAX_GHOSTS` is 3.
 
-**Level 1 is the exception.** Its `weights` switch the safe-run judgment off (`cutoff: 0`, `territory: 0`, `playerFromExit: 0`), so its ghost is a pure chaser: it only reacts to where you are now. That's the starting point the later levels improve on, so players feel the jump when Level 2's warden starts predicting.
+**Level 1 is the exception.** Its `weights` switch the safe-run judgment off (`cutoff: 0`, `territory: 0`, `playerFromExit: 0`), so its warden is a pure chaser: it only reacts to where you are now. That's the starting point the later levels improve on, so players feel the jump when Level 2's warden starts predicting.
 
 Walking distance is measured with breadth-first search through the corridors, not in a straight line. Enemies can't step onto exit tiles (so they can't park on the exit) or onto vent grates.
 
@@ -53,11 +53,11 @@ A drone (`D` in a maze) doesn't search at all. Each enemy turn it moves along it
 
 ### Glitch: a lifeline after 10 catches (every level)
 
-Get caught 10 times on the same level and you unlock **Glitch** for the rest of your tries on that level. Press **G** (or the ⚡ button in the middle of the arrow pad) to arm it; your next move gets no reply, because every enemy (wardens *and* drones) glitches and loses its turn. It's one use per attempt and comes back each time you're caught or restart. Pressing it again before you move puts it away unused. Restarting with **R** doesn't count as a catch, and the count is per level (`game.catches[levelIndex]`), so struggling on Level 4 doesn't unlock it on Level 5. The 10th "Caught!" card announces it. `GLITCH_AFTER` in `src/game.js` sets the number (a level can override it with `glitchAfter`), and `?glitch=1` unlocks it straight away for demos. It's there so nobody spends the whole class stuck on one level; the simulated class in `npm run classroom` doesn't use it.
+Get caught 10 times on the same level and you unlock **Glitch** for the rest of your tries on that level, until you beat it: escaping resets that level's count, so coming back to it later starts with the glitch locked again. Press **G** (or the ⚡ button in the middle of the arrow pad) to arm it; your next move gets no reply, because every enemy (wardens *and* drones) glitches and loses its turn. It's one use per attempt and comes back each time you're caught or restart. Pressing it again before you move puts it away unused. Restarting with **R** doesn't count as a catch, and the count is per level (`game.catches[levelIndex]`), so struggling on Level 4 doesn't unlock it on Level 5. The 10th "Caught!" card announces it. `GLITCH_AFTER` in `src/game.js` sets the number (a level can override it with `glitchAfter`), and `?glitch=1` unlocks it straight away for demos. It's there so nobody spends the whole class stuck on one level; the simulated class in `npm run classroom` doesn't use it.
 
 ### Learning wardens (Level 6, `src/learning.js`)
 
-On a level with `learns: true`, every attempt where you're caught is recorded: on each tile, which way you went. `habitsFrom(attempts)` turns that into one habit per tile (most common direction, ties to the latest try). Next attempt, whenever several of their moves are equally good, they pick the one that sets up an ambush on that route (a tile on it they can reach before you). They never play a worse move because of your habits, so learning can only help them. The game draws your old route as red arrows and marks predictions that match it `habit` in the HUD. Repeat yourself and they're waiting. It's also the ethics question in miniature: they got better at predicting you by collecting data about you.
+On a level with `learns: true`, every attempt where you're caught is recorded: on each tile, which way you went. `habitsFrom(attempts)` turns that into one habit per tile (most common direction, ties to the latest try). Next attempt, whenever several of their moves are equally good, they pick the one that sets up an ambush on that route (a tile on it they can reach before you). They never play a worse move because of your habits, so learning can only help them. The HUD marks predictions that match your old route `habit` (the route itself isn't drawn on the floor, to keep the maze uncluttered). Repeat yourself and they're waiting. It's also the ethics question in miniature: they got better at predicting you by collecting data about you.
 
 ## Using it in your own game (`src/game.js`)
 
@@ -113,14 +113,24 @@ Every level has its own art and a matching HUD, picked by `theme.style`, each in
 | --- | --- | --- | --- | --- |
 | 1 | `basement` | The secret sub-level where it starts | Brick, damp concrete, one swinging bulb | A memo taped up under the bulb |
 | 2 | `server-halls` | The company's server floor | Racks with blinking LEDs, security cameras | Security camera feed, "REC" light |
-| 3 | `core` | The executive floor | Glass offices, desks, violet test zones | Bright corporate dashboard |
+| 3 | `core` | The Core's proving ground, Test Floor 3, where the Wardens are built and field-tested | Grey lab partitions with hazard-striped skirts and LED strips; on top, workbenches with half-built Warden heads, prototypes charging in their cradles, training racks, shipping crates, prediction consoles and lidar masts; a graphite floor with yellow test-lane lines, a calibration grid with tile coordinates and charging bays where the Wardens start; turning amber beacons and a scanner beam sweeping the floor; a hangar of Warden prototypes behind | The test controller's console: graphite panels with a hazard stripe, a blinking "TRIAL 03 · LIVE" light, a monospace prediction log, industrial keys, results filed as trial logs |
 | 4 | `vault` | The Data Vault: cold storage for everything Clearpath collects | Frosted steel data monoliths with teal seams where data streams up, glowing hex cooling ports, floating holographic data cubes, a hex-etched black floor, a giant vault door at the exit | Chamfered sci-fi terminal, "VAULT-07 // COLD STORAGE", access alerts |
 | 5 | `archive` | The records room with a file on everyone | Wooden shelves of binders and name-labelled file boxes, green banker's lamps, drifting dust, loose papers on parquet | A manila case folder with a CONFIDENTIAL stamp, an index card, typewriter keys, stamped results |
 | 6 | `uplink` | The roof, where the evidence is broadcast | Rooftop HVAC units and cabinets, antenna masts with blinking red lights, a satellite dish, a light beam at the exit (red while locked, cyan once you hold the evidence), city skyline and stars | A live broadcast feed: "● LIVE", signal bars, a news-ticker message line |
 
-A look can also paint a full-screen `background` (the vault hall, the archive stacks, the night skyline), set the `fogColor`, and react to the exit unlocking (`setExitOpen`). Shared helpers for all of this are in `game_server/art-kit.js`. Drones, evidence drives, vents (floor grates), the locked exit (red until you hold every drive) and learned-habit arrows are drawn by `three-view.js` on top of any look; `theme.droneColor` colours the drone. `game_server/quality.js` keeps the frame rate smooth by lowering the render resolution on slower devices, and `game_server/ghost-worker.js` does the ghosts' thinking off the main thread.
+A look can also paint a full-screen `background` (the vault hall, the archive stacks, the night skyline), set the `fogColor`, and react to the exit unlocking (`setExitOpen`). Shared helpers for all of this are in `game_server/art-kit.js`. Drones, evidence drives, vents (floor grates), the locked exit (red until you hold every drive) and the animated characters (`game_server/sprites.js`) are drawn by `three-view.js` on top of any look; `theme.droneColor` colours the drone. `game_server/quality.js` keeps the frame rate smooth by lowering the render resolution on slower devices, and `game_server/ghost-worker.js` does the ghosts' thinking off the main thread.
 
 Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance), `?intro=0` skips the story cutscenes, `?title=0` skips the home screen, `?glitch=1` unlocks the glitch on every level, `?scene=core` previews the Level 3 cutscene.
+
+### The characters (`game_server/sprites.js`)
+
+Sam, the Wardens and the drones are animated pixel-art sprites in the cutscenes' style, painted in code onto a sprite sheet (no image files) and drawn as cards that face the camera:
+
+- **Sam**: blue shirt, red tie, badge and messenger bag. Walks in four directions (a 4-frame cycle, left is right mirrored), breathes and blinks while waiting.
+- **Wardens**: the robot from the cutscenes. Walk cycle in four directions; while waiting, the red eye sweeps across the visor and the chest light pulses. The eye uses the level's `theme.ghostColor`.
+- **Drones**: an amber quadcopter (`theme.droneColor`) with spinning rotors and a red camera eye. While recharging its lights go dark, its rotors slow, a red pip blinks and it hovers lower.
+
+Each character keeps its coloured glow on the floor (blue for Sam, red for Wardens, amber for drones) and a soft contact shadow. A card that faces the camera leans back over the tile behind it, so for depth it's treated as standing a little closer to the camera (`SPRITE_DEPTH.pull`, worked out per level from the wall height and camera angle): walls behind a character never cut into it, while walls in front still hide it. Where they do, a coloured silhouette shows through the wall. The plan dots are drawn on top of everything, so a character or a wall never hides the prediction. While a glitch fires, the enemies flicker between magenta and cyan.
 
 The browser tab shows a Warden favicon (`game_server/favicon.svg`, with `favicon-32.png` and `apple-touch-icon.png` for browsers and phones that want a PNG): the robot's head from the cutscenes with its red eye lit.
 
@@ -159,7 +169,7 @@ Before Level 1, a 1:44 pixel-art cutscene ("After Hours") tells the story: a Cle
 
 After escaping Level 2, the "Escaped!" card says someone was watching and a 46-second scene plays before Level 3 (skipped by `?intro=0`; the level's `cutscene: "core"` field in `src/levels.js` triggers it):
 
-1. **Camera 14.** Grainy security-camera footage of the Core's executive floor. A vent grate pops off, Sam crawls out and sneaks past the glass offices, glances up at the camera, and gets tagged: `EMP 0417 S.REYES · FACE MATCH 99.1%`.
+1. **Camera 14.** Grainy security-camera footage of the Core's Warden test floor. A vent grate pops off, Sam crawls out and sneaks past a row of dormant Wardens in their charging alcoves, glances up at the camera, and gets tagged: `EMP 0417 S.REYES · FACE MATCH 99.1%`.
 2. **Pull back.** The feed shrinks onto a monitor in Dr. Voss's control room. "There you are, Sam. Right on schedule."
 3. **Feeding the Wardens.** Voss types Sam's personal data into the Warden model, one fact at a time: employee ID, age, height and weight, two years of badge swipes, usual route, preferences, and what he does when he's scared. After each fact the **prediction confidence** bar climbs (23% → 94%) and the **predicted next move** diagram narrows from four even guesses to one (LEFT). The last rows show the sources (HR file, badge logs, health plan) and **consent: none**.
 4. **Upgrade.** A Warden's-eye view: model updated, confidence 23% → 94%, data points 3 → 4,861, two Wardens deployed to the Core as a team.
@@ -180,7 +190,7 @@ Simulated players (`SKILLS` in `src/playtest.js`):
 The two feel checks, which matched the team's playtesting (the levels that felt too easy scored badly on both):
 
 - **Threat**: how often an enemy is within 2 moves of you while you play. The levels that felt right sit around 40-45%; the old Levels 1, 4 and 5 had 0%, 22% and 8%.
-- **Safest margin** (`safestMargin()` in `src/solver.js`): on the *safest* winning route, how close does an enemy still have to get? 1-2 means every escape is a close dodge. The old Level 1 had 8: a route that walked around the ghost.
+- **Safest margin** (`safestMargin()` in `src/solver.js`): on the *safest* winning route, how close does an enemy still have to get? 1-2 means every escape is a close dodge. The old Level 1 had 8: a route that walked around the warden.
 
 | Level | Kids who read the plan (first try) | Threat | Safest margin | Shortest escape | Class time (see below) |
 | --- | --- | --- | --- | --- | --- |
@@ -191,7 +201,7 @@ The two feel checks, which matched the team's playtesting (the levels that felt 
 | 5 · The Archive | 13% | 46% | 1 | 43 moves | 169 s |
 | 6 · The Uplink | 4% | 39% | 2 | 41 moves | 140 s |
 
-Players who don't read the plan almost never escape from Level 2 on. Level 1's ghost only reacts, so quick reflexes can beat it (strong players 91%): that's the point of Level 1, and the contrast with Level 2. The expert escapes Level 1 every time, about a quarter of the time on Level 3, almost never on Levels 4 and 6, and usually on Level 5 (a careful adult who reads every plan finds Level 5's dodges; kids rarely do).
+Players who don't read the plan almost never escape from Level 2 on. Level 1's warden only reacts, so quick reflexes can beat it (strong players 91%): that's the point of Level 1, and the contrast with Level 2. The expert escapes Level 1 every time, about a quarter of the time on Level 3, almost never on Levels 4 and 6, and usually on Level 5 (a careful adult who reads every plan finds Level 5's dodges; kids rarely do).
 
 **The 10-minute class** (`npm run classroom`): 40 simulated thinkers play the levels in order on a 10-minute clock, retrying each level and remembering what got them caught (1.3 s per move, 4 s per "Caught!" screen, 15 s per briefing; the story is extra). Median tries per level: 1, 2, 2, 3, 7, 6. By the end, 18 of 40 have reached Level 5, 6 have reached Level 6, and none have beaten it. Level 2 is where a class spends the most time: you can circle its warden safely for a long while before you find the vent trick. The story (prologue about 3¾ minutes, opening cutscene 1:44, Level 3 cutscene 46 s) comes on top of the 10 minutes; `?intro=0` skips it.
 
