@@ -13,6 +13,7 @@ import { buildUplink } from "./uplink.js";
 import { createQuality } from "./quality.js";
 import { makeActor, SPRITE_DEPTH } from "./sprites.js";
 import { music } from "./music.js";
+import { mountSoundWidget } from "./sound-settings.js";
 import { cutsceneActive, playCutscene } from "./cutscene.js";
 import { showTitleScreen, titleActive } from "./title-screen.js";
 import { playPrologue, prologueActive } from "./prologue.js";
@@ -284,8 +285,7 @@ function resetActors() {
 // Builds the scene only when the level changes; restarting the same level just resets the actors.
 function showLevel(message) {
   logger.startAttempt(game.level.id); // every start, restart and next level is a new attempt
-  music.setLevel(game.levelIndex);
-  music.resume(); // after a catch, the groove comes back in
+  music.setLevel(game.levelIndex); // a new level switches track; a retry keeps the music going
   if (game.levelIndex === builtLevel) resetActors();
   else buildScene();
   updateHud(message);
@@ -638,18 +638,12 @@ const KEYS = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: 
 // Browsers only allow sound after a click or key press, so the music starts on the first one.
 for (const type of ["keydown", "pointerdown"]) window.addEventListener(type, () => music.start(), { capture: true });
 
+// The sound panel (volume, music, effects, mute) sits in the corner on every screen; N mutes in a level.
+mountSoundWidget();
 function toggleMusic() {
   const on = music.toggle();
-  updateMusicButton();
-  if (!overlayAction) updateHud(on ? "Sound on." : "Sound off.");
+  if (!overlayAction) updateHud(on ? "Sound on." : "Sound muted. Press N or use the speaker button to turn it back on.");
 }
-function updateMusicButton() {
-  const btn = $("music-btn");
-  btn.classList.toggle("off", !music.on);
-  btn.setAttribute("aria-pressed", String(music.on));
-  btn.title = music.on ? "Sound on (N to mute)" : "Sound off (N to turn on)";
-}
-updateMusicButton();
 
 window.addEventListener("keydown", (e) => {
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
@@ -669,7 +663,6 @@ for (const btn of document.querySelectorAll("#pad button[data-dir]")) {
   btn.addEventListener("click", () => takeTurn(btn.dataset.dir));
 }
 $("glitch-btn").addEventListener("click", toggleGlitch);
-$("music-btn").addEventListener("click", toggleMusic);
 
 // ---------- Render loop ----------
 const clock = new THREE.Clock();

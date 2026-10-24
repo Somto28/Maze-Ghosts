@@ -26,68 +26,68 @@
 //                                           a filtered arpeggio, punchy drums and tom fills, a soaring saw
 //                                           lead with the motif as an anthem, radio static and morse beeps.
 //
-// Each track is a loop with sections: an intro (first time only), a groove (A), the lead (B), a
-// breakdown with a riser, and everything together (C). The music also reacts to danger: when an enemy
-// is close, a low heartbeat and a filtered arpeggio come in and the hats double up.
+// Each track runs 32 bars: an intro, a groove (A), the lead (B), a breakdown with a riser, and
+// everything together (C). Then it starts again from the top, for as long as you're on the level. It
+// keeps playing through catches and retries; it only changes when the level does, and then the old
+// track and all its echoes stop at once. The music also reacts to danger: when an enemy is close, a
+// low heartbeat and a filtered arpeggio come in and the hats double up.
+//
+// Volume: everything follows the player's settings in sound-settings.js (master, music, effects, mute).
 //
 //   music.start()              after the first click or key press (browsers block sound before that)
 //   music.setLevel(i)          0-5: picks the track
 //   music.setActive(on)        fade out while a cutscene or the menu has its own sound
 //   music.setTension(0..1)     how close the nearest enemy is
-//   music.caught()             a tape-stop on the music plus the "caught" sting
-//   music.resume()             start again after a catch
+//   music.caught()             the "caught" sting; the music dips for a moment and keeps going
 //   music.escaped()            a short rising chime
-//   music.toggle()             mute / unmute everything (remembered in localStorage)
+//   music.toggle()             mute / unmute all of the game's sound
 
-const KEY = "clearpath-music";
+import { followVolume, sound } from "./sound-settings.js";
+
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
-let AC = null, out = null, musicIn = null, musicFilter = null, sfxBus = null, pump = null;
-let reverb = null, echo = null, pitch = null, noiseBuf = null, ambience = null;
+// Shared nodes. musicIn / reverb / echo / pump point at the CURRENT track's own chain (see newChain):
+// each track has its own reverb and echo, so when the level changes the old track's notes, echoes and
+// reverb tails are cut off with it and never bleed into the next level.
+let AC = null, out = null, musicMaster = null, musicFilter = null, sfxBus = null, sfxReverb = null;
+let musicIn = null, reverb = null, echo = null, pump = null, chain = null, irBuffer = null;
+let pitch = null, noiseBuf = null, lastLead = null;
 let track = null, trackIndex = -1, tension = 0, smoothTension = 0;
-let timer = 0, nextTime = 0, step = 0, state = "off"; // off | playing | paused | stopped
-let wanted = true, active = true;
-try { wanted = localStorage.getItem(KEY) !== "off"; } catch { /* no storage: default on */ }
+let timer = 0, nextTime = 0, step = 0, state = "off"; // off | playing | paused
+let active = true;
 
 // ---------- Setup ----------
 function setup() {
   if (AC) return true;
   try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch { return false; }
+  // A gentle compressor on everything, so music and effects sit at an even level. (Web Audio's compressor
+  // adds its own make-up gain; the levels below were set by measuring the output, see the README.)
   const comp = AC.createDynamicsCompressor();
   comp.threshold.value = -16; comp.ratio.value = 3; comp.attack.value = 0.01; comp.release.value = 0.25;
-  out = AC.createGain(); out.gain.value = wanted ? 1 : 0;
+  out = AC.createGain(); out.gain.value = 1;
   out.connect(comp).connect(AC.destination);
 
+  // Music: track chains -> master (pause fades, the duck when you're caught) -> level -> player's volume.
+  musicMaster = AC.createGain(); musicMaster.gain.value = 0;
   musicFilter = AC.createBiquadFilter(); musicFilter.type = "lowpass"; musicFilter.frequency.value = 18000;
-  musicIn = AC.createGain(); musicIn.gain.value = 0;
   const musicLevel = AC.createGain(); musicLevel.gain.value = 0.42;
-  musicIn.connect(musicFilter).connect(musicLevel).connect(out);
-  sfxBus = AC.createGain(); sfxBus.gain.value = 1; sfxBus.connect(out);
+  const musicVol = AC.createGain();
+  followVolume(AC, musicVol, "music");
+  musicMaster.connect(musicFilter).connect(musicLevel).connect(musicVol).connect(out);
 
-  reverb = AC.createConvolver(); // a generated impulse: decaying stereo noise
-  reverb.buffer = impulse(3.4, 2.5);
-  const revOut = AC.createGain(); revOut.gain.value = 0.55;
-  reverb.connect(revOut).connect(musicIn);
+  sfxBus = AC.createGain();
+  followVolume(AC, sfxBus, "effects");
+  sfxBus.connect(out);
+  irBuffer = impulse(3.4, 2.5);
+  sfxReverb = AC.createConvolver(); sfxReverb.buffer = irBuffer;
+  const sfxRev = AC.createGain(); sfxRev.gain.value = 0.5;
+  sfxReverb.connect(sfxRev).connect(sfxBus);
 
-  // Dub echo, filtered in the feedback loop so each repeat gets darker. Its time follows the tempo.
-  echo = AC.createDelay(2);
-  const fb = AC.createGain(); fb.gain.value = 0.46;
-  const lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2400;
-  const hp = AC.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 240;
-  echo.connect(lp).connect(hp).connect(fb).connect(echo);
-  const echoOut = AC.createGain(); echoOut.gain.value = 0.5;
-  hp.connect(echoOut).connect(musicIn);
-  echoOut.connect(reverb);
-
-  // Tape wow: every voice's pitch follows this (a drift of a few cents; the tape stop when you're
-  // caught pulls it down two octaves).
+  // Tape wow: every voice's pitch drifts a few cents with this.
   pitch = AC.createConstantSource(); pitch.offset.value = 0; pitch.start();
   const wow = AC.createOscillator(); wow.frequency.value = 0.31;
   const wowDepth = AC.createGain(); wowDepth.gain.value = 7;
   wow.connect(wowDepth).connect(pitch.offset); wow.start();
-
-  // Sidechain "pump": pads and stabs go through here, and it ducks on every kick.
-  pump = AC.createGain(); pump.gain.value = 1; pump.connect(musicIn);
 
   noiseBuf = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate);
   const d = noiseBuf.getChannelData(0);
@@ -95,7 +95,7 @@ function setup() {
 
   document.addEventListener("visibilitychange", () => {
     if (!AC) return;
-    if (document.hidden) AC.suspend(); else if (wanted) AC.resume?.().catch?.(() => {});
+    if (document.hidden) AC.suspend(); else AC.resume?.().catch?.(() => {});
   });
   return true;
 }
@@ -107,6 +107,40 @@ function impulse(seconds, decay) {
     for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
   }
   return buf;
+}
+
+// One track's private signal chain: its own bus, reverb, dub echo (filtered in the feedback loop so
+// each repeat gets darker) and sidechain pump. Retired chains fade out fast and are disconnected.
+function newChain() {
+  const c = { stops: [] };
+  c.gain = AC.createGain(); c.gain.gain.value = track.gain; c.gain.connect(musicMaster);
+  c.bus = AC.createGain(); c.bus.connect(c.gain);
+  c.reverb = AC.createConvolver(); c.reverb.buffer = irBuffer;
+  const revOut = AC.createGain(); revOut.gain.value = 0.55;
+  c.reverb.connect(revOut).connect(c.bus);
+  c.echo = AC.createDelay(2);
+  c.echo.delayTime.value = (60 / track.tempo) * track.echo;
+  const fb = AC.createGain(); fb.gain.value = 0.46;
+  const lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2400;
+  const hp = AC.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 240;
+  c.echo.connect(lp).connect(hp).connect(fb).connect(c.echo);
+  const echoOut = AC.createGain(); echoOut.gain.value = 0.5;
+  hp.connect(echoOut).connect(c.bus);
+  echoOut.connect(c.reverb);
+  c.pump = AC.createGain(); c.pump.gain.value = 1; c.pump.connect(c.bus);
+  chain = c;
+  musicIn = c.bus; reverb = c.reverb; echo = c.echo; pump = c.pump;
+  startAmbience(track.ambience);
+  lastLead = null;
+  return c;
+}
+function retireChain(c, seconds = 0.12) {
+  if (!c) return;
+  const now = AC.currentTime;
+  c.gain.gain.cancelScheduledValues(now); c.gain.gain.setValueAtTime(c.gain.gain.value, now);
+  c.gain.gain.linearRampToValueAtTime(0, now + seconds);
+  setTimeout(() => { for (const st of c.stops) { try { st.stop(); } catch { /* done */ } } try { c.gain.disconnect(); } catch { /* gone */ } }, seconds * 1000 + 400);
+  if (chain === c) chain = null;
 }
 
 // ---------- Building blocks ----------
@@ -342,32 +376,28 @@ const FX = {
   },
 };
 
-// A continuous background texture per track (hum, fans, air, rain, wind), crossfaded on track change.
+// A continuous background texture per track (hum, fans, air, rain, wind), fading in on the track's chain.
 function startAmbience(def) {
-  const now = AC.currentTime;
-  if (ambience) { const old = ambience; old.gain.gain.setTargetAtTime(0, now, 0.4); setTimeout(() => old.stop(), 3000); }
-  ambience = null;
   if (!def) return;
+  const now = AC.currentTime;
   const gain = AC.createGain(); gain.gain.setValueAtTime(0, now); gain.gain.setTargetAtTime(1, now, 0.8);
   gain.connect(musicIn);
-  const stops = [];
   for (const layer of def) {
     const lv = AC.createGain(); lv.gain.value = layer.vol;
     if (layer.tone) { // a mains hum
       const o = AC.createOscillator(); o.type = "sawtooth"; o.frequency.value = layer.tone;
-      const lp = filter("lowpass", layer.freq ?? 400, 1); o.connect(lp).connect(lv); o.start(); stops.push(o);
+      const lp = filter("lowpass", layer.freq ?? 400, 1); o.connect(lp).connect(lv); o.start(); chain.stops.push(o);
     } else {
       const src = AC.createBufferSource(); src.buffer = noiseBuf; src.loop = true; src.playbackRate.value = layer.rate ?? 1;
       const f = filter(layer.type, layer.freq, layer.q ?? 0.7);
-      src.connect(f).connect(lv); src.start(); stops.push(src);
+      src.connect(f).connect(lv); src.start(); chain.stops.push(src);
       if (layer.lfo) { // slow swell
         const l = AC.createOscillator(); l.frequency.value = layer.lfo; const ld = AC.createGain(); ld.gain.value = layer.vol * 0.8;
-        l.connect(ld).connect(lv.gain); l.start(); stops.push(l);
+        l.connect(ld).connect(lv.gain); l.start(); chain.stops.push(l);
       }
     }
     lv.connect(gain);
   }
-  ambience = { gain, stop: () => stops.forEach((s) => { try { s.stop(); } catch { /* done */ } }) };
 }
 
 // ---------- The tracks ----------
@@ -539,26 +569,24 @@ const TRACKS = [
   },
 ];
 
-// Sections of each loop, in bars: intro (only the first time), then A, B (lead), break, C (lead + all).
-const SECTIONS = [["A", 8], ["B", 8], ["break", 4], ["C", 8]];
-const CYCLE = SECTIONS.reduce((a, [, n]) => a + n, 0);
-const INTRO = 4;
+// Sections of each track, in bars: intro, A (groove), B (lead), break (with a riser), C (lead + all).
+// That's the whole track (32 bars); at the end it starts again from the top, intro included.
+const SECTIONS = [["intro", 4], ["A", 8], ["B", 8], ["break", 4], ["C", 8]];
+const TRACK_BARS = SECTIONS.reduce((a, [, n]) => a + n, 0);
 function sectionAt(bar) {
-  if (bar < INTRO) return { sec: "intro", secBar: bar, cycleBar: bar };
-  let k = (bar - INTRO) % CYCLE;
-  for (const [sec, len] of SECTIONS) { if (k < len) return { sec, secBar: k, cycleBar: (bar - INTRO) % CYCLE }; k -= len; }
-  return { sec: "A", secBar: 0, cycleBar: 0 };
+  let k = bar % TRACK_BARS;
+  const cycleBar = k;
+  for (const [sec, len] of SECTIONS) { if (k < len) return { sec, secBar: k, cycleBar }; k -= len; }
+  return { sec: "A", secBar: 0, cycleBar };
 }
 
 // ---------- The sequencer ----------
 const beatLen = () => 60 / track.tempo;
 const stepLen = () => beatLen() / 4;
-let lastLead = null;
-
 function scheduleStep(s, t0) {
   const bar = Math.floor(s / 16), st = s % 16;
   const { sec, secBar, cycleBar } = sectionAt(bar);
-  const fi = (sec === "intro" ? bar : secBar) % track.form.length, // every section starts on the first chord
+  const fi = secBar % track.form.length, // every section starts on the first chord
    [, root, tones] = track.form[fi], [, nroot] = track.form[(fi + 1) % track.form.length];
   const t = t0 + (st % 2 === 1 ? stepLen() * track.swing : 0);
   const n = (semi) => track.tonic + semi;
@@ -596,39 +624,28 @@ function tick() {
   while (nextTime < now + 0.3) {
     scheduleStep(step, nextTime);
     nextTime += stepLen();
-    step++;
+    step = (step + 1) % (TRACK_BARS * 16); // the end of the track loops back to its start
   }
 }
 
-function applyTrack() {
-  const now = AC.currentTime;
-  echo.delayTime.setValueAtTime(beatLen() * track.echo, now);
-  startAmbience(track.ambience);
-  lastLead = null;
-}
-
-function play(fromStep) {
+function play() {
   if (!AC || state === "playing") return;
-  if (fromStep !== undefined) step = fromStep;
   const now = AC.currentTime;
-  pitch.offset.cancelScheduledValues(now); pitch.offset.setValueAtTime(0, now);
-  musicFilter.frequency.cancelScheduledValues(now); musicFilter.frequency.setValueAtTime(18000, now);
-  musicIn.gain.cancelScheduledValues(now); musicIn.gain.setValueAtTime(musicIn.gain.value, now);
-  musicIn.gain.linearRampToValueAtTime(track.gain, now + 1.2);
-  if (!ambience) applyTrack();
+  if (!chain) newChain();
+  musicMaster.gain.cancelScheduledValues(now); musicMaster.gain.setValueAtTime(musicMaster.gain.value, now);
+  musicMaster.gain.linearRampToValueAtTime(1, now + 1);
   nextTime = now + 0.08;
   state = "playing";
   clearInterval(timer);
   timer = setInterval(tick, 40);
 }
 
-function fadeOut(seconds, next) {
+function pause(seconds) {
   clearInterval(timer);
-  state = next;
-  if (!AC) return;
+  state = "paused";
   const now = AC.currentTime;
-  musicIn.gain.cancelScheduledValues(now); musicIn.gain.setValueAtTime(musicIn.gain.value, now);
-  musicIn.gain.linearRampToValueAtTime(0, now + seconds);
+  musicMaster.gain.cancelScheduledValues(now); musicMaster.gain.setValueAtTime(musicMaster.gain.value, now);
+  musicMaster.gain.linearRampToValueAtTime(0, now + seconds);
 }
 
 // ---------- Sound effects ----------
@@ -638,7 +655,7 @@ function sfxTone(type, f0, f1, t, len, vol, { verb = 0.3 } = {}) {
   const g = AC.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0008, t + len);
   o.connect(g); o.start(t); o.stop(t + len + 0.05);
   g.connect(sfxBus);
-  if (verb) { const v = AC.createGain(); v.gain.value = verb; g.connect(v).connect(reverb); }
+  if (verb) { const v = AC.createGain(); v.gain.value = verb; g.connect(v).connect(sfxReverb); }
 }
 function sfxNoise(t, len, type, freq, vol) {
   const src = AC.createBufferSource(); src.buffer = noiseBuf;
@@ -661,7 +678,7 @@ function caughtSting() {
     const lp = filter("lowpass", 2400); lp.frequency.setValueAtTime(2400, t + 0.6); lp.frequency.exponentialRampToValueAtTime(180, t + 2.1);
     const g = AC.createGain(); g.gain.setValueAtTime(0, t + 0.6); g.gain.linearRampToValueAtTime(0.08, t + 0.64); g.gain.exponentialRampToValueAtTime(0.0008, t + 2.3);
     o.connect(lp).connect(g); o.start(t + 0.6); o.stop(t + 2.4);
-    g.connect(sfxBus); const v = AC.createGain(); v.gain.value = 0.6; g.connect(v).connect(reverb);
+    g.connect(sfxBus); const v = AC.createGain(); v.gain.value = 0.6; g.connect(v).connect(sfxReverb);
   }
 }
 
@@ -678,17 +695,18 @@ export const music = {
   start() {
     if (!setup()) return;
     if (!track) music.setLevel(0);
-    if (AC.state === "suspended" && wanted) AC.resume?.().catch?.(() => {});
-    if (state === "off" && active) play(0);
+    if (AC.state === "suspended") AC.resume?.().catch?.(() => {});
+    if (state === "off" && active) play();
   },
-  /** Switch to a level's track (from its intro). */
+  /** Switch to a level's track, from its start. The old track (and its echoes) stops at once. */
   setLevel(i) {
     const n = Math.max(0, Math.min(TRACKS.length - 1, i));
     if (n === trackIndex) return;
     trackIndex = n; track = TRACKS[n];
     step = 0;
-    if (AC && state === "playing") { applyTrack(); musicIn.gain.setTargetAtTime(track.gain, AC.currentTime, 0.3); }
-    else if (AC) ambience = (startAmbience(null), null); // the new track's texture starts with the music
+    if (!AC) return;
+    retireChain(chain);
+    if (state === "playing") { newChain(); nextTime = AC.currentTime + 0.05; }
   },
   setTension(x) { tension = Math.max(0, Math.min(1, x)); },
   /** false while a cutscene, the prologue or the home screen is up (they have their own sound). */
@@ -696,43 +714,29 @@ export const music = {
     if (on === active) return;
     active = on;
     if (!AC) return;
-    if (!on && state === "playing") { fadeOut(0.6, "paused"); startAmbience(null); }
-    else if (on && state === "paused") play();
-    else if (on && state === "off" && AC.state !== "closed") play(0); // started while the menu was up
+    if (!on && state === "playing") pause(0.5);
+    else if (on && state !== "playing") play();
   },
-  /** The music tape-stops and the caught sting plays. resume() brings the music back. */
+  /** Caught: the caught sting plays over the music, which dips for a moment and carries on. */
   caught() {
     if (!AC) return;
     if (state === "playing") {
-      const now = AC.currentTime;
-      pitch.offset.cancelScheduledValues(now); pitch.offset.setValueAtTime(0, now);
-      pitch.offset.linearRampToValueAtTime(-2400, now + 0.9);
-      musicFilter.frequency.cancelScheduledValues(now); musicFilter.frequency.setValueAtTime(18000, now);
-      musicFilter.frequency.exponentialRampToValueAtTime(250, now + 0.9);
-      fadeOut(0.95, "stopped");
+      const now = AC.currentTime, g = musicMaster.gain;
+      g.cancelScheduledValues(now); g.setValueAtTime(g.value, now);
+      g.linearRampToValueAtTime(0.35, now + 0.08); g.setValueAtTime(0.35, now + 1.1); g.linearRampToValueAtTime(1, now + 2.6);
     }
     caughtSting();
   },
-  /** After a catch (or a restart): the groove comes back in, past the intro. */
-  resume() {
-    if (!AC || !active) return;
-    if (state === "stopped") play(INTRO * 16);
-  },
+  /** Kept for callers from before: the music no longer stops when you're caught, so nothing to do. */
+  resume() {},
   escaped() { if (AC) escapeChime(); },
-  toggle() {
-    wanted = !wanted;
-    try { localStorage.setItem(KEY, wanted ? "on" : "off"); } catch { /* not saved */ }
-    if (AC) {
-      out.gain.setTargetAtTime(wanted ? 1 : 0, AC.currentTime, 0.05);
-      if (wanted) AC.resume?.().catch?.(() => {});
-    }
-    return wanted;
-  },
-  get on() { return wanted; },
-  get state() { return state; }, // "off" | "playing" | "paused" | "stopped"
+  /** Mute or unmute all of the game's sound (the same switch as the sound panel's). */
+  toggle() { return sound.toggleMute(); },
+  get on() { return sound.on; },
+  get state() { return state; }, // "off" | "playing" | "paused"
   get track() { return track?.name ?? null; },
   /** The tracks' names, in level order. */
   get tracks() { return TRACKS.map((tr) => tr.name); },
   /** Testing and previews: schedule everything up to `seconds` now (e.g. on an OfflineAudioContext). */
-  _scheduleUntil(seconds) { while (state === "playing" && nextTime < seconds) { scheduleStep(step, nextTime); nextTime += stepLen(); step++; } },
+  _scheduleUntil(seconds) { while (state === "playing" && nextTime < seconds) { scheduleStep(step, nextTime); nextTime += stepLen(); step = (step + 1) % (TRACK_BARS * 16); } },
 };
