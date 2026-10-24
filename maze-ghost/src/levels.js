@@ -1,6 +1,6 @@
 // levels.js — the six levels. Each one adds ONE new idea about how the enemy AI predicts you.
 //
-//   Level 1  The Basement      1 ghost, lookahead 1         It only REACTS: chases where you are now. Lure it, then run.
+//   Level 1  The Basement      1 warden, lookahead 1        It only REACTS: chases where you are now. Lure it, then run.
 //   Level 2  The Server Halls  1 warden, lookahead 3, vent  It PREDICTS where you'll be. New: vents.
 //   Level 3  The Core          2 wardens, 2 vents           TEAMWORK: one guards, one hunts.
 //   Level 4  The Data Vault    2 wardens + 1 drone, vents   RULES vs SEARCH: the drone is fast but follows a fixed rule.
@@ -9,7 +9,7 @@
 //
 // Every enemy uses the same brain (src/ai.js): minimax search plus a judgment of positions that
 // treats "the player has a safe run to the goal" as nearly lost, so they cut you off instead of chasing.
-// Level 1 switches that judgment off (its `weights`), so its ghost is a pure chaser.
+// Level 1 switches that judgment off (its `weights`), so its warden is a pure chaser.
 // lookahead = how many of their own moves the wardens plan, each followed by your best reply.
 //
 // Map key:  #  wall    .  floor    E  exit (enemies can't enter)    P  player
@@ -22,7 +22,7 @@
 // level harder than the last. `npm run check-levels` prints the numbers (see the table in README.md).
 //
 // Optional fields:
-//   enemy         what the HUD calls them (default "ghost")
+//   enemy         what the HUD calls them (default "warden")
 //   dronePattern  tiles a drone moves on each enemy turn, repeating (default [2]): [2, 0] = dash 2, recharge 1
 //   learns        true = the wardens study your caught attempts (src/learning.js)
 //   weights       this level's evaluation weights (src/ai.js WEIGHTS)
@@ -36,13 +36,14 @@ export const LEVELS = Object.freeze([
   {
     id: 1,
     name: "The Basement",
+    enemy: "warden",
     lookahead: 1,
-    // This ghost only REACTS: no cut-offs, no boxing in, just "step toward where the player is now".
+    // This warden only REACTS: no cut-offs, no boxing in, just "step toward where the player is now".
     // That's the baseline the later levels improve on (Level 2's warden starts predicting).
     weights: { cutoff: 0, territory: 0, playerFromExit: 0 },
     concept: "Reacting is not predicting",
     briefing:
-      "This ghost doesn't plan. It looks just 1 move ahead and always steps toward where you are RIGHT NOW. It can't get in front of you, but it never stops chasing. Lure it out of the way, then race for the exit. Watch out for dead ends: one wrong turn is all it needs.",
+      "This Warden doesn't plan. It looks just 1 move ahead and always steps toward where you are RIGHT NOW. It can't get in front of you, but it never stops chasing. Lure it out of the way, then race for the exit. Watch out for dead ends: one wrong turn is all it needs.",
     hints: [
       "It always steps toward where you are now. Pull it toward you first, then run for the exit with it behind you.",
       "Dead ends are traps. If it follows you into one, it's over. Always keep a way out.",
@@ -120,8 +121,8 @@ export const LEVELS = Object.freeze([
       "#...#G......E",
       "#############",
     ],
-    // style "core": glass offices on the executive floor (examples/core.js + core.css).
-    theme: { style: "core", wallHeight: 1.8, wallColor: "#e4e2dd", floorColor: "#17141d", ghostColor: "#ff1f3d", fog: 0.02, light: 1.0 },
+    // style "core": the Wardens' proving ground, Test Floor 3 (game_server/core.js + core.css).
+    theme: { style: "core", wallHeight: 1.45, wallColor: "#c4c9cf", floorColor: "#1c1f24", ghostColor: "#ff1f3d", fog: 0.016, light: 1.0 },
   },
   {
     id: 4,
@@ -206,9 +207,9 @@ export const LEVELS = Object.freeze([
     weights: { playerFromExit: 8, chase: 12 },
     concept: "Learning from your data",
     briefing:
-      "Upload the evidence and the world will know. But these Wardens LEARN. Every time they catch you, they record your route, and next time they lie in wait along it. The red arrows show what they've learned about you. Same route, same result.",
+      "Upload the evidence and the world will know. But these Wardens LEARN. Every time they catch you, they record your route, and next time they lie in wait along it. Same route, same result.",
     hints: [
-      "The red arrows are your old route. That's exactly where they'll be waiting. Take a different way.",
+      "They remember the route that got you caught. That's exactly where they'll be waiting. Take a different way.",
       "'habit' in their plan means they expect you to repeat what you did on that tile last time. Do something else.",
       "You never agreed to let them record you. Should an AI be allowed to learn from data people didn't choose to share?",
     ],

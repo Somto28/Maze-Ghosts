@@ -17,7 +17,7 @@ const SPINES = ["#7a2e2a", "#a8742c", "#55663a", "#2e4560", "#c9b27a", "#6b4a6e"
 const NAMES = ["ADAMS", "BAKER", "CHEN", "DIAZ", "EVANS", "FOX", "GARCIA", "HALL", "IBRAHIM", "JONES", "KIM", "LOPEZ", "MAYA", "NGUYEN", "OKAFOR", "PATEL", "REYES", "SAM", "TANAKA", "VOSS"];
 
 /**
- * @returns {{ group, walls, floorMaterial, shadows: false, background, fogColor, makeGhost(color): object, update(time: number): boolean, dispose(): void }}
+ * @returns {{ group, walls, floorMaterial, shadows: false, background, fogColor, update(time: number): boolean, dispose(): void }}
  */
 export function buildArchive(THREE, layout, { still = false } = {}) {
   const rnd = seededRandom(5);
@@ -93,28 +93,6 @@ export function buildArchive(THREE, layout, { still = false } = {}) {
   group.add(dust);
   const base = dustPos.slice();
 
-  // ---------- Archive wardens: a red core with a ring of index cards circling it ----------
-  function makeGhost(color) {
-    const warden = new THREE.Group();
-    const core = new THREE.Mesh(
-      new THREE.SphereGeometry(0.19, 20, 14),
-      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.9 }),
-    );
-    const cards = new THREE.Group();
-    const cardMaterial = new THREE.MeshLambertMaterial({ color: 0xf3e9cf, emissive: 0x3a2f1c, side: THREE.DoubleSide });
-    for (let k = 0; k < 5; k++) {
-      const card = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.1), cardMaterial);
-      const a = (k / 5) * Math.PI * 2;
-      card.position.set(Math.cos(a) * 0.32, 0, Math.sin(a) * 0.32);
-      card.lookAt(0, 0, 0);
-      cards.add(card);
-    }
-    warden.add(core, cards);
-    warden.userData.spin = (time) => { cards.rotation.y = time * 1.6; cards.rotation.x = Math.sin(time * 0.8) * 0.25; };
-    warden.userData.spin(0);
-    return warden;
-  }
-
   // ---------- Background: more stacks fading into the dark, lit by distant lamps ----------
   const background = backdrop(THREE, paintBackdrop);
   disposables.push(background);
@@ -133,7 +111,7 @@ export function buildArchive(THREE, layout, { still = false } = {}) {
   }
 
   return {
-    group, walls, floorMaterial, shadows: false, background, fogColor: "#140d08", makeGhost, update,
+    group, walls, floorMaterial, shadows: false, background, fogColor: "#140d08", update,
     dispose() { for (const d of disposables) d.dispose(); },
   };
 }

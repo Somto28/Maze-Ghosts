@@ -327,7 +327,7 @@ export function showTitleScreen({ levels, skipPress = false }) {
           <h2>How the Wardens think</h2>
           <div class="ts-cards">
             <article><h3><span>1</span> Predict</h3><p>A Warden doesn't chase where you are. It imagines your smartest move, then its best answer, then your reply. This back-and-forth guessing is called <b>adversarial search</b>, or <b>minimax</b>.</p></article>
-            <article><h3><span>2</span> Look ahead</h3><p>The <b class="red">red dots</b> are the future it expects; the <b class="amber">gold dots</b> are the moves it thinks you'll make. Level 1's ghost looks 1 move ahead. On Level 3, two Wardens look 3 moves ahead and plan as a team. By Level 6, they learn from every attempt where they caught you.</p></article>
+            <article><h3><span>2</span> Look ahead</h3><p>The <b class="red">red dots</b> are the future it expects; the <b class="amber">gold dots</b> are the moves it thinks you'll make. Level 1's Warden looks 1 move ahead. On Level 3, two Wardens look 3 moves ahead and plan as a team. By Level 6, they learn from every attempt where they caught you.</p></article>
             <article><h3><span>3</span> Whose data?</h3><p>Clearpath made the Wardens better at predicting people by training them on private records nobody agreed to share. Accurate isn't the same as fair. Who should decide what an AI is allowed to learn from?</p></article>
           </div>
           <p class="ts-tip">Tip: a Warden assumes you'll make the smartest move, and it can only see a few moves ahead. Plan further than it does.</p>

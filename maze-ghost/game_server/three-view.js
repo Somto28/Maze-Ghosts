@@ -11,6 +11,7 @@ import { buildVault } from "./vault.js";
 import { buildArchive } from "./archive.js";
 import { buildUplink } from "./uplink.js";
 import { createQuality } from "./quality.js";
+import { makeActor, SPRITE_DEPTH } from "./sprites.js";
 import { cutsceneActive, playCutscene } from "./cutscene.js";
 import { showTitleScreen, titleActive } from "./title-screen.js";
 import { playPrologue, prologueActive } from "./prologue.js";
@@ -18,6 +19,7 @@ import { logger } from "./log.js";
 
 const TILE = 1;
 const STEP_MS = 220; // pause between your move and the ghosts', so the turns are visible
+const PLAYER_Y = 0, WARDEN_Y = 0, DRONE_Y = 0.42; // the characters stand on the floor; drones hover
 // theme.style -> custom art for that level
 const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core: buildCore, vault: buildVault, archive: buildArchive, uplink: buildUplink };
 const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -52,15 +54,15 @@ const quality = createQuality({
 quality.start();
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 300);
-let scene, layout, look, player, ghosts, ghostGlows, blobs, planDots;
-let drives = [], exitPads = [], habitMarks = null; // evidence drives, exit pads (red while locked), learned-habit arrows
+let scene, layout, look, player, playerGlow, ghosts, ghostGlows, blobs, planDots;
+let drives = [], exitPads = []; // evidence drives, exit pads (red while locked)
 let builtLevel = -1;
 let busy = false;
 let turnToken = 0; // bumped on restart so a late answer from the worker is ignored
 
-// What the HUD calls the enemies on this level ("ghost" unless the level says otherwise).
+// What the HUD calls the enemies on this level ("warden" unless the level says otherwise).
 function enemy(level = game.level) {
-  const one = level.enemy ?? "ghost";
+  const one = level.enemy ?? "warden";
   const { name } = describeLevel(level);
   return { one, many: `${one}s`, name, Name: name.replace(/^./, (ch) => ch.toUpperCase()), plural: name.endsWith("s") };
 }
@@ -115,32 +117,6 @@ function defaultLights(t, c, span) {
   return lights;
 }
 
-// The plain ghost: a glowing sphere. A look can supply its own model with makeGhost(color).
-function defaultGhost(color) {
-  return new THREE.Mesh(
-    new THREE.SphereGeometry(0.3, 24, 16),
-    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.6, transparent: true, opacity: 0.9 }),
-  );
-}
-
-// The drone: a small flying wedge with a spinning rotor ring. Brighter when its dash is charged.
-function makeDrone(color) {
-  const group = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.OctahedronGeometry(0.2, 0),
-    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.9, roughness: 0.4 }),
-  );
-  body.scale.set(1.25, 0.6, 1.25);
-  const ring = new THREE.Mesh(
-    new THREE.TorusGeometry(0.3, 0.025, 6, 24).rotateX(Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color }),
-  );
-  group.add(body, ring);
-  group.userData.spin = (t) => { ring.rotation.y = t * 9; body.rotation.y = t * 2; };
-  group.userData.charge = (on) => { body.material.emissiveIntensity = on ? 1.4 : 0.25; ring.material.color.set(on ? color : 0x555555); };
-  return group;
-}
-
 // Vents: a numbered grate on the floor in its vent's colour (you fit, they don't).
 const VENT_COLORS = { 1: "#2ee6c8", 2: "#b48cff", 3: "#c6f35a", 4: "#ff8ad8" };
 function ventTexture(id) {
@@ -167,38 +143,6 @@ function ventArc(a, b, color, height) {
   );
   line.computeLineDistances();
   return line;
-}
-
-// Learned habits: a red arrow on each tile where the wardens expect you to repeat yourself.
-const ARROW_TURN = { up: 0, down: Math.PI, left: Math.PI / 2, right: -Math.PI / 2 };
-function makeHabitMarks(max) {
-  const shape = new THREE.Shape();
-  shape.moveTo(0, 0.28); shape.lineTo(0.2, -0.05); shape.lineTo(0.07, -0.05); shape.lineTo(0.07, -0.26);
-  shape.lineTo(-0.07, -0.26); shape.lineTo(-0.07, -0.05); shape.lineTo(-0.2, -0.05); shape.closePath();
-  const marks = new THREE.InstancedMesh(
-    new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: 0xff3b5c, transparent: true, opacity: 0.75, depthWrite: false }),
-    Math.max(1, max),
-  );
-  marks.count = 0;
-  marks.frustumCulled = false;
-  return marks;
-}
-
-function drawHabits() {
-  if (!habitMarks) return;
-  const habits = game.habits ?? {};
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
-  habitMarks.count = 0;
-  for (const [tile, dir] of Object.entries(habits)) {
-    if (habitMarks.count >= habitMarks.instanceMatrix.count) break;
-    const [r, c] = tile.split(",").map(Number);
-    const { x, z } = gridToWorld({ r, c }, TILE);
-    // The arrow points "up" the screen (toward -z) by default; turn it to the habit's direction.
-    q.setFromAxisAngle(up, ARROW_TURN[dir] ?? 0);
-    habitMarks.setMatrixAt(habitMarks.count++, m.compose(new THREE.Vector3(x, 0.03, z), q, one));
-  }
-  habitMarks.instanceMatrix.needsUpdate = true;
 }
 
 // Evidence drives and the exit lock follow the game state.
@@ -299,29 +243,26 @@ function buildScene() {
     return drive;
   });
 
-  player = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.22, 0.3, 6, 16),
-    new THREE.MeshStandardMaterial({ color: 0x5ab0ff, emissive: 0x1d4ed8, emissiveIntensity: 0.4 }),
-  );
-  player.castShadow = true;
+  // The characters: animated pixel-art sprites (game_server/sprites.js).
+  player = makeActor(THREE, "player");
+  player.userData.hover = PLAYER_Y;
+  playerGlow = floorDecal(THREE, { color: 0x5ab0ff, size: 1.7, opacity: 0.4, y: 0.015 });
   ghosts = layout.ghostStarts.map((start) => {
-    const g = start.role === "drone"
-      ? makeDrone(t.droneColor ?? "#ffb020")
-      : look?.makeGhost?.(t.ghostColor) ?? defaultGhost(t.ghostColor);
-    g.traverse((o) => { o.castShadow = true; });
-    g.userData.hover = start.role === "drone" ? 0.85 : 0.45;
+    const drone = start.role === "drone";
+    const g = drone ? makeActor(THREE, "drone", { color: t.droneColor ?? "#ffb020" }) : makeActor(THREE, "warden", { color: t.ghostColor });
+    g.userData.hover = drone ? DRONE_Y : WARDEN_Y;
     return g;
   });
   ghostGlows = ghosts.map((_, i) => floorDecal(THREE, { color: layout.ghostStarts[i].role === "drone" ? t.droneColor ?? "#ffb020" : t.ghostColor, size: 3, opacity: 0.5, y: 0.015 }));
-  blobs = renderer.shadowMap.enabled ? [] : [player, ...ghosts].map((actor) => {
-    const blob = floorDecal(THREE, { color: 0x000000, size: 0.9, opacity: 0.6, additive: false, y: 0.02 });
+  // Sprites don't cast real shadows, so every character gets a soft contact shadow.
+  blobs = [player, ...ghosts].map((actor, i) => {
+    const drone = i > 0 && layout.ghostStarts[i - 1].role === "drone";
+    const blob = floorDecal(THREE, { color: 0x000000, size: drone ? 0.6 : i === 0 ? 0.75 : 0.95, opacity: drone ? 0.45 : 0.6, additive: false, y: 0.02 });
     blob.userData.actor = actor;
     return blob;
   });
   planDots = { ghost: makeDots(0xff5a6e, ghosts.length), player: makeDots(0xffd166, 1) };
-  scene.add(player, ...ghosts, ...ghostGlows, ...blobs, planDots.ghost, planDots.player);
-  habitMarks = game.level.learns ? makeHabitMarks(layout.floorTiles.length) : null;
-  if (habitMarks) scene.add(habitMarks);
+  scene.add(player, playerGlow, ...ghosts, ...ghostGlows, ...blobs, planDots.ghost, planDots.player);
 
   resetActors();
   resize();
@@ -332,11 +273,10 @@ function buildScene() {
 function resetActors() {
   turnToken++;
   busy = false;
-  placeAt(player, game.state.player, 0.37, true);
+  placeAt(player, game.state.player, PLAYER_Y, true);
   game.state.ghosts.forEach((g, i) => placeAt(ghosts[i], g, ghosts[i].userData.hover, true));
   drawPlan(null);
   drawEvidence();
-  drawHabits();
   renderer.shadowMap.needsUpdate = true;
 }
 
@@ -400,6 +340,13 @@ function fitCamera() {
   let lo = 1, hi = 400;
   for (let i = 0; i < 30; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
   fits(hi);
+
+  // The character cards face the camera, so they lean back over the tile behind them. For depth they're
+  // pulled toward the camera far enough to clear the wall behind, but not so far that the wall in front
+  // stops hiding them (see sprites.js).
+  const tilt = Math.asin(Math.min(1, dir.y)), sin = Math.sin(tilt), cos = Math.cos(tilt);
+  const half = layout.tileSize / 2;
+  SPRITE_DEPTH.pull.value = Math.max(0.2, Math.min(top * sin - half * cos + 0.12, half / cos - 0.06));
 }
 
 function resize() {
@@ -415,7 +362,9 @@ const MAX_STEPS = 2 * Math.max(...game.levels.map((l) => l.lookahead)) + 2;
 
 function makeDots(color, perStep) {
   const count = MAX_STEPS * perStep;
-  const dots = new THREE.InstancedMesh(new THREE.SphereGeometry(0.1, 12, 8), new THREE.MeshBasicMaterial(), count);
+  // Drawn over everything (depthTest off): a character or a wall must never hide the prediction.
+  const dots = new THREE.InstancedMesh(new THREE.SphereGeometry(0.1, 12, 8), new THREE.MeshBasicMaterial({ depthTest: false, depthWrite: false }), count);
+  dots.renderOrder = 20;
   dots.userData.color = new THREE.Color(color);
   for (let i = 0; i < count; i++) dots.setColorAt(i, dots.userData.color);
   dots.count = 0;
@@ -574,7 +523,7 @@ async function takeTurn(dir) {
   const glitching = game.glitchArmed; // this move gets no reply: the enemies lose their turn
   if (glitching) logger.recordMove("glitch");
   logger.recordMove(dir);
-  placeAt(player, game.state.player, 0.37, !!result.vent); // a vent crawl pops you out of the other grate
+  placeAt(player, game.state.player, PLAYER_Y, !!result.vent); // a vent crawl pops you out of the other grate
   if (result.pickedUp) drawEvidence();
   if (result.event !== "moved") return finish();
 
@@ -643,7 +592,7 @@ function finish() {
     const hints = game.level.hints ?? [];
     const hint = hints.length ? hints[catches++ % hints.length] : "";
     const byDrone = game.state.ghosts.some((g, i) => isDrone(i) && g.r === game.state.player.r && g.c === game.state.player.c);
-    const reactive = game.level.weights?.cutoff === 0; // Level 1's ghost only chases, it doesn't predict
+    const reactive = game.level.weights?.cutoff === 0; // Level 1's warden only chases, it doesn't predict
     let text = byDrone
       ? "The drone dashed straight at you. It never plans, but it's fast."
       : reactive
@@ -702,25 +651,34 @@ renderer.setAnimationLoop((now) => {
   const time = clock.getElapsedTime();
 
   let moved = false;
+  const charged = (game.level.dronePattern ?? [2])[dronePhase(game.state)] > 0;
   for (const mesh of [player, ...ghosts]) {
     let to = mesh.userData.target;
     // Multi-tile moves (drone dashes): once close to this waypoint, head for the next one.
     if (mesh.userData.queue?.length && Math.abs(mesh.position.x - to.x) + Math.abs(mesh.position.z - to.z) < 0.12) {
       to = mesh.userData.target = mesh.userData.queue.shift();
     }
-    if (Math.abs(mesh.position.x - to.x) + Math.abs(mesh.position.z - to.z) > 0.002) moved = true;
-    mesh.position.lerp(to, mesh.userData.queue?.length ? 0.35 : 0.22);
+    const dx = to.x - mesh.position.x, dz = to.z - mesh.position.z;
+    const away = Math.abs(dx) + Math.abs(dz);
+    if (away > 0.002) moved = true;
+    const k = mesh.userData.queue?.length ? 0.35 : 0.22;
+    mesh.position.x += dx * k; mesh.position.z += dz * k;
+    // Walk toward where it's going; keep facing that way once it gets there.
+    const facing = away > 0.02 ? (Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? "right" : "left") : (dz > 0 ? "down" : "up")) : null;
+    mesh.userData.animate({ time, facing, moving: away > 0.02, step: away * k, charged });
   }
   for (const d of drives) d.userData.spin(time);
-  const charged = (game.level.dronePattern ?? [2])[dronePhase(game.state)] > 0;
   const glitchy = time < glitchUntil && !still;
+  player.position.y = PLAYER_Y;
+  playerGlow.position.x = player.position.x;
+  playerGlow.position.z = player.position.z;
   ghosts.forEach((g, i) => {
-    g.position.y = g.userData.hover + Math.sin(time * 3 + i * 1.7) * 0.05; // gentle hover, out of step with each other
-    // Glitching: they stutter sideways and blink out for a frame here and there.
+    // Drones bob as they hover (lower and slower while recharging), out of step with each other.
+    g.position.y = isDrone(i) ? g.userData.hover - (charged ? 0 : 0.1) + Math.sin(time * (charged ? 4 : 2) + i * 1.7) * 0.05 : g.userData.hover;
+    // Glitching: they stutter sideways, flicker between colours and blink out for a frame here and there.
     g.visible = !glitchy || Math.random() > 0.25;
     if (glitchy) g.position.x += (Math.random() - 0.5) * 0.08;
-    g.userData.charge?.(charged);
-    g.userData.spin?.(time + i);
+    g.userData.setTint(glitchy ? (Math.random() < 0.5 ? "#ff6bf0" : "#6bf3ff") : null);
     ghostGlows[i].position.x = g.position.x;
     ghostGlows[i].position.z = g.position.z;
   });

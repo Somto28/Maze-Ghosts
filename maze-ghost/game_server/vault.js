@@ -16,7 +16,7 @@ const SIDE_CELLS = 4; // monolith face variants (the last one is the plain end p
 const TOP_CELLS = 2; // hexagonal cooling port, sealed lid
 
 /**
- * @returns {{ group, walls, floorMaterial, shadows: false, background, fogColor, makeGhost(color): object, update(time: number): boolean, dispose(): void }}
+ * @returns {{ group, walls, floorMaterial, shadows: false, background, fogColor, update(time: number): boolean, dispose(): void }}
  */
 export function buildVault(THREE, layout, { still = false } = {}) {
   const rnd = seededRandom(4);
@@ -102,25 +102,6 @@ export function buildVault(THREE, layout, { still = false } = {}) {
     group.add(ring);
   }
 
-  // ---------- Vault sentinels: a red core inside two spinning hexagonal frames ----------
-  function makeGhost(color) {
-    const sentinel = new THREE.Group();
-    const core = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.19, 1),
-      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.0, roughness: 0.3 }),
-    );
-    const hexA = new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.024, 4, 6), new THREE.MeshBasicMaterial({ color: 0xe8fbff }));
-    const hexB = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.018, 4, 6), new THREE.MeshBasicMaterial({ color }));
-    sentinel.add(core, hexA, hexB);
-    sentinel.userData.spin = (time) => {
-      core.rotation.y = time * 1.5;
-      hexA.rotation.set(Math.PI / 2, 0, time * 1.2);
-      hexB.rotation.set(Math.PI / 2 + Math.sin(time * 1.1) * 0.7, time * 1.6, 0);
-    };
-    sentinel.userData.spin(0);
-    return sentinel;
-  }
-
   // ---------- Background: the vault hall stretching off into cold darkness ----------
   const background = backdrop(THREE, paintBackdrop);
   disposables.push(background);
@@ -135,7 +116,7 @@ export function buildVault(THREE, layout, { still = false } = {}) {
   }
 
   return {
-    group, walls, floorMaterial, shadows: false, background, fogColor: "#061019", makeGhost, update,
+    group, walls, floorMaterial, shadows: false, background, fogColor: "#061019", update,
     dispose() { for (const d of disposables) d.dispose(); },
   };
 }

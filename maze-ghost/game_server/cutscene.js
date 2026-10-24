@@ -542,14 +542,21 @@ function samCrawl(x,gy,f){
   R(x+1-k,gy-5,2,5,EMP.shirtD);R(x+1-k,gy-1,3,1,EMP.skin);
   R(x+3,gy-15,7,7,EMP.skin);R(x+3,gy-16,7,2,EMP.hair);R(x+2,gy-15,2,4,EMP.hair);R(x+8,gy-13,1,2,'#1a1a1a');}
 function drawCoreHall(t){
-  R(0,0,W,22,'#1b1a22');for(let x=20;x<W;x+=80){R(x,20,40,2,'#fff4dc');A(x-10,22,60,46,'#fff2d0',.08);}
-  R(0,22,W,118,'#c9cbd2');
-  for(let ox=74;ox<W;ox+=82){R(ox,32,70,82,'#2a2837');A(ox,32,70,82,'#bcd2ff',.12);
-    R(ox+10,84,50,6,'#6b4a32');R(ox+22,72,22,12,'#15171c');R(ox+24,74,18,8,'#6d4dff');R(ox+14,90,4,24,'#4a3524');R(ox+52,90,4,24,'#4a3524');
-    R(ox,32,70,2,'#e8eaef');R(ox,112,70,2,'#e8eaef');R(ox,32,2,82,'#e8eaef');R(ox+68,32,2,82,'#e8eaef');R(ox+34,32,2,82,'#d8dbe2');A(ox+8,38,18,40,'#ffffff',.12);}
-  R(0,136,W,4,'#8b8f99');
+  // The Wardens' proving ground: lab wall, charging alcoves with dormant Wardens, hazard skirting.
+  R(0,0,W,22,'#15171c');for(let x=10;x<W;x+=70){R(x,20,34,2,'#e8f0ff');A(x-12,22,58,60,'#dfe9ff',.07);}
+  R(0,22,W,118,'#b9bec5');for(let x=0;x<W;x+=40)R(x,22,1,108,'#a3a9b1');
+  R(0,28,W,3,'#0e1013');for(let x=4;x<W;x+=9)R(x,29,4,1,(x/9|0)%6===2?'#ffb020':'#5fe3ff');
+  txt('PROVING GROUND 3',16,38,'#7f8690');
+  for(let ox=84;ox<W;ox+=74){
+    R(ox,46,58,90,'#1b1e24');R(ox,46,58,2,'#f2c230');R(ox,46,2,90,'#f2c230');R(ox+56,46,2,90,'#f2c230');
+    R(ox+6,52,46,3,'#0b3b38');R(ox+6,52,Math.round(46*(.4+.15*((ox/74)|0))),3,'#3fd0c9');
+    warden(ox+29,132,{eye:0,t,look:0,step:0});
+    R(ox+40,98,12,2,'#0b0c0e');R(ox+50,98,2,34,'#0b0c0e');
+    txt(`W-0${((ox-84)/74|0)+3}`,ox+18,58,'#f2c230');}
+  R(0,130,W,6,'#16181c');for(let x=-6;x<W;x+=10){R(x,130,4,6,'#f2c230');R(x+2,132,4,2,'#f2c230');}
+  R(0,136,W,4,'#5d636c');
   R(VENT.x-2,VENT.y-2,VENT.w+4,VENT.h+2,'#8b8f99');R(VENT.x,VENT.y,VENT.w,VENT.h,'#07080b');
-  R(0,140,W,40,'#2a2733');for(let y=144;y<180;y+=6)R(0,y,W,1,'#332f3e');
+  R(0,140,W,40,'#262a30');R(0,146,W,1,'#c9a227');R(0,176,W,1,'#c9a227');for(let x=12;x<W;x+=32){R(x-2,161,5,1,'#5a5232');R(x,159,1,5,'#5a5232');}
   const g=t<1?0:seg(t,1,1.3); // the grate pops off and drops to the floor
   if(g<1){const gx=VENT.x+g*10,gy=VENT.y+g*20;R(gx,gy,VENT.w,VENT.h,'#9aa0aa');for(let k=3;k<VENT.w-2;k+=4)R(gx+k,gy+3,2,VENT.h-6,'#5a606b');}
   else{R(VENT.x+10,154,VENT.w,4,'#9aa0aa');for(let k=3;k<VENT.w-2;k+=4)R(VENT.x+10+k,154,2,1,'#5a606b');}
@@ -571,7 +578,7 @@ function cctv(t,rx,ry,rw,rh,full){
   if(!full)return;
   const C='#e8ffe8';
   for(const[x,y,dx,dy]of[[8,12,1,1],[311,12,-1,1],[8,167,1,-1],[311,167,-1,-1]]){line(x,y,x+10*dx,y,C);line(x,y,x,y+10*dy,C);}
-  txt('CAM 14  /  THE CORE  /  EXEC FLOOR',14,16,C);
+  txt('CAM 14  /  THE CORE  /  TEST FLOOR 3',14,16,C);
   if(Math.floor(t*2)%2){R(268,16,5,5,'#ff3b4a');}txt('REC',276,16,C);
   const sec=41+Math.floor(t);txt(`23:58:${String(sec%60).padStart(2,'0')}`,14,160,C);
   if(t>1&&t<3.6&&Math.floor(t*3)%2)txt('MOTION DETECTED',120,160,'#ffb347');
@@ -619,7 +626,7 @@ function profilePanel(lt){
   txt(`DATA POINTS ${pts.toLocaleString('en-US')}`,214,132,T);
 }
 const CORE_SHOTS=[
-{name:'Camera',note:'Security camera on the executive floor: a vent grate pops off, Sam crawls out, glances at the camera, gets tagged.',dur:8,fi:.6,top:true,music:()=>'tense',
+{name:'Camera',note:'Security camera on the Wardens\' test floor: a vent grate pops off, Sam crawls out, glances at the camera, gets tagged.',dur:8,fi:.6,top:true,music:()=>'tense',
  ev:[[0,'camclick'],[1,'clank'],...evEvery('softstep',4.3,5.4,.3),[4.6,'beep'],[5.4,'radar']],
  lines:[[5.5,7.9,'SAM','...Is that camera following me?']],
  draw(t){cctv(t,0,0,W,H,true);}},

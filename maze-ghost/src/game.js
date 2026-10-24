@@ -20,6 +20,7 @@ import { stateFromLevel } from "./solver.js";
  * GLITCH: after this many catches on one level, the player gets a "glitch" for every later attempt
  * on that level. Arm it, then move: every enemy (wardens and drones) loses its next turn, so you get
  * one free move. Once per attempt; being caught (or restarting) gives you a fresh one.
+ * Beating the level resets its count, so a replay starts without the glitch.
  * A level can set its own `glitchAfter`.
  */
 export const GLITCH_AFTER = 10;
@@ -138,7 +139,7 @@ export class MazeGame {
     this.currentAttempt.push({ r: from.r, c: from.c, dir });
     this.turnNumber++;
     const end = outcome(this.state);
-    if (end === "escaped") this.status = this.isLastLevel ? "gameComplete" : "levelComplete";
+    if (end === "escaped") { this.status = this.isLastLevel ? "gameComplete" : "levelComplete"; this.catches[this.levelIndex] = 0; } // beaten: the glitch locks again
     if (end === "caught") { this.status = "caught"; this.recordCatch(); }
     const pickedUp = keysHeld(this.state) > heldBefore;
     return { event: end ?? "moved", from, to: this.state.player, status: this.status, pickedUp, vent: move.vent ?? null };

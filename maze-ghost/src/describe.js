@@ -21,7 +21,7 @@ export function describeLevel(level) {
   const { roles, keys, grid } = parseMaze(level.maze);
   const wardens = roles.filter((r) => r === "warden").length;
   const drones = roles.length - wardens;
-  const one = level.enemy ?? "ghost";
+  const one = level.enemy ?? "warden";
   const moves = plural(level.lookahead, "move");
   const ventCount = ventPairs(grid).length;
   const vents = ventCount > 0;

@@ -16,7 +16,7 @@ const SIDE_CELLS = 5; // HVAC unit, electrical cabinet, broadcast rack, crate, p
 const TOP_CELLS = 4; // fan, solar panel, gravel, hatch
 
 /**
- * @returns {{ group, walls, floorMaterial, shadows: false, background, fogColor, makeGhost(color): object,
+ * @returns {{ group, walls, floorMaterial, shadows: false, background, fogColor,
  *             update(time: number): boolean, setExitOpen(open: boolean): void, dispose(): void }}
  */
 export function buildUplink(THREE, layout, { still = false } = {}) {
@@ -116,24 +116,6 @@ export function buildUplink(THREE, layout, { still = false } = {}) {
     }
   }
 
-  // ---------- Rooftop wardens: a red core with a spinning radar arc ----------
-  function makeGhost(color) {
-    const warden = new THREE.Group();
-    const core = new THREE.Mesh(
-      new THREE.SphereGeometry(0.19, 20, 14),
-      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.95 }),
-    );
-    const arc = new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.03, 6, 24, Math.PI * 0.9), new THREE.MeshBasicMaterial({ color: 0xffd6dc }));
-    const arc2 = new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.02, 6, 24, Math.PI * 0.5), new THREE.MeshBasicMaterial({ color }));
-    warden.add(core, arc, arc2);
-    warden.userData.spin = (time) => {
-      arc.rotation.set(Math.PI / 2, 0, time * 3.2);
-      arc2.rotation.set(Math.PI / 2, 0, -time * 2.1);
-    };
-    warden.userData.spin(0);
-    return warden;
-  }
-
   const background = backdrop(THREE, paintBackdrop);
   disposables.push(background);
 
@@ -155,7 +137,7 @@ export function buildUplink(THREE, layout, { still = false } = {}) {
   }
 
   return {
-    group, walls, floorMaterial, shadows: false, background, fogColor: "#0b0b1a", makeGhost, update, setExitOpen,
+    group, walls, floorMaterial, shadows: false, background, fogColor: "#0b0b1a", update, setExitOpen,
     dispose() { for (const d of disposables) d.dispose(); },
   };
 }

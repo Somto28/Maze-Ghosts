@@ -7,7 +7,7 @@ import { MazeGame, describeLevel, samePos } from "../src/index.js";
 
 const showThinking = process.argv.includes("--think");
 const game = new MazeGame();
-let message = "Reach the exit (E). The ghost (G) moves after you.";
+let message = "Reach the exit (E). The warden (G) moves after you.";
 
 const KEYS = { up: "up", down: "down", left: "left", right: "right", w: "up", s: "down", a: "left", d: "right" };
 
