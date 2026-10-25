@@ -23,7 +23,16 @@ import { stateFromLevel } from "./solver.js";
  * Beating the level resets its count, so a replay starts without the glitch.
  * A level can set its own `glitchAfter`.
  */
-export const GLITCH_AFTER = 10;
+export const GLITCH_AFTER = 5;
+
+/**
+ * DASH: beat any level in DASH_WITHIN tries or fewer (fewer than 5) and you earn a dash. It's one use:
+ * arm it, then move, and you run two tiles in a straight line before the enemies reply. You can carry
+ * it to any level, but you only ever hold one; once it's used, earn it again by beating another level
+ * (or the same one again) in under 5 tries. If the second tile is blocked you just take one step and
+ * keep the dash.
+ */
+export const DASH_WITHIN = 4;
 
 export class MazeGame {
   /**
@@ -39,6 +48,10 @@ export class MazeGame {
     this.attempts = levels.map(() => []);
     /** How many times you've been caught on each level (unlocks the glitch). Kept across restarts. */
     this.catches = levels.map(() => 0);
+    /** Tries on each level since you last beat it (every start or restart is a try). */
+    this.tries = levels.map(() => 0);
+    /** Holding a dash (see DASH_WITHIN). Carried from level to level until it's used. */
+    this.hasDash = false;
     this.startLevel(0);
   }
 
@@ -66,6 +79,8 @@ export class MazeGame {
   get glitchReady() {
     return this.glitchUnlocked && !this.glitchUsed && !this.glitchArmed && this.status === "playing" && this.state.turn === "player";
   }
+  /** Can you arm the dash right now? */
+  get dashReady() { return this.hasDash && !this.dashArmed && this.status === "playing" && this.state.turn === "player"; }
   /** Directions the player can move right now (for disabling buttons, or hints). */
   get availableMoves() {
     if (this.status !== "playing" || this.state.turn !== "player") return [];
@@ -76,6 +91,7 @@ export class MazeGame {
   startLevel(index) {
     if (!Number.isInteger(index) || index < 0 || index >= this.levels.length) throw new RangeError(`No level ${index}`);
     this.levelIndex = index;
+    this.tries[index]++;
     this.state = stateFromLevel(this.level);
     /** @type {Status} */
     this.status = "playing";
@@ -86,7 +102,18 @@ export class MazeGame {
     /** Glitch state for this attempt: armed = your next move freezes the enemies; used = spent. */
     this.glitchArmed = false;
     this.glitchUsed = false;
+    this.dashArmed = false;
+    /** Set when you escape: whether that win earned a dash, and in how many tries you did it. */
+    this.dashEarned = false;
+    this.wonInTries = 0;
     return this.state;
+  }
+
+  /** Arm the dash (or disarm it before you move). Returns true if it's armed afterwards. */
+  toggleDash() {
+    if (this.dashArmed) this.dashArmed = false;
+    else if (this.dashReady) this.dashArmed = true;
+    return this.dashArmed;
   }
 
   /**
@@ -135,14 +162,42 @@ export class MazeGame {
     }
 
     const heldBefore = keysHeld(this.state);
-    this.state = movePlayer(this.state, move);
-    this.currentAttempt.push({ r: from.r, c: from.c, dir });
-    this.turnNumber++;
-    const end = outcome(this.state);
-    if (end === "escaped") { this.status = this.isLastLevel ? "gameComplete" : "levelComplete"; this.catches[this.levelIndex] = 0; } // beaten: the glitch locks again
+    const step = (m) => {
+      const at = this.state.player;
+      this.state = movePlayer(this.state, m);
+      this.currentAttempt.push({ r: at.r, c: at.c, dir });
+      this.turnNumber++;
+      return outcome(this.state);
+    };
+    let end = step(move), vent = move.vent ?? null, dashed = false, dashBlocked = false;
+    const path = [this.state.player];
+    // Dash: a second step the same way, before the enemies get to reply.
+    if (this.dashArmed && !end) {
+      const second = playerMoves({ ...this.state, turn: "player" }).find((m) => m.dir === dir);
+      if (second) {
+        this.state = { ...this.state, turn: "player" };
+        end = step(second);
+        vent = second.vent ?? vent;
+        path.push(this.state.player);
+        dashed = true;
+        this.hasDash = false;
+      } else {
+        dashBlocked = true; // only one tile was clear: an ordinary step, and you keep the dash
+      }
+    } else if (this.dashArmed && end) {
+      dashed = true; this.hasDash = false; // the first step already ended it (you escaped, or ran into them)
+    }
+    this.dashArmed = false;
+    if (end === "escaped") {
+      this.status = this.isLastLevel ? "gameComplete" : "levelComplete";
+      this.catches[this.levelIndex] = 0; // beaten: the glitch locks again
+      this.wonInTries = this.tries[this.levelIndex];
+      this.tries[this.levelIndex] = 0;
+      if (this.wonInTries <= DASH_WITHIN && !this.hasDash) { this.hasDash = true; this.dashEarned = true; }
+    }
     if (end === "caught") { this.status = "caught"; this.recordCatch(); }
     const pickedUp = keysHeld(this.state) > heldBefore;
-    return { event: end ?? "moved", from, to: this.state.player, status: this.status, pickedUp, vent: move.vent ?? null };
+    return { event: end ?? "moved", from, to: this.state.player, path, status: this.status, pickedUp, vent, dashed, dashBlocked };
   }
 
   /**

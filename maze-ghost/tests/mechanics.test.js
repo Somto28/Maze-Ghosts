@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  GLITCH_AFTER, MazeGame, chooseGhostMoves, droneMove, evaluate, exitsOpen, goalDistance, habitGrid, habitsFrom, moveGhosts, movePlayer,
+  DASH_WITHIN, GLITCH_AFTER, MazeGame, foresee, chooseGhostMoves, droneMove, evaluate, exitsOpen, goalDistance, habitGrid, habitsFrom, moveGhosts, movePlayer,
   outcome, parseMaze, playerMoves, speedOf, stateFromLevel, LEVELS, WIN,
 } from "../src/index.js";
 
@@ -156,7 +156,7 @@ function getCaught(game) {
 
 test("the glitch unlocks after GLITCH_AFTER catches on a level, not before", () => {
   const game = new MazeGame({ levels: glitchLevels() });
-  assert.equal(GLITCH_AFTER, 10);
+  assert.equal(GLITCH_AFTER, 5);
   for (let i = 0; i < GLITCH_AFTER - 1; i++) getCaught(game);
   assert.equal(game.glitchUnlocked, false);
   assert.equal(game.toggleGlitch(), false, "can't arm it yet");
@@ -223,4 +223,71 @@ test("beating a level locks the glitch again, so replaying it starts from zero c
   assert.equal(game.catches[0], 0);
   game.startLevel(0); // come back to it from the menu
   assert.equal(game.glitchUnlocked, false, "the glitch is locked again after a win");
+});
+
+// ---------- The dash (earned by beating a level in DASH_WITHIN tries or fewer) ----------
+
+test("beating a level in under 5 tries earns one dash; more tries earns nothing", () => {
+  assert.equal(DASH_WITHIN, 4);
+  const easy = { id: 1, name: "E", lookahead: 1, maze: ["#######", "#G..P.E", "#######"] };
+  const game = new MazeGame({ levels: [easy, { ...easy, id: 2 }, { ...easy, id: 3 }] });
+  assert.equal(game.hasDash, false);
+  game.takeTurn("right"); game.takeTurn("right"); // first try
+  assert.equal(game.status, "levelComplete");
+  assert.equal(game.wonInTries, 1);
+  assert.equal(game.dashEarned, true);
+  assert.equal(game.hasDash, true);
+  // Level 2 in 5 tries: no new dash (and you only ever hold one anyway).
+  game.nextLevel();
+  for (let i = 0; i < 4; i++) game.restartLevel();
+  game.takeTurn("right"); game.takeTurn("right");
+  assert.equal(game.wonInTries, 5);
+  assert.equal(game.dashEarned, false);
+});
+
+test("a dash runs two tiles before the enemies reply, is used up, and works on any level", () => {
+  const level = { id: 1, name: "D", lookahead: 1, maze: ["#########", "#P......#", "#......G#", "#.......E", "#########"] };
+  const game = new MazeGame({ levels: [level, { ...level, id: 2 }] });
+  game.hasDash = true; // as if earned on an earlier level
+  assert.equal(game.toggleDash(), true);
+  const before = game.state.ghosts.map((g) => ({ ...g }));
+  const { player, ghost } = game.takeTurn("right");
+  assert.equal(player.dashed, true);
+  assert.deepEqual(player.to, { r: 1, c: 3 }, "two tiles in one move");
+  assert.equal(player.path.length, 2);
+  assert.equal(ghost.event, "moved", "then the enemies get one reply, not two");
+  assert.notDeepEqual(game.state.ghosts, before);
+  assert.equal(game.hasDash, false, "one use");
+  assert.equal(game.toggleDash(), false, "nothing left to arm");
+});
+
+test("a dash into a wall after one tile is just a step, and you keep the dash", () => {
+  const level = { id: 1, name: "W", lookahead: 1, maze: ["#######", "#P.#..#", "#....G#", "#.....E", "#######"] };
+  const game = new MazeGame({ levels: [level] });
+  game.hasDash = true;
+  game.toggleDash();
+  const { player } = game.takeTurn("right");
+  assert.deepEqual(player.to, { r: 1, c: 2 });
+  assert.equal(player.dashed, false);
+  assert.equal(player.dashBlocked, true);
+  assert.equal(game.hasDash, true, "kept for later");
+  assert.equal(game.dashArmed, false);
+});
+
+// ---------- What the enemies foresee for each of your moves (src/insight.js) ----------
+
+test("foresee: a move next to a warden is 'caught next turn', a move into one is caught at once, open floor is safe", () => {
+  const s = state(["########", "#..P.G.#", "#......#", "#......E", "########"]);
+  const by = Object.fromEntries(foresee(s, 1).map((o) => [o.dir, o]));
+  assert.equal(by.right.verdict, "caught");
+  assert.equal(by.right.moves, 1, "they step onto you right after");
+  assert.equal(by.left.verdict, "safe");
+  assert.ok(!by.up, "walls aren't listed");
+  const t = state(["#####", "#PG.#", "#...E", "#####"]);
+  assert.equal(foresee(t, 1).find((o) => o.dir === "right").moves, 0, "walking into them");
+});
+
+test("foresee: stepping onto the open exit is an escape", () => {
+  const s = state(["######", "#G..PE", "######"]);
+  assert.equal(foresee(s, 1).find((o) => o.dir === "right").verdict, "escape");
 });

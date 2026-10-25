@@ -2,7 +2,7 @@
 // All rules and AI come from ../src; this file only draws and handles input.
 
 import * as THREE from "three";
-import { MazeGame, buildLayout3D, chooseGhostMoves, describeLevel, dronePhase, gridToWorld } from "../src/index.js";
+import { DASH_WITHIN, MazeGame, buildLayout3D, chooseGhostMoves, describeLevel, dronePhase, foresee, gridToWorld } from "../src/index.js";
 import { canvasTexture, floorDecal } from "./art-kit.js";
 import { buildBasement } from "./basement.js";
 import { buildCore } from "./core.js";
@@ -14,7 +14,7 @@ import { createQuality } from "./quality.js";
 import { makeActor, SPRITE_DEPTH } from "./sprites.js";
 import { music } from "./music.js";
 import { mountSoundWidget } from "./sound-settings.js";
-import { cutsceneActive, playCutscene } from "./cutscene.js";
+import { cutsceneActive, playCutscene, playLevelCard } from "./cutscene.js";
 import { showTitleScreen, titleActive } from "./title-screen.js";
 import { playPrologue, prologueActive } from "./prologue.js";
 import { logger } from "./log.js";
@@ -57,7 +57,7 @@ quality.start();
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 300);
 let scene, layout, look, player, playerGlow, ghosts, ghostGlows, blobs, planDots;
-let drives = [], exitPads = []; // evidence drives, exit pads (red while locked)
+let drives = [], exitPads = [], ventBadges = []; // evidence drives, exit pads (red while locked), vent badges
 let builtLevel = -1;
 let busy = false;
 let turnToken = 0; // bumped on restart so a late answer from the worker is ignored
@@ -81,6 +81,18 @@ const waiting = new Map();
 let nextId = 0;
 worker?.addEventListener("message", ({ data }) => { waiting.get(data.id)?.(data.decision); waiting.delete(data.id); });
 worker?.addEventListener("error", () => { worker = null; for (const done of waiting.values()) done(null); waiting.clear(); });
+
+/** What the enemies foresee for each of your possible moves (src/insight.js), worked out in the worker. */
+function foreseeInBackground() {
+  const { state, lookahead, options } = game.ghostSearch;
+  const opts = { pruning: options.pruning, weights: options.weights, habits: options.habits };
+  if (!worker) return Promise.resolve(foresee(state, lookahead, opts));
+  const id = nextId++;
+  return new Promise((done) => {
+    waiting.set(id, (r) => done(r ?? foresee(state, lookahead, opts)));
+    worker.postMessage({ type: "foresee", id, state, lookahead, options: opts });
+  });
+}
 
 /** Ask for the ghosts' decision; resolves to null if it has to be worked out on the main thread. */
 function thinkInBackground() {
@@ -134,17 +146,46 @@ function ventTexture(id) {
   }, { wrap: false });
 }
 
-// A dashed arc over the walls joining a vent's two grates, so you can see where it comes out.
+// The same grate as an outline, drawn only where a wall hides it (an x-ray), so no vent is ever lost.
+function ventOutlineTexture(id) {
+  const color = VENT_COLORS[id] ?? "#9fe";
+  return canvasTexture(THREE, 128, (g, w) => {
+    g.clearRect(0, 0, w, w);
+    g.strokeStyle = color; g.lineWidth = 10; g.setLineDash([18, 10]); g.strokeRect(8, 8, w - 16, w - 16);
+    g.setLineDash([]); g.fillStyle = color; g.font = "bold 64px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(String(id), w / 2, w / 2 + 4);
+  }, { wrap: false });
+}
+
+// A badge floating above each grate, always drawn on top: "this is vent 2", visible from anywhere.
+function ventBadgeTexture(id) {
+  const color = VENT_COLORS[id] ?? "#9fe";
+  return canvasTexture(THREE, 128, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    g.fillStyle = "rgba(6, 10, 16, 0.85)"; g.strokeStyle = color; g.lineWidth = 6;
+    g.beginPath(); g.arc(w / 2, 50, 38, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(w / 2 - 16, 84); g.lineTo(w / 2 + 16, 84); g.lineTo(w / 2, 108); g.closePath(); g.fillStyle = color; g.fill();
+    g.fillStyle = color; g.font = "bold 50px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(String(id), w / 2, 53);
+  }, { height: 128, wrap: false });
+}
+
+// A glowing tube arcing over the walls between a vent's two grates, dashes flowing along it, drawn on
+// top of the walls so you can always see where a vent comes out.
+const ventFlows = [];
 function ventArc(a, b, color, height) {
   const pa = gridToWorld(a, TILE), pb = gridToWorld(b, TILE);
   const mid = new THREE.Vector3((pa.x + pb.x) / 2, height, (pa.z + pb.z) / 2);
   const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(pa.x, 0.1, pa.z), mid, new THREE.Vector3(pb.x, 0.1, pb.z));
-  const line = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints(curve.getPoints(48)),
-    new THREE.LineDashedMaterial({ color, dashSize: 0.25, gapSize: 0.18, transparent: true, opacity: 0.85 }),
+  const dashes = canvasTexture(THREE, 64, (g, w, h) => { g.clearRect(0, 0, w, h); g.fillStyle = "#ffffff"; g.fillRect(0, 0, w * 0.55, h); }, { height: 4 });
+  dashes.repeat.set(Math.max(4, Math.round(curve.getLength() * 3)), 1);
+  ventFlows.push(dashes);
+  const tube = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 64, 0.05, 6, false),
+    new THREE.MeshBasicMaterial({ color, map: dashes, transparent: true, opacity: 0.8, depthTest: false, depthWrite: false }),
   );
-  line.computeLineDistances();
-  return line;
+  tube.renderOrder = 5; // over the walls; the characters (renderOrder 10) still draw over it
+  return tube;
 }
 
 // Evidence drives and the exit lock follow the game state.
@@ -215,17 +256,33 @@ function buildScene() {
     scene.add(pad, glow);
   }
 
-  // Vents: a numbered grate at each end, a glow in the vent's colour, and an arc joining the pair.
+  // Vents: a numbered grate at each end, a glow in the vent's colour, an outline that shows through any
+  // wall in front of it, a numbered badge floating above it, and a glowing arc joining the pair.
+  ventFlows.length = 0;
+  ventBadges = [];
   for (const { id, a, b } of layout.vents) {
     const color = VENT_COLORS[id] ?? "#9fe";
     const material = new THREE.MeshBasicMaterial({ map: ventTexture(id) });
+    const outline = new THREE.MeshBasicMaterial({ map: ventOutlineTexture(id), transparent: true, opacity: 0.9, depthWrite: false, depthFunc: THREE.GreaterDepth });
+    const badge = new THREE.SpriteMaterial({ map: ventBadgeTexture(id), depthTest: false, depthWrite: false, transparent: true });
     for (const end of [a, b]) {
       const { x, z } = gridToWorld(end, TILE);
-      const grate = new THREE.Mesh(new THREE.PlaneGeometry(TILE * 0.86, TILE * 0.86).rotateX(-Math.PI / 2), material);
+      const plane = new THREE.PlaneGeometry(TILE * 0.86, TILE * 0.86).rotateX(-Math.PI / 2);
+      const grate = new THREE.Mesh(plane, material);
       grate.position.set(x, 0.025, z);
+      const xray = new THREE.Mesh(plane, outline);
+      xray.position.set(x, 0.03, z);
+      xray.renderOrder = 12;
       const glow = floorDecal(THREE, { color, size: 1.8, opacity: 0.45, y: 0.03 });
       glow.position.set(x, 0.03, z);
-      scene.add(grate, glow);
+      const pin = new THREE.Sprite(badge);
+      pin.center.set(0.5, 0.1);
+      pin.scale.set(0.72, 0.72, 1);
+      pin.position.set(x, t.wallHeight + 0.35, z);
+      pin.renderOrder = 22;
+      pin.userData.baseY = pin.position.y;
+      ventBadges.push(pin);
+      scene.add(grate, xray, glow, pin);
     }
     scene.add(ventArc(a, b, color, t.wallHeight + 1.2));
   }
@@ -279,6 +336,7 @@ function resetActors() {
   game.state.ghosts.forEach((g, i) => placeAt(ghosts[i], g, ghosts[i].userData.hover, true));
   drawPlan(null);
   drawEvidence();
+  refreshInsight();
   renderer.shadowMap.needsUpdate = true;
 }
 
@@ -425,10 +483,6 @@ function updateHud(message) {
   const { r, c } = game.state.player, grid = game.state.grid;
   const ventNear = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].map(([y, x]) => grid[y]?.[x]).find((tile) => tile >= "1" && tile <= "4");
   if (ventNear && game.status === "playing") chips.push(`<span class="chip vent">Vent ${ventNear} next to you: step onto the grate to crawl out of the other grate ${ventNear}</span>`);
-  if (game.glitchUnlocked) {
-    const label = game.glitchArmed ? "⚡ Glitch armed: your next move is free" : game.glitchUsed ? "⚡ Glitch used this attempt" : "⚡ Glitch ready: press G";
-    chips.push(`<span class="chip glitch ${game.glitchArmed ? "armed" : ""}">${label}</span>`);
-  }
   updateGlitchButton();
   if (game.level.learns) {
     const n = game.attemptsStudied;
@@ -437,13 +491,69 @@ function updateHud(message) {
   $("status").innerHTML = chips.join("");
   $("status").hidden = chips.length === 0;
 
-  const t = game.lastThinking;
-  $("thinking").innerHTML = t
-    ? `<div class="title">${e.Name} checked ${t.futuresConsidered} possible futures (${t.branchesPruned} skipped by pruning)</div>` +
-      t.options.slice(0, 3).map((o) =>
-        `<div class="opt${o.chosen ? " chosen" : ""}"><span>${o.chosen ? "▶ " : ""}${o.dir}</span>` +
-        `<span>expects you: ${o.predictedPlayerReply ?? "–"}${o.fromHabit ? ' <em class="habit">habit</em>' : ""}</span><span>${o.score}</span></div>`).join("")
-    : `<div class="title">After your first move, the ${possessive(e.name)} options and scores show up here.</div>`;
+  renderAbilities();
+  renderThinking();
+}
+
+// ---------- Abilities: the Glitch (unlocked by catches on this level) and the Dash (earned by quick wins) ----------
+const segs = (n, filled, cls = "") => `<span class="ab-bar">${Array.from({ length: n }, (_, i) => `<span class="seg ${i < filled ? `on ${cls}` : ""}"></span>`).join("")}</span>`;
+function renderAbilities() {
+  const k = Math.min(game.catches[game.levelIndex], game.glitchAfter), need = game.glitchAfter;
+  const e = enemy(), they = e.plural ? "they skip their" : "it skips its";
+  let glitch;
+  if (!game.glitchUnlocked) glitch = `${segs(need, k)}<span class="ab-text"><b>Locked</b> · ${k}/${need} catches on this level. Get caught ${need - k} more time${need - k === 1 ? "" : "s"} to unlock: the ${e.name} skip${e.plural ? "" : "s"} a turn.</span>`;
+  else if (game.glitchArmed) glitch = `${segs(need, need, "ready")}<span class="ab-text"><b>Armed!</b> Your next move gets no reply.</span>`;
+  else if (game.glitchUsed) glitch = `${segs(need, need, "used")}<span class="ab-text"><b>Used</b> this try. You get it back if you're caught.</span>`;
+  else glitch = `${segs(need, need, "ready")}<span class="ab-text"><b>Ready:</b> press G (or ⚡), then move: ${they} next turn. Once per try.</span>`;
+  const tries = game.tries[game.levelIndex];
+  let dash;
+  if (game.dashArmed) dash = `${segs(1, 1, "ready")}<span class="ab-text"><b>Armed!</b> Your next move runs 2 tiles.</span>`;
+  else if (game.hasDash) dash = `${segs(1, 1, "ready")}<span class="ab-text"><b>Ready:</b> press F (or »), then a direction to run 2 tiles in one move. One use, any level.</span>`;
+  else if (tries <= DASH_WITHIN) dash = `${segs(DASH_WITHIN, tries, "try")}<span class="ab-text"><b>Try ${tries} of ${DASH_WITHIN}</b> · beat this level within ${DASH_WITHIN} tries to earn one: run 2 tiles in a single move (one use).</span>`;
+  else dash = `${segs(DASH_WITHIN, DASH_WITHIN, "used")}<span class="ab-text"><b>Try ${tries}</b> · too many to earn it here. Beat the next level in ${DASH_WITHIN} tries or fewer.</span>`;
+  $("abilities").innerHTML =
+    `<div class="ab ${game.glitchUnlocked ? "unlocked" : ""}"><span class="ab-name">⚡ Glitch</span>${glitch}</div>` +
+    `<div class="ab ${game.hasDash ? "unlocked" : ""}"><span class="ab-name">» Dash</span>${dash}</div>`;
+}
+
+// ---------- Inside the enemies' heads: what they decided, and what they foresee for each of your moves ----------
+let insight = null, insightKey = 0;
+function refreshInsight() {
+  insight = null;
+  const key = ++insightKey;
+  renderThinking();
+  if (game.status !== "playing") return;
+  foreseeInBackground().then((r) => { if (key === insightKey) { insight = r; renderThinking(); } });
+}
+const ARROW = { up: "↑", down: "↓", left: "←", right: "→" };
+const fmt = (n) => n.toLocaleString("en-US");
+function renderThinking() {
+  const e = enemy(), t = game.lastThinking, n = game.level.lookahead, moves = `${n} move${n > 1 ? "s" : ""}`;
+  const out = [`<div class="title">Inside the ${possessive(e.name)} ${e.plural ? "heads" : "head"}</div>`];
+  if (t) {
+    const chosen = t.options.find((o) => o.chosen), expect = chosen.predictedPlayerReply;
+    out.push(`<p class="wt-line">${e.plural ? "They" : "It"} imagined <b>${fmt(t.futuresConsidered)}</b> possible futures, up to ${moves} ahead${t.branchesPruned ? `, and skipped ${fmt(t.branchesPruned)} that couldn't beat a plan ${e.plural ? "they'd" : "it'd"} already found` : ""}.</p>`);
+    out.push(`<p class="wt-line">${e.plural ? "They expect" : "It expects"} you to go <b class="expect">${expect ? `${ARROW[expect]} ${expect}` : "nowhere"}</b> next${chosen.fromHabit ? " (what you did here last time)" : ""}. Gold dots: the moves ${e.plural ? "they" : "it"} predict${e.plural ? "" : "s"} for you. Red: ${e.plural ? "their" : "its"} plan.</p>`);
+  } else {
+    out.push(`<p class="wt-line">Before every move, ${e.plural ? "they imagine" : "it imagines"} what you'll do and ${e.plural ? "plan" : "plans"} ${moves} ahead. Watch the gold and red dots after your first move.</p>`);
+  }
+  if (game.status === "playing") {
+    const expect = t?.options.find((o) => o.chosen)?.predictedPlayerReply;
+    const cell = (dir) => {
+      const o = insight?.find((x) => x.dir === dir);
+      if (!insight) return `<div class="wt-cell wt-${dir} wait"><span class="wt-arrow">${ARROW[dir]}</span><span>…</span></div>`;
+      if (!o) return `<div class="wt-cell wt-${dir} wall"><span class="wt-arrow">${ARROW[dir]}</span><span>wall</span></div>`;
+      const via = o.vent ? ` (vent ${o.vent})` : "";
+      const [cls, say] = o.verdict === "escape" ? ["good", "Escape!"]
+        : o.verdict === "caught" ? ["bad", o.moves === 0 ? "Walks into them" : o.moves === 1 ? "Caught next turn" : `Caught in ${o.moves} turns`]
+        : o.risk > 0.66 && insight.filter((x) => x.verdict === "safe").length > 1 ? ["meh", "Safe, but riskier"] : ["good", "Safe"];
+      return `<div class="wt-cell wt-${dir} ${cls}${dir === expect ? " expected" : ""}" title="${dir === expect ? `${e.plural ? "They" : "It"} expect${e.plural ? "" : "s"} you to go this way. ` : ""}${say}${via}"><span class="wt-arrow">${ARROW[dir]}</span><span>${say}${via}</span>${dir === expect ? '<em class="wt-exp">expected</em>' : ""}</div>`;
+    };
+    out.push(`<div class="wt-label">What ${e.plural ? "they think" : "it thinks"} happens if you go…</div>`);
+    out.push(`<div class="wt-compass">${cell("up")}${cell("left")}<div class="wt-cell wt-you">you</div>${cell("right")}${cell("down")}</div>`);
+    out.push(`<p class="wt-note">"Safe" only means ${e.plural ? "they" : "it"} can't see a catch within ${moves}. Plan beyond that!</p>`);
+  }
+  $("thinking").innerHTML = out.join("");
 }
 
 const possessive = (word) => (word.endsWith("s") ? `${word}'` : `${word}'s`); // "ghost's", "wardens'"
@@ -472,13 +582,22 @@ function restart(message = "Restarted.") {
 }
 // Some levels open with a story scene (Level 3: Dr. Voss feeds the Wardens Sam's data). It plays between
 // the "Escaped!" card and the next level, unless ?intro=0. Then the level's briefing comes up.
+// Between levels: the next level's story scene if it has one (Level 3), otherwise its title card.
+// The level is built first, behind the scene, so the maze is ready the moment it ends. ?intro=0 skips both.
 async function goToNextLevel() {
   const next = game.levels[game.levelIndex + 1];
   hideOverlay();
-  const scene = next?.cutscene && params.get("intro") !== "0";
-  if (scene) await playCutscene({ autoStart: true, scene: next.cutscene });
   game.nextLevel(); showLevel(startMessage());
-  if (scene) showBriefing();
+  if (params.get("intro") !== "0") {
+    if (next.cutscene) await playCutscene({ autoStart: true, scene: next.cutscene });
+    else await playLevelCard(cardInfo(next));
+  }
+  showBriefing();
+}
+
+// What a level's title card shows (cutscene.js draws it).
+function cardInfo(level) {
+  return { id: level.id, of: game.levels.length, name: level.name, concept: level.concept ?? "", enemies: describeLevel(level).short, style: level.theme?.style ?? "basement" };
 }
 
 // Before a level: what's new and what to think about. The briefing is the level's lesson.
@@ -510,29 +629,34 @@ async function openMenu(skipPress = true) {
   if (choice.mode === "story") {
     game.startLevel(0);
     showLevel(startMessage());
-    if (params.get("intro") !== "0") await playStory(true);
+    if (params.get("intro") !== "0") { await playStory(true); await playLevelCard(cardInfo(game.level)); }
   } else {
     game.startLevel(choice.index);
     showLevel(startMessage());
+    if (params.get("intro") !== "0") await playLevelCard(cardInfo(game.level));
   }
   showBriefing();
 }
 
 async function takeTurn(dir) {
   if (busy || game.status !== "playing") return;
+  const dashing = game.dashArmed;
   const result = game.playerMove(dir);
   if (result.event === "blocked") return updateHud("That's a wall.");
   if (result.event === "locked") return updateHud(`The exit is locked: you still need ${game.evidence.total - game.evidence.held} evidence drive${game.evidence.total - game.evidence.held === 1 ? "" : "s"}.`);
   const glitching = game.glitchArmed; // this move gets no reply: the enemies lose their turn
   if (glitching) logger.recordMove("glitch");
+  if (result.dashed) logger.recordMove("dash");
   logger.recordMove(dir);
-  placeAt(player, game.state.player, PLAYER_Y, !!result.vent); // a vent crawl pops you out of the other grate
+  insight = null; // they'll foresee again once they've moved
+  if (result.dashed && !result.vent) placeAlong(player, result.path, PLAYER_Y); // run through both tiles
+  else placeAt(player, game.state.player, PLAYER_Y, !!result.vent); // a vent crawl pops you out of the other grate
   if (result.pickedUp) drawEvidence();
   if (result.event !== "moved") return finish();
 
   busy = true;
   const token = turnToken;
-  updateHud(glitching ? "GLITCH!" : `${enemy().Name} ${enemy().plural ? "are" : "is"} thinking…`);
+  updateHud(glitching ? "GLITCH!" : `${dashText(result, dashing)}${enemy().Name} ${enemy().plural ? "are" : "is"} thinking…`);
   // Think while the player's move animates; wait at least STEP_MS so the turns stay readable.
   const [decision] = await Promise.all([glitching ? null : thinkInBackground(), new Promise((r) => setTimeout(r, STEP_MS))]);
   if (token !== turnToken) return; // restarted while they were thinking
@@ -546,14 +670,15 @@ async function takeTurn(dir) {
     const their = enemy().plural ? "their" : "its";
     updateHud(`${picked(result)}GLITCH! The ${enemy().name} froze and lost ${their} turn. Your move.`);
     busy = false;
+    refreshInsight();
     return;
   }
   g.paths.forEach((path, i) => placeAlong(ghosts[i], path.length ? path : [g.to[i]], ghosts[i].userData.hover));
   drawPlan(g.thinking);
   updateTension();
-  updateHud(g.event === "caught" ? "" : `${picked(result)}${enemy().Name} moved ${g.dir}.`);
+  updateHud(g.event === "caught" ? "" : `${dashText(result, dashing)}${picked(result)}${enemy().Name} moved ${g.dir}.`);
   busy = false;
-  if (g.event === "caught") finish();
+  if (g.event === "caught") finish(); else refreshInsight();
 }
 
 // The music leans in when an enemy is close: 1 when one is next to you, 0 at 5+ tiles away.
@@ -562,6 +687,8 @@ function updateTension() {
   const near = Math.min(...game.state.ghosts.map((g) => Math.abs(g.r - r) + Math.abs(g.c - c)));
   music.setTension((5 - near) / 4);
 }
+
+const dashText = (result, dashing) => (result.dashed ? "DASH! You ran two tiles. " : dashing && result.dashBlocked ? "Only one tile was clear, so you took one step and kept your dash. " : "");
 
 // What happened on your own move, for the HUD message.
 const picked = (result) => (result.vent ? `You crawled through vent ${result.vent}. ` : "") +
@@ -574,6 +701,14 @@ function toggleGlitch() {
   if (game.glitchUsed) return updateHud("You've used your glitch this attempt. You get a new one if they catch you.");
   const armed = game.toggleGlitch();
   updateHud(armed ? "Glitch armed: your next move gets no reply. Pick it carefully." : "Glitch disarmed.");
+}
+
+// ---------- The dash (earned by beating a level in DASH_WITHIN tries or fewer; one use, any level) ----------
+function toggleDash() {
+  if (busy || overlayAction || game.status !== "playing") return;
+  if (!game.hasDash) return updateHud(`You don't have a dash yet. Beat a level in ${DASH_WITHIN} tries or fewer to earn one.`);
+  const armed = game.toggleDash();
+  updateHud(armed ? "Dash armed: your next move runs two tiles in a straight line. Pick the direction." : "Dash put away. You still have it.");
 }
 
 let glitchUntil = 0;
@@ -591,6 +726,11 @@ function updateGlitchButton() {
   btn.disabled = game.glitchUsed || game.status !== "playing";
   btn.classList.toggle("armed", game.glitchArmed);
   btn.setAttribute("aria-pressed", String(game.glitchArmed));
+  const dash = $("dash-btn");
+  dash.hidden = !game.hasDash;
+  dash.disabled = game.status !== "playing";
+  dash.classList.toggle("armed", game.dashArmed);
+  dash.setAttribute("aria-pressed", String(game.dashArmed));
 }
 
 // Caught: say HOW they caught you, then one nudge to think about their prediction.
@@ -613,23 +753,38 @@ function finish() {
     if (game.level.learns) text += ` They've now studied ${game.attemptsStudied} of your attempts.`;
     if (game.catches[game.levelIndex] === game.glitchAfter) {
       // The moment the glitch unlocks: explain it instead of the usual hint.
-      text += ` That's ${game.glitchAfter} catches on this level, so you've unlocked a new ability.`;
+      text += ` That's ${game.glitchAfter} catches on this level, so you've unlocked the Glitch for the rest of your tries here.`;
       showOverlay("lose", "Caught! · Glitch unlocked", text, "Try again", () => restart("Glitch ready: press G or the ⚡ button, then move."),
-        `GLITCH: once per attempt, press G (or the ⚡ button), then make a move. The ${e.name} ${e.plural ? "glitch and lose their" : "glitches and loses its"} turn, so you get one free move. ${e.plural ? "Their" : "Its"} whole plan assumes ${e.plural ? "they get" : "it gets"} to answer every move you make.`);
+        `⚡ GLITCH: once per try, press G (or the ⚡ button), then make a move. The ${e.name} ${e.plural ? "glitch and skip their" : "glitches and skips its"} next turn, so you get a free move. ${e.plural ? "Their" : "Its"} whole plan assumes ${e.plural ? "they get" : "it gets"} to answer every move you make. You get it back every time you're caught.`);
       return;
     }
+    const left = game.glitchAfter - game.catches[game.levelIndex];
+    if (left > 0) text += ` ${left === 1 ? "One more catch" : `${left} more catches`} on this level unlocks the ⚡ Glitch.`;
     showOverlay("lose", "Caught!", text, "Try again", () => restart("Try again!"), hint);
   } else if (game.status === "levelComplete") {
     music.escaped();
     logger.endAttempt("win", { x: game.state.player.c, y: game.state.player.r });
     catches = 0;
     const next = game.levels[game.levelIndex + 1];
-    if (next.cutscene && params.get("intro") !== "0") showOverlay("win", "Escaped!", `You made it out. Next: Level ${next.id} · ${next.name}. But someone was watching...`, "Continue", goToNextLevel);
-    else showOverlay("win", "Escaped!", `Next: Level ${next.id} · ${next.name}. ${next.briefing ?? describeLevel(next).line}`, `Start Level ${next.id}`, goToNextLevel, next.concept ? `New idea: ${next.concept}` : "");
+    const { title, note } = dashNews();
+    const tries = `You did it in ${game.wonInTries} ${game.wonInTries === 1 ? "try" : "tries"}. `;
+    if (next.cutscene && params.get("intro") !== "0") showOverlay("win", title, `${tries}You made it out. Next: Level ${next.id} · ${next.name}. But someone was watching...`, "Continue", goToNextLevel, note);
+    else showOverlay("win", title, `${tries}Next: Level ${next.id} · ${next.name}.`, "Continue", goToNextLevel, note);
   } else if (game.status === "gameComplete") {
     music.escaped();
+    logger.endAttempt("win", { x: game.state.player.c, y: game.state.player.r });
     showOverlay("win", "Evidence uploaded!", `You outthought every ${e.one} and the world can finally see what Clearpath was doing. Every Warden was only ever as good as its predictions, and you learned to read them.`, "Main menu", () => openMenu());
   }
+}
+
+// After a win: did it earn a dash? (Beat a level in DASH_WITHIN tries or fewer; you hold at most one.)
+function dashNews() {
+  if (game.dashEarned) {
+    return { title: "Escaped! · Dash earned",
+      note: `» DASH earned for beating this level in ${game.wonInTries} ${game.wonInTries === 1 ? "try" : "tries"}. On any level, press F (or the » button), then a direction: you run 2 tiles in one move, before they can reply. It's one use, so save it for a tight spot. Beat another level in ${DASH_WITHIN} tries or fewer to earn it again.` };
+  }
+  if (game.hasDash) return { title: "Escaped!", note: "» You're still holding your Dash (F). You can only carry one at a time." };
+  return { title: "Escaped!", note: `» Beat a level in ${DASH_WITHIN} tries or fewer to earn a Dash: a one-use move of 2 tiles at once.` };
 }
 
 // ---------- Input: keyboard and on-screen buttons ----------
@@ -656,6 +811,7 @@ window.addEventListener("keydown", (e) => {
   if (key === "r") return restart();
   if (key === "m") return openMenu();
   if (key === "g") return toggleGlitch();
+  if (key === "f") return toggleDash();
   if (key in KEYS) { e.preventDefault(); takeTurn(KEYS[key]); }
 });
 
@@ -663,6 +819,7 @@ for (const btn of document.querySelectorAll("#pad button[data-dir]")) {
   btn.addEventListener("click", () => takeTurn(btn.dataset.dir));
 }
 $("glitch-btn").addEventListener("click", toggleGlitch);
+$("dash-btn").addEventListener("click", toggleDash);
 
 // ---------- Render loop ----------
 const clock = new THREE.Clock();
@@ -695,6 +852,10 @@ renderer.setAnimationLoop((now) => {
     mesh.userData.animate({ time, facing, moving: away > 0.02, step: away * k, charged });
   }
   for (const d of drives) d.userData.spin(time);
+  if (!still) {
+    for (const f of ventFlows) f.offset.x = -time * 0.6; // dashes flow along each vent's arc
+    ventBadges.forEach((b, i) => { b.position.y = b.userData.baseY + Math.sin(time * 2 + i) * 0.05; });
+  }
   const glitchy = time < glitchUntil && !still;
   player.position.y = PLAYER_Y;
   playerGlow.position.x = player.position.x;
@@ -733,7 +894,8 @@ if (params.has("level") || params.get("title") === "0") showBriefing();
 // The home screen opens first. ?level= or ?title=0 go straight into the game (the story still plays
 // before Level 1 unless ?intro=0).
 if (params.get("scene")) {
-  playCutscene({ scene: params.get("scene") }).then(showBriefing); // ?scene=core previews a story scene
+  // ?scene=core previews a story scene; ?scene=card&level=4 previews a level's title card.
+  (params.get("scene") === "card" ? playLevelCard(cardInfo(game.level)) : playCutscene({ scene: params.get("scene") })).then(showBriefing);
 } else if (params.has("level") || params.get("title") === "0") {
   if (game.levelIndex === 0 && params.get("intro") !== "0") playStory(false);
 } else {
