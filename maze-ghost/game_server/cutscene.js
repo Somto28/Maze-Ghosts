@@ -37,7 +37,7 @@ function shk(a,t){if(RM||a<=0)return[0,0];const k=Math.floor(t*40);return[(hash(
 /* ---------- 3x5 bitmap font ---------- */
 const G={A:'010101111101101',B:'110101110101110',C:'011100100100011',D:'110101101101110',E:'111100110100111',F:'111100110100100',G:'011100101101011',H:'101101111101101',I:'111010010010111',J:'001001001101010',K:'101101110101101',L:'100100100100111',M:'101111111101101',N:'110101101101101',O:'010101101101010',P:'110101110100100',Q:'010101101110011',R:'110101110101101',S:'011100010001110',T:'111010010010010',U:'101101101101111',V:'101101101101010',W:'101101111111101',X:'101101010101101',Y:'101101010010010',Z:'111001010100111',
 '0':'111101101101111','1':'010110010010111','2':'110001010100111','3':'110001010001110','4':'101101111001001','5':'111100110001110','6':'011100111101111','7':'111001010010010','8':'111101111101111','9':'111101111001110',
-'.':'000000000000010',':':'000010000010000','-':'000000111000000','_':'000000000000111','/':'001001010100100','>':'100010001010100','!':'010010010000010','?':'110001010000010','%':'101001010100101','#':'101111101111101','[':'110100100100110',']':'011001001001011','=':'000111000111000',',':'000000000010100','*':'000101010101000','+':'000010111010000','(':'010100100100010',')':'010001001001010',' ':'000000000000000'};
+'.':'000000000000010',':':'000010000010000','-':'000000111000000','_':'000000000000111','/':'001001010100100','>':'100010001010100','!':'010010010000010','?':'110001010000010','%':'101001010100101','#':'101111101111101','[':'110100100100110',']':'011001001001011','=':'000111000111000',',':'000000000010100','*':'000101010101000','+':'000010111010000','(':'010100100100010',"'":'010010000000000',')':'010001001001010',' ':'000000000000000'};
 function txt(s,x,y,c,sc=1){s=String(s).toUpperCase();ctx.fillStyle=c;let cx=Math.round(x);y=Math.round(y);
   for(const ch of s){const g=G[ch];if(g)for(let i=0;i<15;i++)if(g[i]==='1')ctx.fillRect(cx+(i%3)*sc,y+Math.floor(i/3)*sc,sc,sc);cx+=4*sc;}}
 const tw=(s,sc=1)=>String(s).length*4*sc-sc;
@@ -677,6 +677,68 @@ const CORE_SHOTS=[
  }},
 ];
 
+/* ---------- Level cards: a short title card before each level ---------- */
+// Played between levels (and when a level is picked from the menu): the level's number and name, where
+// you are in the story, the new idea, and what's hunting you, over a small animated picture of the place.
+const CARD={
+  basement:{accent:'#ffb347',bg:'#120b07',tag:['TRAPPED UNDER CLEARPATH.','ONE WARDEN. IT NEVER STOPS CHASING.'],art(t){
+    for(let y=10;y<150;y+=8)for(let x=180+((y/8)%2)*6;x<W;x+=12){R(x,y,11,7,'#3a1f16');A(x,y,11,1,'#ffffff',.04);}
+    R(180,150,W-180,30,'#1a1310');
+    const a=Math.sin(t*1.7)*.35,bx=262+Math.sin(a)*48,by=10+Math.cos(a)*48;line(262,10,bx,by,'#5a4a3a');
+    for(let r=40;r>4;r-=6)A(bx-r,by-r,r*2,r*2,'#ffcf7a',.03);R(bx-3,by,6,7,'#ffe6a8');
+    A(bx-40,150,80,30,'#ffcf7a',.12);
+    warden(220,152,{eye:1,t,look:1,step:Math.floor(t*3)});}},
+  'server-halls':{accent:'#5ab0ff',bg:'#060a12',tag:['THE SERVER FLOOR, AFTER HOURS.','THIS WARDEN PREDICTS WHERE YOU WILL BE.'],art(t){
+    for(let i=0;i<4;i++){const x=184+i*34;R(x,24,28,126,'#121a26');R(x,24,28,2,'#2a3a52');
+      for(let y=30;y<146;y+=6){R(x+3,y,22,4,'#0b111a');if(hash(i*97+y+Math.floor(t*4+i))>.55)R(x+4+((y*7)%16),y+1,2,2,hash(y+i)>.8?'#ff4656':'#3dff8a');}}
+    A(180,140,W-180,40,'#5ab0ff',.06);R(300,12,12,6,'#2a3442');if(Math.floor(t*2)%2)R(302,14,3,3,'#ff3b4a');
+    warden(268,160,{eye:1,t,look:-1,step:0});}},
+  core:{accent:'#f2c230',bg:'#0b0c10',tag:['THE PROVING GROUND.','TWO WARDENS NOW PLAN AS ONE TEAM.'],art(t){
+    R(180,140,W-180,40,'#20232a');for(let x=180;x<W;x+=10){R(x,140,5,4,'#f2c230');}
+    for(const [x,e] of [[214,seg(t,.5,.7)],[258,seg(t,1,1.2)],[300,0]]){R(x-16,150,32,4,'#3a3f48');warden(x,148,{eye:e,t,look:0,step:0});}
+    const sx=180+((t*60)%140);A(sx,20,3,120,'#bfe6ff',.25);}},
+  vault:{accent:'#3fd0c9',bg:'#03090d',tag:['COLD STORAGE FOR EVERYTHING THEY KNOW.','A RULE-BOUND DRONE JOINS THE HUNT.'],art(t){
+    const cx=252,cy=86;for(let r=60;r>4;r-=2){const c=r>56?'#a7b7c3':r>48?'#58666f':r>20?'#33414d':'#3fd0c9';ctx.fillStyle=c;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fill();}
+    for(let k=0;k<8;k++){const a=k/8*Math.PI*2+t*.4;R(cx+Math.cos(a)*40-2,cy+Math.sin(a)*40-2,5,5,'#c3d0d8');}
+    A(cx-14,cy-14,28,28,'#bff6ff',.2+.1*Math.sin(t*3));
+    for(let i=0;i<5;i++){const y=30+((t*12+i*31)%110);R(190+i*24,y,5,5,'#5ff6ff');A(189+i*24,y-1,7,7,'#5ff6ff',.25);}}},
+  executive:{accent:'#c9a85c',bg:'#07080c',tag:['FLOOR 88. THE CHIEFS KEEP THE PROOF HERE.','THEY KNOW WHAT YOU CAME FOR.'],art(t){
+    R(180,10,W-180,150,'#0d1424');
+    for(let i=0;i<9;i++){const bh=40+hash(i)*70,x=184+i*15;R(x,160-bh,13,bh,'#151b2c');for(let y=166-bh;y<156;y+=6)if(hash(i*13+y)>.55)R(x+3,y,2,2,'#ffd696');}
+    for(let i=0;i<40;i++){const x=180+hash(i)*140,y=(hash(i*3)*150+t*90)%150+10;line(x,y,x+1,y+6,'#9fb4d8',0);}
+    for(let x=180;x<W;x+=46)R(x,10,3,150,'#05060a');R(180,10,W-180,4,'#05060a');R(180,156,W-180,4,'#c9a85c');
+    txtO('88',282,24,'#c9a85c',2,'#05060a');}},
+  uplink:{accent:'#ff4656',bg:'#05060d',tag:['THE ROOF. THE WORLD IS ONE UPLOAD AWAY.','THESE WARDENS LEARN FROM YOUR DATA.'],art(t){
+    for(let i=0;i<60;i++){const x=180+hash(i)*140,y=hash(i*7)*120;R(x,y,1,1,hash(i+Math.floor(t*3))>.2?'#d9dfeb':'#4a5060');}
+    for(let i=0;i<10;i++){const bh=20+hash(i*5)*40,x=180+i*14;R(x,170-bh,12,bh,'#0c0f1a');}
+    R(250,40,4,110,'#4a5262');for(let y=50;y<150;y+=12){line(242,y,262,y+12,'#3a4150');line(262,y,242,y+12,'#3a4150');}
+    if(Math.floor(t*1.5)%2){R(249,36,6,5,'#ff3b4a');A(244,31,16,15,'#ff3b4a',.3);}
+    A(300,0,10,150,'#3fd0c9',.15+.08*Math.sin(t*4));R(296,150,18,10,'#3a4150');}},
+};
+const cardText=(s)=>String(s).toUpperCase().replace(/·/g,'-').replace(/[^A-Z0-9 .:\-_/>!?%#\[\]=,*+()']/g,'');
+// Split text into lines no wider than maxW pixels (3x5 font).
+function wrapLines(text,maxW){const out=[];let cur='';for(const w of text.split(' ')){const next=cur?`${cur} ${w}`:w;if(tw(next)>maxW&&cur){out.push(cur);cur=w;}else cur=next;}if(cur)out.push(cur);return out;}
+function cardScene(lv){
+  const c=CARD[lv.style]??CARD.basement;
+  return {shots:[{name:'Level card',note:`Level ${lv.id}: ${lv.name}`,dur:5.4,fi:.35,fo:.45,nobars:true,music:()=>null,
+    ev:[[.15,'boot'],[1.2,'cardchime']],lines:[],draw(t){
+      R(0,0,W,H,c.bg);c.art(t);
+      for(let x=0;x<200;x+=2)A(x,0,2,H,'#000000',.7*(1-x/200));
+      const k=ease(seg(t,.15,.9));
+      ctx.globalAlpha=seg(t,.15,.6);txt(`LEVEL ${lv.id} OF ${lv.of}`,lerp(-60,16,k),34,'#8891a6');ctx.globalAlpha=1;
+      const name=cardText(lv.name),sc=tw(name,3)<=176?3:2;
+      txtO(typed(name,t,.5,16),16,46,c.accent,sc,'#000000');
+      R(16,48+5*sc+4,Math.round(lerp(0,160,ease(seg(t,1,1.7)))),2,c.accent);
+      const y0=48+5*sc+14;
+      ctx.globalAlpha=seg(t,1.3,1.9);c.tag.forEach((l,i)=>txt(l,16,y0+i*9,'#d9dfeb'));
+      ctx.globalAlpha=seg(t,2.1,2.7);txt('NEW IDEA',16,y0+26,c.accent);txt(cardText(lv.concept),16,y0+35,'#ffffff');
+      ctx.globalAlpha=seg(t,2.7,3.3);wrapLines(cardText(lv.enemies),176).forEach((l,i)=>txt(l,16,y0+51+i*9,'#8891a6'));
+      ctx.globalAlpha=1;
+      if(t>3.4&&Math.floor(t*2)%2)txt('PRESS ANY KEY',16,166,'#5d6578');
+    }}],
+    label:`Level ${lv.id}: ${lv.name}`,canvasLabel:`Title card: Level ${lv.id}, ${lv.name}. ${lv.concept}.`,start:'Continue',skip:'Skip ›',poster:3.6};
+}
+
 /* ---------- the scenes ---------- */
 const SCENES={
   afterHours:{shots:SHOTS,label:'Opening cutscene',canvasLabel:'Pixel-art cutscene: an employee finds Clearpath\'s secret Warden lab',start:'Start the story',skip:'Skip intro ›',poster:2.9},
@@ -685,7 +747,7 @@ const SCENES={
 
 /* ---------- audio ---------- */
 let AC=null,master=null,musicBus=null,sfxBus=null,bus=null,NB=null,soundOn=true,unfollow=[];
-const TRIM={music:15,effects:6}; // evens the cutscenes out with the rest of the game (see sound-settings.js)
+const TRIM={music:9,effects:4.5}; // the cutscenes sit a little under the levels: easy on the ears (see sound-settings.js)
 const mf=m=>440*Math.pow(2,(m-69)/12);
 function ensureAudio(){try{if(!AC){AC=new(window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=.4;master.connect(AC.destination);
   // Music and effects on their own buses, so the player's music and effects volumes apply.
@@ -716,16 +778,29 @@ const SFX={
   data:()=>{tone(1568,.06,'square',.06);tone(2093,.08,'square',.05,0,.07);},
   camclick:()=>{noise(.04,.12,2500,'highpass');tone(1200,.03,'square',.04);},
   end:()=>[57,60,64].forEach((n,i)=>tone(mf(n),2.4,'triangle',.06,0,i*.12)),
+  cardchime:()=>{[69,76,81].forEach((n,i)=>tone(mf(n),1.4,'triangle',.05,0,i*.09));tone(mf(88),1.8,'sine',.025,0,.3);},
 };
 const MUS={
   office:{rate:4,play(i){tone(mf([57,64,60,67,64,60,62,59][i%8]+12),.22,'triangle',.04);if(i%8===0)tone(mf(45),.6,'triangle',.05);}},
   muzak:{rate:3,play(i){tone(mf([72,76,79,83,81,79,76,74][i%8]),.3,'sine',.035);if(i%4===0)tone(mf(48+[0,5,7,5][(i/4|0)%4]),.6,'sine',.05);}},
-  tense:{rate:2,play(i){tone(mf(i%2?34:33),.45,'square',.03);if(i%8===7)tone(mf(70),.6,'sine',.02,-60);}},
-  chase:{rate:8,play(i){tone(mf([33,33,45,33,36,33,45,38][i%8]),.1,'sawtooth',.05);if(i%2===0)noise(.03,.035,6000,'highpass');}},
+  // "tense": Dr. Voss's theme. Mysterious rather than menacing, and it keeps moving so it never drones:
+  // a slow Dm9 - Bbmaj7 - Gm9 - A7sus walk with a soft sine bass, a warm triangle pad, a gentle plucked
+  // figure that changes every other pass, and a high bell at the top of each cycle. 4 steps a second.
+  tense:{rate:4,play(i){
+    const bar=Math.floor(i/8)%4,st=i%8,pass=Math.floor(i/32)%2;
+    const ch=[[50,53,57,60,64],[46,50,53,57,62],[43,46,50,53,57],[45,50,52,55,59]][bar];
+    if(st===0){tone(mf(ch[0]-12),1.9,'sine',.05);for(const n of ch.slice(1,4))tone(mf(n),2.1,'triangle',.012);}
+    const fig=pass?[[1,4],[3,3],[5,2],[6,4]]:[[2,2],[4,4],[6,3]];
+    for(const[s0,k]of fig)if(st===s0)tone(mf(ch[k]+12),.5,'sine',.022);
+    if(st===0&&bar===0)tone(mf(ch[4]+24),1.6,'sine',.012);
+  }},
+  // "chase": the run. Urgent but not harsh: a triangle bass in 8ths, a soft pulse on top, a light hat.
+  chase:{rate:8,play(i){tone(mf([33,33,45,33,36,33,45,38][i%8]),.12,'triangle',.06);if(i%4===2)tone(mf([69,72,76,72][(i>>2)%4]),.12,'sine',.018);if(i%2===0)noise(.025,.018,7000,'highpass');}},
 };
 let lastKey='';
 function fireEvents(a,b){if(b-a>.5)return;SH.forEach(s=>{if(s.start>b||s.start+s.dur<a)return;for(const[at,n]of s.ev){const g=s.start+at;if(g>a&&g<=b&&SFX[n])SFX[n]();}});}
-function music(i,lt){const s=SH[i],m=s.music&&s.music(lt);if(!m||!MUS[m])return;const idx=Math.floor(lt*MUS[m].rate),k=i+m+idx;if(k!==lastKey){lastKey=k;bus=musicBus;MUS[m].play(idx);bus=sfxBus;}}
+// Voss's theme ("tense") keeps its place across shot changes; the others restart with each shot.
+function music(i,lt,T=lt){const s=SH[i],m=s.music&&s.music(lt);if(!m||!MUS[m])return;const idx=Math.floor((m==='tense'?T:lt)*MUS[m].rate),k=(m==='tense'?'':i)+m+idx;if(k!==lastKey){lastKey=k;bus=musicBus;MUS[m].play(idx);bus=sfxBus;}}
 
 function closeAudio() {
   unfollow.forEach((stop) => stop()); unfollow = [];
@@ -747,11 +822,12 @@ export const cutsceneActive = () => active;
  * @param {{ autoStart?: boolean, scene?: keyof typeof SCENES }} [options]
  *   autoStart: begin right away. Use it only when the player has just clicked or pressed a key
  *   (browsers block sound until then); otherwise it waits on a start button.
- *   scene: "afterHours" (default, before Level 1) or "core" (before Level 3).
+ *   scene: "afterHours" (default, before Level 1), "core" (before Level 3), or "card": a level's title card,
+ *   with level = { id, of, name, concept, enemies, style } (see playLevelCard).
  */
-export function playCutscene({ autoStart = false, scene = "afterHours" } = {}) {
+export function playCutscene({ autoStart = false, scene = "afterHours", level = null } = {}) {
   if (active) return Promise.resolve();
-  const sc = SCENES[scene] ?? SCENES.afterHours;
+  const sc = scene === "card" && level ? cardScene(level) : SCENES[scene] ?? SCENES.afterHours;
   SH = sc.shots;
   TOTAL = timeline(SH);
   active = true;
@@ -835,12 +911,14 @@ export function playCutscene({ autoStart = false, scene = "afterHours" } = {}) {
       e.stopImmediatePropagation();
       if (e.key === "Escape") { e.preventDefault(); finish(); return; }
       if (!started) { e.preventDefault(); begin(); return; }
+      if (scene === "card") { e.preventDefault(); if (T > 0.5 && !e.repeat) finish(); return; } // any key moves on (not the key that opened it)
       if (e.key === " ") { e.preventDefault(); playing = !playing; last = null; }
       else if (e.key === "Enter" && T >= TOTAL - SH[SH.length - 1].dur) { e.preventDefault(); finish(); }
     }
     window.addEventListener("keydown", onKey, true);
 
     startBtn.addEventListener("click", begin);
+    if (scene === "card") q("canvas").addEventListener("click", () => { if (T > 0.5) finish(); });
     q(".cs-skip").addEventListener("click", finish);
     q(".cs-sound").addEventListener("click", (e) => {
       sound.toggleMute(); // the same mute as the sound panel in the corner
@@ -859,9 +937,15 @@ export function playCutscene({ autoStart = false, scene = "afterHours" } = {}) {
         if (T >= TOTAL) { render(TOTAL); finish(); return; }
       }
       const lt = render(started ? T : sc.poster); // before starting, show a still as a poster
-      if (playing && soundOn) music(curShot, lt);
+      if (playing && soundOn) music(curShot, lt, T);
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
   });
 }
+
+/**
+ * The title card before a level (about 5 seconds; any key skips it).
+ * @param {{ id: number, of: number, name: string, concept: string, enemies: string, style: string }} level
+ */
+export function playLevelCard(level) { return playCutscene({ autoStart: true, scene: "card", level }); }

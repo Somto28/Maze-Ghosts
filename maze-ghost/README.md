@@ -43,7 +43,7 @@ Walking distance is measured with breadth-first search through the corridors, no
 
 ### Vents (Level 2+)
 
-Vent grates come in numbered pairs (`1`-`4` in a maze). Step onto a grate and you crawl through and come out of the grate with the same number, in one move. Enemies can't use vents or stand on a grate, so a grate is also a one-turn safe spot (you still have to move on next turn). The wardens know where every vent comes out, so they include crawls in their search and guard the far end when they predict you'll use it. In the 3D view each pair has its own colour, a big number on the grate and a dashed arc joining the two ends, and the HUD tells you when you're standing next to one.
+Vent grates come in numbered pairs (`1`-`4` in a maze). Step onto a grate and you crawl through and come out of the grate with the same number, in one move. Enemies can't use vents or stand on a grate, so a grate is also a one-turn safe spot (you still have to move on next turn). The wardens know where every vent comes out, so they include crawls in their search and guard the far end when they predict you'll use it. In the 3D view each pair has its own colour and a big number on the grate, and nothing can hide a vent: a numbered badge floats above every grate, a dashed outline of the grate shows through any wall in front of it, and a glowing arc with dashes flowing along it joins the two ends over the top of the walls. The HUD also tells you when you're standing next to one, and the "If you go…" compass marks moves that go through a vent.
 
 **You can't wait.** Every turn you must move (`PLAYER_CAN_WAIT` in `src/rules.js`); the wardens can still hold still. That keeps the pressure on and makes the plan dots matter.
 
@@ -51,9 +51,13 @@ Vent grates come in numbered pairs (`1`-`4` in a maze). Step onto a grate and yo
 
 A drone (`D` in a maze) doesn't search at all. Each enemy turn it moves along its `dronePattern` (Levels 4 and 6 use `[2, 0]`: dash 2 tiles, then recharge for a turn) straight toward where you are *now*, ending as close to you as it can. If you're in a vent it hovers at the opening nearest you. The wardens know that rule, so inside their search they move the drones exactly as the drones really will, and plan around them. The contrast is the lesson: the drone is faster than anything, but a player who learns its rule can lead it anywhere.
 
-### Glitch: a lifeline after 10 catches (every level)
+### Abilities: Glitch and Dash (every level)
 
-Get caught 10 times on the same level and you unlock **Glitch** for the rest of your tries on that level, until you beat it: escaping resets that level's count, so coming back to it later starts with the glitch locked again. Press **G** (or the ⚡ button in the middle of the arrow pad) to arm it; your next move gets no reply, because every enemy (wardens *and* drones) glitches and loses its turn. It's one use per attempt and comes back each time you're caught or restart. Pressing it again before you move puts it away unused. Restarting with **R** doesn't count as a catch, and the count is per level (`game.catches[levelIndex]`), so struggling on Level 4 doesn't unlock it on Level 5. The 10th "Caught!" card announces it. `GLITCH_AFTER` in `src/game.js` sets the number (a level can override it with `glitchAfter`), and `?glitch=1` unlocks it straight away for demos. It's there so nobody spends the whole class stuck on one level; the simulated class in `npm run classroom` doesn't use it.
+Two abilities help students who are stuck, and reward the ones who aren't. The HUD shows both all the time, under the legend, with a progress bar and one line on what each does and how to get it.
+
+**Glitch: unlocked by 5 catches on a level.** The progress bar fills one segment per catch (`0/5 catches on this level...`), and every "Caught!" card says how many more it takes. On the 5th catch the card announces it and explains it. From then on, for the rest of your tries on that level, press **G** (or the ⚡ button in the middle of the arrow pad) to arm it: your next move gets no reply, because every enemy (wardens *and* drones) glitches and skips its turn. One use per try; it comes back each time you're caught or restart. Pressing it again before you move puts it away unused. Restarting with **R** doesn't count as a catch; the count is per level (`game.catches[levelIndex]`) and resets when you beat the level, so a replay starts locked again. `GLITCH_AFTER` in `src/game.js` sets the number (a level can override it with `glitchAfter`); `?glitch=1` unlocks it on every level for demos.
+
+**Dash: earned by beating any level in fewer than 5 tries.** Every start or restart of a level is a try; the bar shows `Try 2 of 4`. Escape within 4 tries and the "Escaped!" card says you've earned a Dash and explains it. Press **F** (or the » button in the pad's top-left corner) to arm it, then a direction: you run **2 tiles** in a straight line in one move, before the enemies reply. It's **one use**, and you can carry it to any level, but you only ever hold one; after using it, earn it again by beating another level in 4 tries or fewer. If only one tile is clear (a wall right after the first), you just take one step and keep the dash. `DASH_WITHIN` in `src/game.js` sets the number of tries.
 
 ### Learning wardens (Level 6, `src/learning.js`)
 
@@ -81,7 +85,9 @@ game.evidence;        // { total, held, exitOpen }
 game.attemptsStudied; // learning levels: how many caught attempts the wardens have studied
 game.habits;          // learning levels: { "row,col": "dir" } they expect you to repeat
 game.status;          // "playing" | "caught" | "levelComplete" | "gameComplete"
-game.toggleGlitch();  // after 10 catches on this level: arm (or put away) the glitch; the next ghostMove() returns event "glitched"
+game.toggleGlitch();  // after 5 catches on this level: arm (or put away) the glitch; the next ghostMove() returns event "glitched"
+game.toggleDash();    // if you hold a dash (game.hasDash): your next playerMove runs 2 tiles (result.dashed, result.path)
+game.tries[i];        // tries on level i since you last beat it; game.wonInTries / game.dashEarned after a win
 game.glitchUnlocked;  // true once this level has caught you game.glitchAfter (10) times; game.glitchReady: usable right now
 game.restartLevel();  // learning wardens keep what they learned; game.forgetAttempts() wipes it
 game.nextLevel();     // only after "levelComplete"
@@ -120,9 +126,9 @@ Every level has its own art and a matching HUD, picked by `theme.style`, each in
 
 A look can also paint a full-screen `background` (the vault hall, the executive suite's windows, the night skyline), set the `fogColor`, and react to the exit unlocking (`setExitOpen`). Shared helpers for all of this are in `game_server/art-kit.js`. Drones, evidence drives, vents (floor grates), the locked exit (red until you hold every drive) and the animated characters (`game_server/sprites.js`) are drawn by `three-view.js` on top of any look; `theme.droneColor` colours the drone. `game_server/quality.js` keeps the frame rate smooth by lowering the render resolution on slower devices, and `game_server/ghost-worker.js` does the ghosts' thinking off the main thread.
 
-Keys while playing: arrows or WASD move, **R** restarts, **M** opens the menu, **G** arms the glitch (once unlocked), **N** mutes and unmutes. The speaker button in the top-right corner opens the volume sliders.
+Keys while playing: arrows or WASD move, **R** restarts, **M** opens the menu, **G** arms the glitch (once unlocked), **F** arms the dash (once earned), **N** mutes and unmutes. The speaker button in the top-right corner opens the volume sliders.
 
-Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance), `?intro=0` skips the story cutscenes, `?title=0` skips the home screen, `?glitch=1` unlocks the glitch on every level, `?scene=core` previews the Level 3 cutscene.
+Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance), `?intro=0` skips the story cutscenes, `?title=0` skips the home screen, `?glitch=1` unlocks the glitch on every level, `?scene=core` previews the Level 3 cutscene, `?scene=card&level=4` previews a level's title card.
 
 ### The characters (`game_server/sprites.js`)
 
@@ -162,6 +168,20 @@ A speaker button sits in the top-right corner on every screen (the home screen, 
 
 The game's sound is evened out so nothing jumps out: every part was measured at the default settings (the average loudness of what reaches the speakers) and trimmed (the `TRIM` values in `title-screen.js`, `prologue.js` and `cutscene.js`, and each track's `gain` in `music.js`). The six level tracks sit within about 1.5 dB of each other, and the home screen and story scenes sit a couple of dB under the levels (before, the story scenes were about 25 dB quieter than the level music). Level music and effects also go through a gentle compressor.
 
+## Inside the Wardens' heads (the HUD panel, `src/insight.js`)
+
+The panel under the HUD turns the adversarial search into something players can read and use:
+
+- **What they did:** "They imagined 1,356 possible futures, up to 3 moves ahead, and skipped 223 that couldn't beat a plan they'd already found" (that's pruning, in plain words), and "They expect you to go → right next" (the gold dots).
+- **"What they think happens if you go…":** a compass of your four moves. For each one, `foresee()` runs the enemies' own search from the position after that move and plays out the future they expect: **Walks into them**, **Caught next turn**, **Caught in 3 turns**, **Safe** (green), **Safe, but riskier** (amber: of the safe moves, the one they like best), **Escape!**, or **wall**. The move they expect you to make is outlined in gold and tagged "expected"; vent crawls say which vent.
+- A note under it: "Safe" only means they can't see a catch within their lookahead, so players still have to plan beyond it. That's the lesson of the game: read their prediction, then think one step further than they can.
+
+It's worked out in the same Web Worker as their moves (`ghost-worker.js`, message type `"foresee"`), so the page never stalls.
+
+## Level title cards (`playLevelCard` in `game_server/cutscene.js`)
+
+Every level opens with a 5-second pixel-art title card, like the one at the end of the Level 3 cutscene: "LEVEL 4 OF 6", the level's name, two lines on where you are in the story, the new idea, and what's hunting you, over a small animated picture of the place (the swinging bulb in the basement, blinking server racks, Wardens on test stands, the vault door, rain on the Floor 88 windows, the antenna on the roof). They play between levels (Level 3 gets its cutscene instead), when a level is picked from the menu, and after the opening story. Any key or click moves on; `?intro=0` skips them. The level is built behind the card, so the maze is ready the moment it ends, and then the level's briefing comes up.
+
 ## Home screen (`game_server/title-screen.js`)
 
 The game, **Clearpath**, opens on a pixel-art home screen with its own chiptune theme ("Lookahead", A minor, 96 BPM). The menu has **Start story** (prologue, cutscene, then Level 1), **Choose level**, **How the Wardens think** (minimax, lookahead, and the data-consent question in kid-friendly language) and a sound toggle. Press **M** during the game to come back to it.
@@ -174,13 +194,13 @@ The monitor on the home screen is a live demo, not a recording: a simple bot pla
 
 **Start story** begins with the prologue, which doubles as the tutorial. It opens on a Clearpath TV ad hosted by Pip, a friendly mascot robot, that teaches the game's ideas with examples an 8th grader can follow:
 
-1. **Prediction = spotting patterns.** Maya walks her dog at 7:00 every day, so Pip is 92% sure about Saturday.
+1. **Prediction = spotting patterns.** Maya walks her dog at 7:00 on four evenings out of five (once at 5:00), so Pip is 80% sure, not 100%, about Saturday: 4 out of 5.
 2. **Minimax.** In a two-move points game, the greedy 9 is really worth 1 because the opponent picks next, so Pip takes the sure 4.
 3. **Lookahead and pruning.** Futures multiply (5, 25, 125, 625), so Pip skips branches that can't beat its best plan. "Basic Pip looks 1 move ahead. Premium Pip looks 3."
 4. **The chase.** Red dots are Pip's plan and gold dots are the moves it predicts you'll make: the same colours as the in-game HUD.
 5. **Products and fine print**, which plants the data-consent question.
 
-The camera then pulls back out of the TV into a dark living room. Someone on the couch, seen from behind, thinks about what they just watched, and the player answers for them: four comprehension questions (one per idea above) and two ethics questions with no wrong answer. Every choice gets a short reply that explains the idea, so a wrong pick still teaches something. The smart speaker says goodnight, a text from Clearpath HR reveals it's Sam the night before his first day, and a "Six months later" card hands off to the cutscene below.
+The camera then pulls back out of the TV into a dark living room. Sam sits on the couch, seen from behind (his head and shoulders above the couch back, lit by the TV), thinking about what they just watched, and the player answers for them: four comprehension questions (one per idea above) and two ethics questions with no wrong answer. Every choice gets a short reply that explains the idea, so a wrong pick still teaches something. The right answer sits in a different position from question to question (2nd, 3rd, 1st, 2nd), so it can't be found by always picking the first one. The smart speaker says goodnight, a text from Clearpath HR reveals it's Sam the night before his first day, and a "Six months later" card hands off to the cutscene below.
 
 Answers use the mouse or keys 1-3; Enter continues, Space pauses the ad, Esc skips. The questions and the ad's lines are plain text in `STEPS`, so they're easy to edit.
 
@@ -192,6 +212,7 @@ Before Level 1, a 1:44 pixel-art cutscene ("After Hours") tells the story: a Cle
 - `playCutscene()` returns a promise that resolves when it ends or is skipped. While it's on screen it swallows every key, and `three-view.js` pauses the 3D rendering.
 - Players can pause (Space), skip (Esc or the Skip button) and mute it. It waits for a click or key press first because browsers only allow sound after one.
 - Each shot in `SHOTS` has its length, dialogue lines, sound cues and a `draw(t)` function. Character and place names are placeholders.
+- The music under Dr. Voss's scenes ("tense" in `MUS`) is mysterious rather than menacing: a slow Dm9, Bbmaj7, Gm9, A7sus walk on a soft sine bass and triangle pad with a gentle plucked figure that changes every other pass, so it doesn't drone. The cutscenes play a few dB under the levels (`TRIM`).
 
 ## Level 3 cutscene: "Watching" (`CORE_SHOTS` in `game_server/cutscene.js`)
 

@@ -18,7 +18,7 @@
     .panel { position: fixed; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
     #fps { position: fixed; top: 6px; right: 8px; z-index: 10; padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,0.6); color: #9fe; font: 11px/1.4 ui-monospace, Consolas, monospace; pointer-events: none; }
 
-    #hud { top: 16px; left: 16px; width: 320px; padding: 12px 14px; }
+    #hud { top: 16px; left: 16px; width: 320px; padding: 12px 14px; max-height: calc(100vh - 32px); overflow-y: auto; scrollbar-width: thin; }
     #hud h1 { margin: 0 0 2px; font-size: 17px; }
     #depth { color: var(--muted); margin-bottom: 6px; }
     #depth b { color: var(--danger); }
@@ -35,7 +35,44 @@
     /* The glitch button sits in the middle of the pad; it pulses while armed. */
     #pad #glitch-btn { grid-area: 2 / 2; font-size: 22px; color: #ff7be5; border-color: rgba(255, 123, 229, 0.6) !important;
       text-shadow: -1.5px 0 #00e5ff, 1.5px 0 #ff2bd6; }
-    #pad #glitch-btn[hidden] { display: none; }
+    #pad #glitch-btn[hidden], #pad #dash-btn[hidden] { display: none; }
+    /* The dash button: the pad's top-left corner. */
+    #pad #dash-btn { grid-area: 1 / 1; font-size: 24px; color: #7cf0ff; border-color: rgba(124, 240, 255, 0.6) !important; }
+    #pad #dash-btn:disabled { opacity: 0.35; cursor: default; }
+    #pad #dash-btn.armed { background: #2bc8e8 !important; color: #04121f; animation: dash-armed 0.6s ease-in-out infinite alternate; }
+    @keyframes dash-armed { to { box-shadow: 0 0 22px rgba(43, 200, 232, 0.9); } }
+
+    /* Abilities: one row each, a progress bar and a line saying what it does and how to get it. */
+    #abilities { margin-top: 10px; display: grid; gap: 6px; }
+    #abilities:empty { display: none; }
+    .ab { display: grid; grid-template-columns: 62px auto 1fr; align-items: center; gap: 4px 8px; font-size: 12px; line-height: 1.35; color: var(--muted); }
+    .ab-name { font-weight: 700; color: var(--ink); white-space: nowrap; }
+    .ab.unlocked .ab-name { color: #ffe08a; }
+    .ab-bar { display: inline-flex; gap: 2px; }
+    .ab-bar .seg { width: 9px; height: 9px; border-radius: 2px; background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.18); }
+    .ab-bar .seg.on { background: #ff7be5; border-color: #ff7be5; }
+    .ab-bar .seg.on.try { background: #7cf0ff; border-color: #7cf0ff; }
+    .ab-bar .seg.on.ready { background: #ffd166; border-color: #ffd166; box-shadow: 0 0 6px rgba(255, 209, 102, 0.6); }
+    .ab-bar .seg.on.used { background: rgba(255, 255, 255, 0.3); border-color: transparent; }
+    .ab-text b { color: var(--ink); }
+
+    /* Inside the enemies' heads: two plain sentences and a compass of your four moves. */
+    #thinking .wt-line { margin: 0 0 6px; font-size: 12.5px; line-height: 1.4; }
+    #thinking .wt-line .expect { color: var(--gold); }
+    #thinking .wt-label { margin: 8px 0 4px; font-size: 12px; font-weight: 700; color: var(--ink); }
+    #thinking .wt-compass { display: grid; grid-template-columns: 1fr 0.7fr 1fr; grid-template-rows: auto auto auto; gap: 4px; font-size: 11.5px; line-height: 1.2; }
+    #thinking .wt-cell { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 36px; padding: 3px 4px;
+      border-radius: 6px; text-align: center; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); color: var(--muted); }
+    #thinking .wt-arrow { font-size: 15px; font-weight: 700; line-height: 1; }
+    #thinking .wt-up { grid-area: 1 / 2; } #thinking .wt-left { grid-area: 2 / 1; } #thinking .wt-you { grid-area: 2 / 2; font-weight: 700; color: var(--accent); border-color: rgba(90, 176, 255, 0.5); }
+    #thinking .wt-right { grid-area: 2 / 3; } #thinking .wt-down { grid-area: 3 / 2; }
+    #thinking .wt-cell.good { color: #4ade80; border-color: rgba(74, 222, 128, 0.5); background: rgba(74, 222, 128, 0.08); }
+    #thinking .wt-cell.meh { color: #ffb347; border-color: rgba(255, 179, 71, 0.5); background: rgba(255, 179, 71, 0.08); }
+    #thinking .wt-cell.bad { color: #ff6b7d; border-color: rgba(255, 90, 110, 0.55); background: rgba(255, 90, 110, 0.1); }
+    #thinking .wt-cell.wall { opacity: 0.45; }
+    #thinking .wt-cell.expected { box-shadow: inset 0 0 0 2px var(--gold); }
+    #thinking .wt-exp { position: absolute; top: -7px; right: -4px; padding: 0 4px; border-radius: 4px; background: var(--gold); color: #1a1408; font: 700 9px/1.4 system-ui, sans-serif; font-style: normal; }
+    #thinking .wt-note { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
     #pad #glitch-btn:disabled { opacity: 0.35; cursor: default; }
     #pad #glitch-btn.armed { background: #ff3bd4 !important; color: #fff; animation: glitch-armed 0.7s ease-in-out infinite alternate; }
     @keyframes glitch-armed { to { box-shadow: 0 0 22px rgba(255, 59, 212, 0.9); } }
@@ -117,6 +154,7 @@
       <span><span class="dot" style="background:var(--gold)"></span>Moves they predict you'll make</span>
       <span id="legend-vent" hidden><span class="dot" style="background:#2ee6c8"></span>Vent: step on a grate, come out of its twin</span>
     </div>
+    <div id="abilities" aria-live="polite"></div>
     <div id="thinking"></div>
   </div>
 
@@ -127,6 +165,7 @@
     <button data-dir="left" aria-label="Left">←</button>
     <button data-dir="right" aria-label="Right">→</button>
     <button data-dir="down" aria-label="Down">↓</button>
+    <button id="dash-btn" data-act="dash" aria-label="Dash: run two tiles in one move (F)" aria-pressed="false" title="Dash (F): run two tiles in one move. One use." hidden>»</button>
     <button id="glitch-btn" data-act="glitch" aria-label="Glitch: the enemies lose their next turn (G)" aria-pressed="false" title="Glitch (G): the enemies lose their next turn" hidden>⚡</button>
   </div>
 

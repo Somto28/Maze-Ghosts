@@ -1,4 +1,4 @@
-export { MazeGame, GLITCH_AFTER } from "./game.js";
+export { MazeGame, GLITCH_AFTER, DASH_WITHIN } from "./game.js";
 export { LEVELS } from "./levels.js";
 export { chooseGhostMoves, droneMove, evaluate, habitGrid, searchScore, WEIGHTS, WIN } from "./ai.js";
 export { DIRS, MAX_DRONES, MAX_GHOSTS, parseMaze, legalMoves, canEnter, mazeDistance, distancesFrom, samePos } from "./maze.js";
@@ -8,3 +8,4 @@ export { buildLayout3D, gridToWorld, worldToGrid } from "./layout3d.js";
 export { solveLevel, replay, naiveRoute, stateFromLevel, ghostBrain, positionKey, safestMargin } from "./solver.js";
 export { playtest, SKILLS } from "./playtest.js";
 export { describeLevel, droneRule } from "./describe.js";
+export { foresee } from "./insight.js";

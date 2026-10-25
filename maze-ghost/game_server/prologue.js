@@ -2,7 +2,7 @@
 // before the "After Hours" cutscene.
 //
 // Part 1 is a Clearpath TV ad hosted by Pip, a friendly mascot robot. It doubles as the game's tutorial:
-//   1. Prediction = spotting patterns (Maya walks her dog at 7:00 every day; 92% sure about Saturday)
+//   1. Prediction = spotting patterns (Maya walks her dog at 7:00 on 4 of 5 evenings, once at 5:00; 80% sure about Saturday)
 //   2. Minimax (a two-move points game: the greedy 9 is really a 1, so Pip picks the safe 4)
 //   3. Lookahead and pruning (5, 25, 125, 625 futures; skip branches that can't win)
 //   4. The chase (red dots = Pip's plan, gold dots = the moves it predicts you'll make)
@@ -107,6 +107,7 @@ function walker(x, y, a = 1) {
   R(x + 10, y + 8, 7, 3, "#8a5a3a"); R(x + 16, y + 6, 3, 3, "#8a5a3a"); R(x + 17, y + 6, 1, 1, AD.ink); R(x + 9, y + 7, 1, 2, "#8a5a3a"); R(x + 10, y + 11, 1, 1, "#8a5a3a"); R(x + 15, y + 11, 1, 1, "#8a5a3a");
   ctx.globalAlpha = 1;
 }
+const ODD_DAY = 2; // Wednesday: she walked the dog at 5:00 instead of 7:00 (4 days out of 5 at 7:00 = 80%)
 function adPrediction(t) {
   adBg(t); titleBar("1  PREDICTION = SPOTTING PATTERNS");
   DAYS.forEach((d, i) => {
@@ -114,15 +115,16 @@ function adPrediction(t) {
     if (a <= 0) return;
     ctx.globalAlpha = a;
     R(x, y, 40, 54, AD.white); R(x, y + 53, 40, 1, AD.line); R(x, y, 40, 9, i < 5 ? AD.teal : AD.amber); txtC(d, x + 20, y + 2, "#0b2f3a");
-    if (i < 5) { clockIcon(x + 4, y + 13, AD.deep); txt("7:00", x + 16, y + 15, AD.ink); walker(x + 9, y + 32, a); }
+    if (i === ODD_DAY) { clockIcon(x + 4, y + 13, AD.amberD); txt("5:00", x + 16, y + 15, AD.amberD); walker(x + 9, y + 32, a); } // the one day she went early
+    else if (i < 5) { clockIcon(x + 4, y + 13, AD.deep); txt("7:00", x + 16, y + 15, AD.ink); walker(x + 9, y + 32, a); }
     else if (t < 10.4) txtC("?", x + 20, y + 22, AD.amber, 3);
     else { clockIcon(x + 4, y + 13, AD.amberD); txt("7:00", x + 16, y + 15, AD.amberD); walker(x + 9, y + 32, 0.45 * a); }
     ctx.globalAlpha = 1;
   });
-  if (t > 7.4) { const k = seg(t, 7.4, 8.2); R(10, 84, 216 * k, 2, AD.teal); if (k >= 1) txt("SAME TIME, EVERY DAY = A PATTERN", 10, 89, AD.deep); }
+  if (t > 7.4) { const k = seg(t, 7.4, 8.2); R(10, 84, 216 * k, 2, AD.teal); if (k >= 1) txt("7:00 ON 4 OF 5 DAYS = A PATTERN", 10, 89, AD.deep); }
   if (t > 10.6) {
-    const k = ease(seg(t, 10.6, 11.8)), pct = Math.round(92 * k);
-    txt("SURE?", 230, 84, AD.ink); R(230, 91, 40, 6, AD.stripe); R(230, 91, Math.round(40 * 0.92 * k), 6, AD.green); txt(pct + "%", 252, 84, AD.ink);
+    const k = ease(seg(t, 10.6, 11.8)), pct = Math.round(80 * k);
+    txt("SURE?", 230, 84, AD.ink); R(230, 91, 40, 6, AD.stripe); R(230, 91, Math.round(40 * 0.8 * k), 6, AD.green); txt(pct + "%", 252, 84, AD.ink);
   }
   if (t > 12.2) txtC("PAST PATTERN  +  HOW SURE  =  A SMART GUESS", 160, 108, AD.deep);
   pip(294, 52, { t, wave: t < 2.6 });
@@ -303,18 +305,24 @@ function drawRoom(now, o) {
   R(108, 124, 30, 3, "#2a2117"); R(110, 127, 2, 20, "#1f1810"); R(134, 127, 2, 20, "#1f1810");
   const ring = o.speaker ? 0.6 + 0.4 * Math.sin(now * 8) : 0.35 + 0.15 * Math.sin(now * 1.3);
   R(116, 106, 12, 18, "#1e2433"); R(116, 106, 12, 2, "#2d3548"); A(116, 108, 12, 2, "#3fd0c9", ring); if (o.speaker) A(104, 94, 36, 30, "#3fd0c9", 0.12 * ring);
-  // couch back, arms and the phone
+  // Sam on the couch, seen from behind: head and shoulders, rim-lit by the TV. Drawn before the couch,
+  // so the couch back hides everything below his shoulders.
+  const fx = o.flinch ? Math.round(Math.sin(now * 60)) : 0, hx = 206 + fx, hy = 104;
+  const SAM = { hair: "#2b1a10", hairL: "#4a2f1c", skin: "#8a6248", skinD: "#6a4a36", shirt: "#4d6d8c", shirtD: "#34506b", shirtL: "#6688a8" };
+  R(hx - 17, hy + 15, 34, 16, SAM.shirt); R(hx - 15, hy + 13, 30, 2, SAM.shirt); R(hx - 12, hy + 12, 24, 1, SAM.shirt); // shoulders
+  R(hx - 17, hy + 15, 3, 16, SAM.shirtD); R(hx + 14, hy + 15, 3, 16, SAM.shirtD); R(hx - 1, hy + 16, 2, 14, SAM.shirtD); // folds
+  R(hx - 5, hy + 11, 10, 2, SAM.shirtL); // collar
+  R(hx - 4, hy + 6, 8, 6, SAM.skin); R(hx - 4, hy + 10, 8, 1, SAM.skinD); // neck
+  R(hx - 11, hy - 1, 2, 5, SAM.skin); R(hx + 9, hy - 1, 2, 5, SAM.skin); // ears
+  for (let r = -9; r <= 7; r++) { const w = Math.round(Math.sqrt(85 - r * r)); R(hx - w, hy + r, w * 2, 1, SAM.hair); } // back of the head
+  R(hx - 7, hy - 11, 3, 3, SAM.hair); R(hx + 2, hy - 12, 4, 3, SAM.hair); R(hx - 2, hy - 11, 3, 2, SAM.hair); R(hx + 6, hy - 9, 2, 2, SAM.hair); // messy tufts
+  for (const [dx, dy] of [[-5, -7], [-2, -8], [2, -7], [5, -5], [-6, -3], [0, -4], [4, -1], [-3, 0]]) R(hx + dx, hy + dy, 2, 1, SAM.hairL); // strands
+  const rim = "#5fb8c8", ra = 0.55 * (o.glow ?? 1) * (0.85 + 0.15 * Math.sin(now * 7));
+  for (let r = -9; r <= -1; r++) { const w = Math.round(Math.sqrt(85 - r * r)); A(hx - w, hy + r, 1, 1, rim, ra); A(hx + w - 1, hy + r, 1, 1, rim, ra); }
+  A(hx - 6, hy - 10, 12, 1, rim, ra); A(hx - 15, hy + 13, 30, 1, rim, ra * 0.8); A(hx - 17, hy + 15, 1, 13, rim, ra * 0.6); A(hx + 16, hy + 15, 1, 13, rim, ra * 0.6);
+  // couch back (in front of Sam), arms and the phone
   R(126, 128, 178, 52, "#1b1824"); R(126, 128, 178, 2, "#2a2534"); R(120, 120, 14, 60, "#17141f"); R(296, 120, 14, 60, "#17141f"); R(120, 120, 14, 2, "#28232f"); R(296, 120, 14, 2, "#28232f");
   R(298, 117, 9, 3, "#0a0a0d"); if (o.phone) { A(298, 117, 9, 3, "#9fd4ff", 0.9); A(292, 108, 22, 16, "#9fd4ff", 0.18 * (0.6 + 0.4 * Math.sin(now * 12))); }
-  // the person on the couch, from behind, rim-lit by the TV
-  const fx = o.flinch ? Math.round(Math.sin(now * 60)) : 0, hx = 206 + fx, hy = 104;
-  R(hx - 18, hy + 12, 36, 18, "#07070b"); R(hx - 20, hy + 16, 40, 14, "#07070b");
-  R(hx - 5, hy + 8, 10, 6, "#07070b");
-  for (let r = -9; r <= 9; r++) { const w = Math.round(Math.sqrt(81 - r * r)); R(hx - w, hy + r, w * 2, 1, "#07070b"); }
-  R(hx - 7, hy - 11, 3, 3, "#07070b"); R(hx + 2, hy - 12, 4, 3, "#07070b"); R(hx - 2, hy - 11, 3, 2, "#07070b");
-  const rim = "#5fb8c8", ra = 0.55 * (o.glow ?? 1) * (0.85 + 0.15 * Math.sin(now * 7));
-  for (let r = -9; r <= -2; r++) { const w = Math.round(Math.sqrt(81 - r * r)); A(hx - w, hy + r, 1, 1, rim, ra); A(hx + w - 1, hy + r, 1, 1, rim, ra); }
-  A(hx - 6, hy - 10, 12, 1, rim, ra); A(hx - 18, hy + 12, 36, 1, rim, ra * 0.8);
 }
 function drawPhone(k, now) {
   const x = 210, y = Math.round(lerp(190, 38, ease(k)));
@@ -433,9 +441,9 @@ const STEPS = [
   { kind: "ad", draw: adLogo, dur: 4.6, ev: [[0, "static"], [0.85, "jingle"], [2.2, "pop"]], lines: [] },
   { kind: "ad", draw: adPrediction, dur: 15, ev: [[3.4, "tick"], [3.9, "tick"], [4.4, "tick"], [4.9, "tick"], [5.4, "tick"], [7, "pop"], [10.4, "ding"]], lines: [
     [0.3, 3.1, "PIP", "Hi! I'm Pip from Clearpath. My job is guessing what happens next!"],
-    [3.3, 6.9, "PIP", "This is Maya. Every morning this week, she walked her dog at 7:00."],
+    [3.3, 6.9, "PIP", "This is Maya. She walked her dog at 7:00 almost every evening this week. Once, at 5:00."],
     [7.1, 10.2, "PIP", "I spot the PATTERN. So what will she do on Saturday?"],
-    [10.4, 15, "PIP", "Probably 7:00 again! I'm 92% sure. That's prediction: past patterns make a smart guess."],
+    [10.4, 15, "PIP", "Probably 7:00! 4 days out of 5, so I'm 80% sure, not 100%. That's prediction: patterns make a smart guess."],
   ] },
   { kind: "ad", draw: adMinimax, dur: 20.5, ev: [[0.4, "whoosh"], [4.6, "tick"], [4.85, "tick"], [5.1, "tick"], [5.35, "tick"], [8.6, "pop"], [12.2, "hmm"], [15.8, "ding"]], lines: [
     [0.3, 4.1, "PIP", "But some things fight back! Like a game where my opponent moves right after me."],
@@ -465,14 +473,14 @@ const STEPS = [
   { kind: "zoom", dur: 4.5, ev: [[0.2, "whoosh"]] },
   { kind: "think", text: "...Huh. So that's how it works." },
   { kind: "ask", q: "Wait. How did Pip know what Maya would do on Saturday?", choices: [
-    { text: "It saw the same pattern every day", right: true, reply: "Right. Same walk, same time, every morning. It just watched long enough to spot the pattern. And 92% means it could still be wrong." },
-    { text: "It can see the future", reply: "Nah. It noticed Maya does the same thing every morning. That's a pattern in the data, not magic. And 92% means it could still be wrong." },
-    { text: "It guessed at random", reply: "Not random. It saw the same thing five days in a row and bet on a sixth. Prediction is spotting patterns, then guessing how sure you are." },
+    { text: "It can see the future", reply: "Nah. It noticed Maya walks her dog at 7:00 most evenings. That's a pattern in the data, not magic. And 80% means it could still be wrong." },
+    { text: "It spotted a pattern in what she did", right: true, reply: "Right. 7:00 on four days out of five. It watched long enough to spot the pattern, and since one day was different it's 80% sure, not 100%." },
+    { text: "It guessed at random", reply: "Not random. It saw 7:00 on four of the five days and bet on it again. Prediction is spotting patterns, then saying how sure you are." },
   ] },
   { kind: "ask", q: "In that points game, why didn't Pip go for the 9?", choices: [
-    { text: "The opponent would never let it get 9", right: true, reply: "Exactly. Plan for the other side's best move, not the outcome you're hoping for. That's minimax." },
     { text: "Pip made a mistake", reply: "It wasn't a mistake. Move A looked great, but the opponent would steer it to 1. Move B was a sure 4. That's minimax." },
     { text: "Nine is too many points", reply: "Ha. No, more is better for Pip. But the opponent picks next, and they'd pick the 1. Always expect their best move." },
+    { text: "The opponent would never let it get 9", right: true, reply: "Exactly. Plan for the other side's best move, not the outcome you're hoping for. That's minimax." },
   ] },
   { kind: "ask", q: "And those red dots in the maze were...", choices: [
     { text: "Pip's plan for where to go next", right: true, reply: "Yep. Red was its plan, and gold was where it thought the runner would go. It was planning around a guess about you." },
@@ -480,8 +488,8 @@ const STEPS = [
     { text: "Where the runner had already been", reply: "Those were future moves, not old ones. Red was Pip's plan. Gold was its guess about the runner's next moves." },
   ] },
   { kind: "ask", q: "So if one of those things ever chased me... how would I get away?", choices: [
-    { text: "Think further ahead than it can", right: true, reply: "Right. It only looks a few moves ahead. If I can see further than that, I can slip past where it expects me to be." },
     { text: "Run straight for the exit", reply: "That's exactly what it expects. The runner did that and got caught. It only sees a few moves ahead, so I'd need to see further." },
+    { text: "Think further ahead than it can", right: true, reply: "Right. It only looks a few moves ahead. If I can see further than that, I can slip past where it expects me to be." },
     { text: "Stand still and wait", reply: "Waiting just lets it close in. It only looks a few moves ahead, so the trick is planning further than it does." },
   ] },
   { kind: "think", text: "Still... something about that ad bugs me." },
