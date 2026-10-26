@@ -44,6 +44,8 @@ If a student typed their name in two tabs, both are merged into one code (same f
 | `attempts` | try at a level | result, every move (below), wall bumps, Glitch/Dash uses, timing |
 | `events` | everything else | prologue answers, prologue skipped, final decision, menu choice, level/game completed |
 
+**Level numbers changed on 26 Oct 2026.** The game went from six levels to five when the Data Vault was cut, so the Archive is now Level 4 and the Uplink Level 5. Sessions saved before that have `gameVersion` `study-2026-10` (Archive = 5, Uplink = 6); later ones have `study-2026-10-5levels`. If both are in the data, compare levels by `levelName` (in `attempts.csv`), not by number.
+
 ### Each attempt
 
 `result` is `win`, `death`, `restart` (pressed R), `menu` (left to the menu) or `abandoned` (closed the tab mid-level). Attempts with zero moves aren't saved. Also: `caughtBy` (warden/drone), `moveCount`, `wallBumps`, `lockedBumps` (tried the exit before collecting evidence), `glitchUses`, `dashUses`, `durationSec` (including reading the briefing), `activeSec` (first move to the end), and `levelInfo` (lookahead, whether the wardens learn, whether the Glitch/Dash were available).
@@ -56,7 +58,7 @@ If a student typed their name in two tabs, both are merged into one code (same f
 | `thinkMs` | time since the player could move: how long they deliberated |
 | `aiPredicted` | the move the Warden AI expected them to make (the "expected" tag on the compass) |
 | `matchedPrediction` | did they do what the AI predicted? |
-| `aiFromHabit` | the prediction came from their earlier attempts (Level 6) |
+| `aiFromHabit` | the prediction came from their earlier attempts (Level 5, the Uplink) |
 | `verdict` | what the compass showed for that direction: `escape`, `safe`, `risky`, `caught`, or empty if it hadn't loaded yet |
 | `safeOptions` | how many directions were not `caught` at that moment |
 | `nearestEnemy` | tiles to the closest enemy before the move |

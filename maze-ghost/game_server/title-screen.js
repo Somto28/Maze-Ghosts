@@ -5,7 +5,7 @@
 //
 //   import { showTitleScreen, titleActive } from "./title-screen.js";
 //   const choice = await showTitleScreen({ levels: game.levels });
-//   // choice = { mode: "story" }  or  { mode: "level", index: 0 | 1 | 2 }
+//   // choice = { mode: "story" }  or  { mode: "level", index: 0 .. levels.length - 1 }
 //
 // While it's open it covers the screen and swallows every key, so the maze underneath can't move.
 // Drawn in code on a 320×180 canvas (no image files); music is synthesized with the Web Audio API.
@@ -293,6 +293,24 @@ function drawWarden(now, look) {
 }
 
 /* ---------- the screen ---------- */
+// ---------- Level cards: each level's colour and a little map of its maze ----------
+const LEVEL_ACCENT = { basement: "#ffb347", "server-halls": "#5ab0ff", core: "#f2c230", executive: "#c9a85c", uplink: "#ff4656" };
+const MAP_TILE = { "#": null, ".": "#0b1716", P: "#3fd0c9", E: "#2bd36a", G: "#ff4656", D: "#ffb020", K: "#5ab0ff" };
+/** Paint a level's maze into a canvas, one 4-pixel block per tile (scaled up crisp by CSS). */
+function drawLevelMap(canvas, level) {
+  const rows = level.maze, S = 4;
+  canvas.width = rows[0].length * S; canvas.height = rows.length * S;
+  const g = canvas.getContext("2d"), acc = LEVEL_ACCENT[level.theme?.style] ?? "#3fd0c9";
+  rows.forEach((row, r) => [...row].forEach((ch, c) => {
+    const x = c * S, y = r * S;
+    if (ch === "#") { g.fillStyle = acc; g.globalAlpha = 0.32; g.fillRect(x, y, S, S); g.globalAlpha = 0.55; g.fillRect(x, y, S, 1); g.globalAlpha = 1; return; }
+    g.fillStyle = MAP_TILE["."]; g.fillRect(x, y, S, S);
+    if (/[1-4]/.test(ch)) { g.fillStyle = "#8891a6"; g.fillRect(x + 1, y + 1, 2, 2); return; } // a vent
+    const col = MAP_TILE[ch];
+    if (col) { g.fillStyle = col; ch === "E" ? g.fillRect(x, y, S, S) : g.fillRect(x + 1, y + 1, 2, 2); }
+  }));
+}
+
 /**
  * Show the home screen. Resolves with what the player picked.
  * @param {{ levels: ReadonlyArray<{ id: number, name: string, lookahead: number, maze: readonly string[], enemy?: string }>, skipPress?: boolean }} options
@@ -307,9 +325,15 @@ export function showTitleScreen({ levels, skipPress = false }) {
     root.className = "title-screen";
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-label", "Clearpath main menu");
+    // One card per level, filling the panel: number and name, a map of the maze, the new idea and who's hunting.
     const levelCards = levels.map((l, i) => {
       const detail = describeLevel(l).short;
-      return `<button type="button" class="ts-level" data-level="${i}"><span class="ts-num">${l.id}</span><span class="ts-lname"></span><span class="ts-ldetail">${detail}</span></button>`;
+      const accent = LEVEL_ACCENT[l.theme?.style] ?? "#3fd0c9";
+      return `<button type="button" class="ts-level" data-level="${i}" style="--acc: ${accent}">
+        <span class="ts-lhead"><span class="ts-num">${l.id}</span><span class="ts-lname"></span></span>
+        <canvas class="ts-map" aria-hidden="true"></canvas>
+        <span class="ts-lfoot"><span class="ts-concept"></span><span class="ts-ldetail">${detail}</span></span>
+      </button>`;
     }).join("");
     root.innerHTML = `
       <div class="ts-stage">
@@ -332,7 +356,7 @@ export function showTitleScreen({ levels, skipPress = false }) {
           <h2>How the Wardens think</h2>
           <div class="ts-cards">
             <article><h3><span>1</span> Predict</h3><p>A Warden doesn't chase where you are. It imagines your smartest move, then its best answer, then your reply. This back-and-forth guessing is called <b>adversarial search</b>, or <b>minimax</b>.</p></article>
-            <article><h3><span>2</span> Look ahead</h3><p>The <b class="red">red dots</b> are the future it expects; the <b class="amber">gold dots</b> are the moves it thinks you'll make. Level 1's Warden looks 1 move ahead. On Level 3, two Wardens look 3 moves ahead and plan as a team. By Level 6, they learn from every attempt where they caught you.</p></article>
+            <article><h3><span>2</span> Look ahead</h3><p>The <b class="red">red dots</b> are the future it expects; the <b class="amber">gold dots</b> are the moves it thinks you'll make. Level 1's Warden looks 1 move ahead. On Level 3, two Wardens look 3 moves ahead and plan as a team. By Level 5, they learn from every attempt where they caught you.</p></article>
             <article><h3><span>3</span> Whose data?</h3><p>Clearpath made the Wardens better at predicting people by training them on private records nobody agreed to share. Accurate isn't the same as fair. Who should decide what an AI is allowed to learn from?</p></article>
           </div>
           <p class="ts-tip">Tip: a Warden assumes you'll make the smartest move, and it can only see a few moves ahead. Plan further than it does.</p>
@@ -341,6 +365,9 @@ export function showTitleScreen({ levels, skipPress = false }) {
         <p class="ts-keys">↑ ↓ choose · Enter select · Esc back</p>
       </div>`;
     root.querySelectorAll(".ts-lname").forEach((el, i) => { el.textContent = levels[i].name; });
+    root.querySelectorAll(".ts-concept").forEach((el, i) => { el.textContent = levels[i].concept ?? ""; });
+    root.querySelectorAll(".ts-map").forEach((c, i) => drawLevelMap(c, levels[i]));
+    root.querySelector(".ts-levels").style.setProperty("--n", String(levels.length));
     document.body.appendChild(root);
 
     const q = (sel) => root.querySelector(sel);

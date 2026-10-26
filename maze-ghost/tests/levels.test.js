@@ -6,15 +6,14 @@ import { LEVELS, describeLevel, ghostBrain, habitsFrom, moveGhosts, movePlayer, 
 const about = LEVELS.map((level) => describeLevel(level));
 const brains = LEVELS.map((level) => ghostBrain(level)); // shared, so each position is only searched once
 
-test("there are 6 levels and each one adds a new idea", () => {
-  assert.equal(LEVELS.length, 6);
-  const [l1, l2, l3, l4, l5, l6] = about;
+test("there are 5 levels and each one adds a new idea", () => {
+  assert.equal(LEVELS.length, 5);
+  const [l1, l2, l3, l4, l5] = about;
   assert.ok(l1.wardens === 1 && !l1.drones && LEVELS[0].weights?.cutoff === 0, "level 1: one ghost that only reacts");
   assert.ok(LEVELS[1].lookahead > LEVELS[0].lookahead && l2.vents, "level 2: looks further ahead, and vents appear");
   assert.ok(l3.wardens > l2.wardens, "level 3: a team of wardens");
-  assert.ok(l4.drones > 0, "level 4: a rule-based drone");
-  assert.ok(l5.evidence > 0, "level 5: evidence to collect");
-  assert.ok(LEVELS[5].learns && l6.drones && l6.evidence, "level 6: learning wardens, with everything before");
+  assert.ok(l4.evidence > 0 && l4.drones > 0, "level 4: evidence to collect, and a rule-based drone");
+  assert.ok(LEVELS[4].learns && l5.drones && l5.evidence, "level 5: learning wardens, with everything before");
   for (let i = 1; i < LEVELS.length; i++) assert.ok(LEVELS[i].lookahead >= LEVELS[i - 1].lookahead, `level ${i + 1} looks less far ahead`);
   for (const level of LEVELS) assert.ok(level.briefing && level.hints?.length && level.concept, `level ${level.id} needs a briefing, hints and a concept`);
 });
@@ -72,10 +71,10 @@ test("no free paths: every escape has to pass close to an enemy", () => {
   });
 });
 
-test("level 6: the wardens learn, so repeating a caught route gets you caught sooner", () => {
+test("level 5: the wardens learn, so repeating a caught route gets you caught sooner", () => {
   // Take simulated players' caught attempts, then replay each exact route. Wardens who studied that
   // attempt never let you get further than wardens who forgot it, and stop some routes sooner.
-  const level = LEVELS[5];
+  const level = LEVELS[4];
   const forgetful = ghostBrain({ ...level, learns: false });
   const caught = playtest({ ...level, learns: false }, { skill: "thinker", games: 20, brain: forgetful, record: true, seed: 5 })
     .played.filter((p) => p.result === "caught");

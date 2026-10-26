@@ -1,6 +1,6 @@
 // cutscene.js — the story cutscenes: "After Hours" (before Level 1), "Watching" (between Level 2 and
-// Level 3, where Dr. Voss feeds the Wardens Sam's personal data), "The Choice" (before Level 6: the
-// player decides whether Sam runs or uploads the evidence) and "Broadcast" (the ending, after Level 6),
+// Level 3, where Dr. Voss feeds the Wardens Sam's personal data), "The Choice" (before Level 5: the
+// player decides whether Sam runs or uploads the evidence) and "Broadcast" (the ending, after Level 5),
 // plus the level title cards.
 //
 // Pixel art drawn in code on a 320×180 canvas and scaled up without smoothing, so there are no image
@@ -10,7 +10,7 @@
 //   await playCutscene();                    // "After Hours"; resolves when it ends or is skipped
 //   await playCutscene({ scene: "core" });   // "Watching", before Level 3
 //   const picks = await playCutscene({ scene: "decision" }); // e.g. ["escape", "rewind", "upload"]
-//   await playCutscene({ scene: "finale" });  // "Broadcast", after Level 6
+//   await playCutscene({ scene: "finale" });  // "Broadcast", after Level 5
 //
 // While it plays it covers the screen and swallows every key, so the maze underneath can't move.
 // Placeholder names to change: "Sam Reyes", "Dr. Voss", "Sub-Level 7" (search this file for them).
@@ -681,17 +681,17 @@ const CORE_SHOTS=[
  }},
 ];
 
-/* ---------- "The Choice": after the Archive, before Level 6 ---------- */
+/* ---------- "The Choice": after the Archive, before Level 5 ---------- */
 // Sam has the proof. The building locks down, and Dr. Voss tells him he already knows what Sam will do.
 // The player chooses: save himself (run down to the street) or upload the evidence (climb to the roof).
 // Running is exactly what the Wardens predicted, so that branch ends with Sam caught and a rewind back to
-// the choice. Climbing is the move they didn't expect, and it builds up to Level 6, the Uplink.
+// the choice. Climbing is the move they didn't expect, and it builds up to Level 5, the Uplink.
 let CHOICE_T=0; // seconds the current choice has been on screen (keeps the frame alive while it waits)
 function arrow(x,y,up,c){if(up){for(let i=0;i<4;i++)R(x-i,y+i,1+i*2,1,c);R(x-1,y+4,3,6,c);}else{R(x-1,y,3,6,c);for(let i=0;i<4;i++)R(x-3+i,y+6+i,7-i*2,1,c);}}
 function drive(x,y,t){R(x,y,7,4,'#2a2f3a');R(x,y,7,1,'#4a5262');R(x+5,y+2,1,1,Math.floor(t*4)%2?'#3dff8a':'#1a6b3e');A(x-2,y-2,11,8,'#3dff8a',.12);}
 function rain(t,x0,y0,w,h,n=50,c='#9fb4d8'){for(let i=0;i<n;i++){const x=x0+hash(i)*w,y=y0+((hash(i*3)*h+t*160)%h);line(x,y,x-1,Math.min(y0+h-1,y+5),c);}}
 function alarmWash(t,k=1){A(0,0,W,H,'#ff1030',k*(.07+.07*Math.sin(t*7)));}
-// Floor 88 at night: the executive suite from Level 5, rain on the glass, the city below.
+// Floor 88 at night: the executive suite from Level 4, rain on the glass, the city below.
 function floor88(t,{alarm=0}={}){
   R(0,0,W,H,'#070912');
   ctx.save();ctx.beginPath();ctx.rect(16,12,288,112);ctx.clip();
@@ -862,10 +862,10 @@ function uploadShots(again){return[
  ev:[[.2,'boot'],...evEvery('data',1,5,.4),[4.8,'sting']],lines:[],
  draw(t){wardenPOV(t,[['SUBJECT BEHAVIOUR: UNEXPECTED',.3,'#ffb347'],['SWITCHING TO LEARNING MODE',1.2],['EVERY CATCH = NEW TRAINING DATA',2.1],['RECORD HIS ROUTE.  WAIT ON IT NEXT TIME.',3]],
    {big:'WE LEARN FROM EVERY CATCH.',bigAt:4.8,sub:(t)=>{const n=Math.floor(seg(t,1,4.6)*24);for(let i=0;i<n;i++){const x=40+(i%12)*20,y=76+Math.floor(i/12)*16;R(x,y,12,10,'#3a0d14');R(x+1,y+1,10,8,i%3?'#ff3b4a':'#ffb347');}}});}},
-{name:'Level card',note:'Hand-off into Level 6.',dur:5.6,fi:.4,nobars:true,music:()=>null,
+{name:'Level card',note:'Hand-off into Level 5.',dur:5.6,fi:.4,nobars:true,music:()=>null,
  ev:[[.3,'end']],lines:[],
  draw(t){R(0,0,W,H,'#050608');
-  ctx.globalAlpha=seg(t,.2,1);txtC('LEVEL 6',160,44,'#8891a6',2);txtC('THE UPLINK',160,60,'#ff4656',3);
+  ctx.globalAlpha=seg(t,.2,1);txtC('LEVEL 5',160,44,'#8891a6',2);txtC('THE UPLINK',160,60,'#ff4656',3);
   ctx.globalAlpha=seg(t,1.3,2.1);txtC('GET THE EVIDENCE TO THE UPLINK.',160,96,'#d9dfeb');txtC('THEY LEARN FROM EVERY CATCH. DON\'T REPEAT YOURSELF.',160,106,'#ffb347');
   ctx.globalAlpha=1;if(t>2.6){const on=Math.floor(t*2)%2;R(157,130,6,5,on?'#ff3b4a':'#3a1015');if(on)A(152,125,16,15,'#ff3b4a',.25);}}},
 ];}
@@ -886,7 +886,7 @@ const DECISION_SHOTS=[
 stairShot(false),
 ];
 
-/* ---------- "Broadcast": the finale, after Level 6 ---------- */
+/* ---------- "Broadcast": the finale, after Level 5 ---------- */
 // Sam uploads the evidence and the whole world sees it. The Wardens corner him at the edge of the roof,
 // 99% sure of the catch, and then help comes from the one place they never looked: Pip, Clearpath's
 // cheerful mascot robot from the TV ad, who runs the window-cleaning rig on the tower. The Wardens have
@@ -1075,12 +1075,12 @@ const FINALE_SHOTS=[
    if(Math.floor(t*8)%4===0)A(0,hash(Math.floor(t*8))*H,W,6,'#ffffff',.2);}});}},
 {name:'Down the wall',note:'Pip lowers the gondola down the outside of the tower. Up top, Voss and the Wardens can only watch.',dur:8.6,music:()=>'rise2',
  ev:[[.2,'motor'],[1.1,'motor'],[2,'motor'],[3,'motor'],[4,'motor'],[5,'motor'],[6,'motor'],[7,'motor']],
- lines:[[.2,2.2,'DR. VOSS','No! Stop them!'],[2.4,5.6,'PIP','Wardens only predict what they\'ve seen before. Nobody ever showed them me!'],[5.8,8.4,'SAM','Remind me to thank whoever cleans your windows.']],
+ lines:[[.2,2.2,'DR. VOSS','No! Stop them!'],[2.6,6.4,'PIP','Wardens only predict what they\'ve seen before. Nobody ever showed them me!']],
  draw(t){const off=t*60;facade(off);
   // The roof edge they just left, with Voss and two Wardens looking down, sliding up and out of frame.
   const ry=Math.round(66-off);if(ry>-10){R(30,0,270,Math.max(0,ry),'#05060d');R(30,ry,270,6,'#3a4150');doctor(150,ry,{dir:1,pose:'point'});warden(110,ry,{eye:1,t,look:1,step:0});warden(200,ry,{eye:1,t,look:-1,step:1});}
   if(t>7){const gy=Math.round(lerp(H+30,124,seg(t,7,8.6)));R(0,gy,W,H,'#16181e');R(0,gy,W,3,'#2a2e38');A(0,gy-30,W,30,Math.floor(t*6)%2?'#ff2e3e':'#3d7bff',.12);} // the street coming up to meet them
-  emp(152,110,{dir:1,pose:'idle'});drive(154,94,t);pip(170,92,{t,wave:t>2.4&&t<5.6});gondola(160,110,-10);
+  emp(152,110,{dir:1,pose:'idle'});drive(154,94,t);pip(170,92,{t,wave:t>2.6&&t<6.4});gondola(160,110,-10);
   const fl=Math.max(1,Math.round(lerp(88,1,seg(t,.6,8.4))));R(268,14,44,22,'#05060a');txt('FLOOR',274,17,'#8891a6');txt(String(fl).padStart(2,'0'),280,25,'#ffd166',1);}},
 {name:'Street',note:'The street below: police cars, news vans, a crowd with phones up. Sam hands the drives to an officer; police run into the building.',dur:8.4,top:true,music:()=>'triumph',
  ev:[[.2,'siren'],[1.2,'clank'],[2.4,'siren'],[4.6,'siren'],[4.8,'flash'],[5.4,'flash'],[6.8,'siren']],
@@ -1160,12 +1160,7 @@ const CARD={
     R(180,140,W-180,40,'#20232a');for(let x=180;x<W;x+=10){R(x,140,5,4,'#f2c230');}
     for(const [x,e] of [[214,seg(t,.5,.7)],[258,seg(t,1,1.2)],[300,0]]){R(x-16,150,32,4,'#3a3f48');warden(x,148,{eye:e,t,look:0,step:0});}
     const sx=180+((t*60)%140);A(sx,20,3,120,'#bfe6ff',.25);}},
-  vault:{accent:'#3fd0c9',bg:'#03090d',tag:['COLD STORAGE FOR EVERYTHING THEY KNOW.','A RULE-BOUND DRONE JOINS THE HUNT.'],art(t){
-    const cx=252,cy=86;for(let r=60;r>4;r-=2){const c=r>56?'#a7b7c3':r>48?'#58666f':r>20?'#33414d':'#3fd0c9';ctx.fillStyle=c;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fill();}
-    for(let k=0;k<8;k++){const a=k/8*Math.PI*2+t*.4;R(cx+Math.cos(a)*40-2,cy+Math.sin(a)*40-2,5,5,'#c3d0d8');}
-    A(cx-14,cy-14,28,28,'#bff6ff',.2+.1*Math.sin(t*3));
-    for(let i=0;i<5;i++){const y=30+((t*12+i*31)%110);R(190+i*24,y,5,5,'#5ff6ff');A(189+i*24,y-1,7,7,'#5ff6ff',.25);}}},
-  executive:{accent:'#c9a85c',bg:'#07080c',tag:['FLOOR 88. THE CHIEFS KEEP THE PROOF HERE.','THEY KNOW WHAT YOU CAME FOR.'],art(t){
+  executive:{accent:'#c9a85c',bg:'#07080c',tag:['FLOOR 88. THE CHIEFS KEEP THE PROOF HERE.','THEY KNOW WHAT YOU CAME FOR.','AND A RULE-BOUND DRONE GUARDS THE DOOR.'],art(t){
     R(180,10,W-180,150,'#0d1424');
     for(let i=0;i<9;i++){const bh=40+hash(i)*70,x=184+i*15;R(x,160-bh,13,bh,'#151b2c');for(let y=166-bh;y<156;y+=6)if(hash(i*13+y)>.55)R(x+3,y,2,2,'#ffd696');}
     for(let i=0;i<40;i++){const x=180+hash(i)*140,y=(hash(i*3)*150+t*90)%150+10;line(x,y,x+1,y+6,'#9fb4d8',0);}
@@ -1194,8 +1189,9 @@ function cardScene(lv){
       R(16,48+5*sc+4,Math.round(lerp(0,160,ease(seg(t,1,1.7)))),2,c.accent);
       const y0=48+5*sc+14;
       ctx.globalAlpha=seg(t,1.3,1.9);c.tag.forEach((l,i)=>txt(l,16,y0+i*9,'#d9dfeb'));
-      ctx.globalAlpha=seg(t,2.1,2.7);txt('NEW IDEA',16,y0+26,c.accent);txt(cardText(lv.concept),16,y0+35,'#ffffff');
-      ctx.globalAlpha=seg(t,2.7,3.3);wrapLines(cardText(lv.enemies),176).forEach((l,i)=>txt(l,16,y0+51+i*9,'#8891a6'));
+      const y1=y0+c.tag.length*9+8; // below however many story lines the card has
+      ctx.globalAlpha=seg(t,2.1,2.7);txt('NEW IDEA',16,y1,c.accent);txt(cardText(lv.concept),16,y1+9,'#ffffff');
+      ctx.globalAlpha=seg(t,2.7,3.3);wrapLines(cardText(lv.enemies),176).forEach((l,i)=>txt(l,16,y1+25+i*9,'#8891a6'));
       ctx.globalAlpha=1;
       if(t>3.4&&Math.floor(t*2)%2)txt('PRESS ANY KEY',16,166,'#5d6578');
     }}],
@@ -1397,7 +1393,7 @@ function creep(stage){return{rate:R8,global:true,play(i,fresh){
   if(stage===3){if(head&&blk%2===0)INS.boom(.3);if(st===0||st===6||st===8||st===14)INS.timp(root+12,.18);
     if(head)INS.str(root+12,rest,.05,0,{attack:.04,bright:1600});}
 }};}
-// The decision (before Level 6), in the Precipice key: a clock on every beat over a suspended chord and a
+// The decision (before Level 5), in the Precipice key: a clock on every beat over a suspended chord and a
 // heartbeat ("decide"), and the climb to the roof as an anthem on the Wardens' E-D-C-A-B motif ("rise").
 const RISE_CH=[[40,[64,67,71]],[36,[64,67,72]],[43,[67,71,74]],[38,[66,69,74]]]; // Em C G D
 const RISE_MEL=[[[0,76,4],[4,74,4],[8,72,4],[12,69,2],[14,71,2]],[[0,72,8],[8,79,8]],[[0,79,8],[8,74,8]],[[0,78,4],[4,79,4],[8,81,8]]];

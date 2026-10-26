@@ -1,4 +1,4 @@
-/* uplink.css — Level 6's HUD: the broadcast feed from the roof. A live-TV look: dark translucent panels
+/* uplink.css — Level 5's HUD: the broadcast feed from the roof. A live-TV look: dark translucent panels
    with a red top rule, a blinking "LIVE" dot, signal-strength bars, condensed Bebas Neue headlines and
    a news-ticker style message line. Results arrive as broadcast alerts.
    Applies only while three-view.js sets <body data-style="uplink">. Gameplay colours stay the same. */

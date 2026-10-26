@@ -1,4 +1,4 @@
-// executive.js — Level 5's look: the Archive on Floor 88, Clearpath's executive suite, where the chiefs
+// executive.js — Level 4's look: the Archive on Floor 88, Clearpath's executive suite, where the chiefs
 // keep the company's most confidential files. Walnut and black-glass partitions with brass trim and
 // warm cove lights; biometric records cabinets marked EYES ONLY; the CEO's desk with a holographic
 // subject file; a boardroom table; data safes; leather lounges and designer planters. A midnight
