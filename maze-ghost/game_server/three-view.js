@@ -28,7 +28,7 @@ const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core:
 const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 // ?level=2 starts on Level 2, ?fps shows the frame rate, ?res=1 pins the render resolution (testing),
 // ?intro=0 skips the story cutscenes, ?title=0 skips the home screen, ?glitch=1 unlocks the glitch,
-// ?scene=core previews the Level 3 cutscene (?scene=decision the one before Level 6; &at=30 starts 30 s in).
+// ?scene=core previews the Level 3 cutscene (?scene=decision the one before Level 6, ?scene=finale the ending; &at=30 starts 30 s in).
 const params = new URLSearchParams(location.search);
 
 const game = new MazeGame();
@@ -845,8 +845,22 @@ function finish() {
     logger.endAttempt("win", attemptDetails());
     logger.event("level_complete", { tries: game.wonInTries, dashEarned: game.dashEarned }, game.level.id);
     logger.event("game_complete", {}, game.level.id);
-    showOverlay("win", "Evidence uploaded!", `You outthought every ${e.one} and the world can finally see what Clearpath was doing. Every Warden was only ever as good as its predictions, and you learned to read them.`, "Main menu", () => openMenu());
+    const tries = `You did it in ${game.wonInTries} ${game.wonInTries === 1 ? "try" : "tries"}. `;
+    if (params.get("intro") !== "0") showOverlay("win", "Evidence uploaded!", `${tries}The files are on their way to every newsroom in the world. But Sam is still on the roof, and the Wardens are closing in...`, "Continue", playEnding);
+    else showTheEnd();
   }
+}
+
+// After the last level: the final cutscene ("Broadcast": the escape, the montage, the talk show), then
+// the closing card.
+async function playEnding() {
+  hideOverlay();
+  await playCutscene({ autoStart: true, scene: "finale" });
+  showTheEnd();
+}
+function showTheEnd() {
+  const e = enemy();
+  showOverlay("win", "The End", `You outthought every ${e.one}, and the world finally saw what Clearpath was doing. Every Warden was only ever as good as its predictions and the data behind them, and you learned to read them.`, "Main menu", () => openMenu());
 }
 
 function attemptDetails(caughtBy = null) {

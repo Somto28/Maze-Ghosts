@@ -1,6 +1,7 @@
 // cutscene.js — the story cutscenes: "After Hours" (before Level 1), "Watching" (between Level 2 and
-// Level 3, where Dr. Voss feeds the Wardens Sam's personal data) and "The Choice" (before Level 6: the
-// player decides whether Sam runs or uploads the evidence), plus the level title cards.
+// Level 3, where Dr. Voss feeds the Wardens Sam's personal data), "The Choice" (before Level 6: the
+// player decides whether Sam runs or uploads the evidence) and "Broadcast" (the ending, after Level 6),
+// plus the level title cards.
 //
 // Pixel art drawn in code on a 320×180 canvas and scaled up without smoothing, so there are no image
 // files to load. Music and sound effects are synthesized with the Web Audio API.
@@ -9,6 +10,7 @@
 //   await playCutscene();                    // "After Hours"; resolves when it ends or is skipped
 //   await playCutscene({ scene: "core" });   // "Watching", before Level 3
 //   const picks = await playCutscene({ scene: "decision" }); // e.g. ["escape", "rewind", "upload"]
+//   await playCutscene({ scene: "finale" });  // "Broadcast", after Level 6
 //
 // While it plays it covers the screen and swallows every key, so the maze underneath can't move.
 // Placeholder names to change: "Sam Reyes", "Dr. Voss", "Sub-Level 7" (search this file for them).
@@ -884,6 +886,255 @@ const DECISION_SHOTS=[
 stairShot(false),
 ];
 
+/* ---------- "Broadcast": the finale, after Level 6 ---------- */
+// Sam uploads the evidence and the whole world sees it. The Wardens corner him at the edge of the roof,
+// 99% sure of the catch, and then help comes from the one place they never looked: Pip, Clearpath's
+// cheerful mascot robot from the TV ad, who runs the window-cleaning rig on the tower. The Wardens have
+// no data on Pip, and the outside wall isn't a route in their model, so they can't predict either one.
+// Pip lowers Sam down the side of the building to the police waiting below. A news montage shuts
+// Clearpath down and Dr. Voss is arrested; then Sam tells his story on a live talk show, and fade to black.
+const PIPC={white:'#ffffff',shade:'#dbe7ea',visor:'#0b2f3a',teal:'#3fd0c9',line:'#9fb3b8'};
+function pip(x,y,o={}){ // the same Pip as the prologue's ad (prologue.js), in the cutscenes' pixel style
+  const t=o.t||0;y+=Math.round(Math.sin(t*3)*1.5);
+  R(x-7,y-9,14,18,PIPC.white);R(x-8,y-7,16,14,PIPC.white);R(x-8,y+4,16,3,PIPC.shade);R(x-7,y+7,14,2,PIPC.shade);
+  R(x-6,y-6,12,7,PIPC.visor);R(x-5,y-7,10,1,PIPC.visor);
+  const ec=o.red?'#ff2e3e':PIPC.teal,blink=!RM&&(t%3.1)<.12;
+  if(blink){R(x-4,y-3,3,1,ec);R(x+1,y-3,3,1,ec);}else{R(x-4,y-4,3,3,ec);R(x+1,y-4,3,3,ec);R(x-4,y-4,1,1,'#d6fffb');R(x+1,y-4,1,1,'#d6fffb');}
+  R(x,y-12,1,3,PIPC.line);R(x-1,y-14,3,2,ec);
+  const w=o.wave?Math.round(Math.sin(t*10)*2):0;
+  R(x-10,y-1,2,5,PIPC.white);R(x+8,y-4+w,2,5,PIPC.white);R(x-1,y+3,2,2,PIPC.teal);
+  A(x-10,y-12,20,24,'#bff6ff',.08);
+}
+const COP={uni:'#22305a',uniD:'#151e3a',skin:'#c68a5e',skinD:'#9c6a46',cap:'#141a2e',badge:'#f2c230',shoe:'#0b0b0e'};
+function cop(cx,gy,o={}){
+  const d=o.dir||1,f=o.frame||0,run=o.pose==='run',walk=o.pose==='walk'||run;const P=(x,y,w,h,c)=>R(d>0?cx+x:cx-x-w,gy+y,w,h,c);
+  const ph=walk?(run?[0,1,2,1,0,-1,-2,-1][f%8]:[0,1,0,-1][f%4]):0,bob=walk&&f%2?-1:0;
+  P(0-ph*2,-10+bob,3,8,COP.uniD);P(0-ph*2,-2,4,2,COP.shoe);
+  P(-2+ph*2,-10+bob,3,8,COP.uni);P(-2+ph*2,-2,4,2,COP.shoe);
+  P(-3,-20+bob,8,11,COP.uni);P(-3,-20+bob,1,11,COP.uniD);P(-3,-11+bob,8,1,'#0b0e18');P(2,-18+bob,2,2,COP.badge);P(-1,-15+bob,1,2,'#3a4a7a');
+  P(0,-21+bob,2,1,COP.skinD);P(-2,-28+bob,7,7,COP.skin);P(3,-25+bob,1,2,'#1a1a1a');P(3,-22+bob,2,1,COP.skinD);
+  P(-3,-30+bob,8,3,COP.cap);P(2,-28+bob,5,1,COP.cap);P(0,-30+bob,2,1,COP.badge);
+  if(o.hold){P(1,-18+bob,6,2,COP.uni);P(7,-18+bob,2,2,COP.skin);}
+  else{const a=walk?ph:0;P(0+a,-19+bob,2,7,COP.uni);P(0+a,-12+bob,2,1,COP.skin);}
+}
+// Dr. Voss with his hands cuffed behind him.
+function vossCuffed(cx,gy,o={}){doctor(cx,gy,{...o,pose:'idle'});const d=o.dir||1;R(d>0?cx-4:cx+1,gy-13,4,1,'#c9ccd2');R(d>0?cx-4:cx+1,gy-12,1,1,'#c9ccd2');}
+function policeCar(x,gy,t,dir=1){
+  const P=(px,py,w,h,c)=>R(dir>0?x+px:x-px-w,gy+py,w,h,c);
+  P(-24,-12,48,8,'#e8ecf2');P(-24,-6,48,2,'#151a26');P(-14,-18,24,6,'#e8ecf2');P(-12,-17,9,4,'#3a4a6a');P(-1,-17,9,4,'#3a4a6a');
+  P(-24,-12,48,1,'#ffffff');txt('POLICE',dir>0?x-5:x-9,gy-11,'#e8ecf2');
+  P(-18,-4,8,4,'#0b0b0e');P(10,-4,8,4,'#0b0b0e');P(-16,-3,4,2,'#5d636e');P(12,-3,4,2,'#5d636e');
+  const ph=Math.floor(t*6)%2;P(-6,-21,6,3,ph?'#ff2e3e':'#5a1018');P(0,-21,6,3,ph?'#1d3a8a':'#3d7bff');
+  A(x-30,gy-36,60,30,ph?'#ff2e3e':'#3d7bff',.12);
+}
+function newsVan(x,gy,t){R(x,gy-26,44,20,'#e8ecf2');R(x,gy-26,44,2,'#ffffff');R(x+30,gy-20,12,7,'#3a4a6a');R(x+2,gy-18,22,7,'#b3141b');txt('CH 9 NEWS',x+3,gy-17,'#ffffff');
+  R(x+4,gy-6,8,4,'#0b0b0e');R(x+30,gy-6,8,4,'#0b0b0e');R(x+10,gy-36,2,10,'#8891a6');ctx.fillStyle='#c9d1e0';ctx.beginPath();ctx.arc(x+11,gy-38,6,Math.PI,Math.PI*2);ctx.fill();}
+function crowd(x0,x1,gy,t,seed=0){for(let x=x0,i=0;x<x1;x+=9,i++){const h=hash(i+seed),y=gy+Math.round(h*4);
+  R(x,y-12,8,14,'#0c0e14');R(x+1,y-19,6,7,'#0c0e14');if(h>.35){const px=x+(h>.6?6:0),py=y-24+Math.round(Math.sin(t*2+i)*1);R(px,py,3,4,'#bfe6ff');A(px-2,py-2,7,8,'#bfe6ff',.18);
+    if(hash(i*7+Math.floor(t*5)+seed)>.97)A(px-6,py-6,15,16,'#ffffff',.6);}}}
+// The window-cleaning gondola, hanging on two cables from (x, topY).
+function gondola(x,y,topY){
+  line(x-12,topY,x-12,y-12,'#9fa6b3');line(x+12,topY,x+12,y-12,'#9fa6b3');
+  R(x-16,y-1,32,3,'#8a93a3');R(x-16,y+2,32,1,'#4a5262');R(x-16,y-12,32,2,'#c9a227');R(x-16,y-12,2,12,'#8a93a3');R(x+14,y-12,2,12,'#8a93a3');
+  for(let k=-11;k<14;k+=6)R(x+k,y-10,1,9,'#5d6678');R(x-6,y-7,14,2,'#2a7a6a');txt('PIP',x-5,y-7,'#d6fffb');
+}
+// The right edge of the roof: the low parapet, the drop to the street and the rig's arm over it.
+function roofEdge(t){
+  R(290,150,30,30,'#070a16');for(let i=0;i<6;i++)if(hash(i+7)>.4)R(292+i*5,156+hash(i)*20,1,2,'#ffd696');
+  R(286,140,6,10,'#3a4150');R(286,140,6,1,'#5d6678');
+  R(278,92,3,56,'#5d6678');R(278,92,42,3,'#5d6678');line(279,94,296,111,'#4a5262');
+}
+function hangingCables(){line(292,95,292,180,'#9fa6b3');line(316,95,316,180,'#9fa6b3');}
+function uplinkScreen(t,p){
+  R(0,0,W,H,'#05060d');rain(t,0,0,W,H,40,'#33405c');
+  R(36,12,248,132,'#1c212c');R(36,12,248,2,'#3a4150');R(42,18,236,120,'#03100f');A(42,18,236,120,'#3fd0c9',.06);
+  txt('CLEARPATH UPLINK  //  PUBLIC BROADCAST',48,23,'#3fd0c9');line(48,30,272,30,'#1d4a47');
+  const files=['EMPLOYEE_HR_RECORDS.DB','CUSTOMER_MEDICAL.CSV','PRIVATE_MESSAGES.ZIP','WARDEN_TRAINING_LOG.TXT','DR_VOSS_EMAILS.ZIP','CONSENT FORMS: NONE FOUND'];
+  files.forEach((f,i)=>{const done=p>=(i+1)/7;txt((done?'[X] ':'[ ] ')+f,48,36+i*9,done?(i===5?'#ff4656':'#7dffb0'):'#2d5753');});
+  R(48,94,224,8,'#0b2b2a');R(48,94,Math.round(224*p),8,p>=1?'#7dffb0':'#3fd0c9');txt(`${Math.round(p*100)}%`,250,105,'#8fb5b0');
+  txt(`SENDING TO ${Math.round(p*2114).toLocaleString('en-US')} NEWSROOMS IN ${Math.round(p*96)} COUNTRIES`,48,105,'#8fb5b0');
+  if(p>=1){const on=Math.floor(t*4)%2;txtO('UPLOAD COMPLETE',Math.round(160-tw('UPLOAD COMPLETE',2)/2),118,on?'#7dffb0':'#d6fffb',2,'#03100f');}
+  const k=p<1?Math.sin(t*14)>0?1:0:0;R(196,146+k,30,12,EMP.skin);R(196,146+k,30,2,EMP.skinD);R(188,152+k,10,20,EMP.shirt);R(226,147+k,4,6,EMP.skin);
+}
+function tvNews(t,x,y,w,h){R(x-3,y-3,w+6,h+6,'#1a1d24');R(x,y,w,h,'#132042');
+  R(x+w/2-10,y+14,20,20,'#d9a27a');R(x+w/2-11,y+12,22,6,'#2a1a10');R(x+w/2-16,y+34,32,h-34,'#2b3550');R(x+w/2-2,y+34,4,10,'#f2f2f2');
+  R(x+w-30,y+8,24,16,'#05070c');txt('LIVE',x+w-26,y+13,'#ff4656');
+  R(x,y+h-22,w,12,'#b3141b');txt('BREAKING',x+3,y+h-19,'#ffffff');R(x,y+h-10,w,10,'#05070c');
+  ctx.save();ctx.beginPath();ctx.rect(x,y+h-10,w,10);ctx.clip();const s='CLEARPATH TRAINED ITS WARDENS ON STOLEN PRIVATE DATA  *  NO CONSENT ON FILE  *  ';txt(s+s,x+w-((t*40)%tw(s+'  ')),y+h-7,'#ffffff');ctx.restore();}
+function phoneFeed(t,x,y){R(x,y,66,96,'#0b0c10');R(x+3,y+6,60,84,'#f2f4f8');R(x+27,y+2,12,2,'#2a2e38');
+  txt('#CLEARPATHFILES',x+4,y+9,'#3d7bff');
+  for(let i=0;i<3;i++){const py=y+19+i*24;R(x+5,py,56,20,'#ffffff');R(x+5,py,56,1,'#dbe0ea');R(x+7,py+3,6,6,['#ff9f43','#5ab0ff','#2bd36a'][i]);R(x+15,py+3,30,2,'#8891a6');R(x+15,py+7,40,2,'#c9d1e0');R(x+15,py+11,28,2,'#c9d1e0');
+    const likes=Math.floor(Math.max(0,t-1)*(i+1)*9000+i*1300);txt(`${likes>999?Math.floor(likes/1000)+'K':likes}`,x+42,py+14,'#ff4656');}}
+function billboard(t,x,y,w,h){R(x-4,y-4,w+8,h+60,'#0d1220');for(let k=0;k<5;k++)R(x-4,y+h+4+k*10,w+8,1,'#151b2c');
+  R(x,y,w,h,'#05070c');A(x,y,w,h,'#ff4656',.08+.04*Math.sin(t*5));
+  txt('> LOAD PRIVATE_MESSAGES',x+4,y+6,'#39f5c4');txt('> LOAD HOME ADDRESSES',x+4,y+14,'#39f5c4');txt('> CONSENT ON FILE: NONE',x+4,y+24,'#ff4656');
+  if(Math.floor(t*2)%2)txtO('#CLEARPATHFILES',x+4,y+h-12,'#ffffff',1,'#000');}
+function facade(off){R(0,0,W,H,'#070912');skyline(-80+off*.05,190,'#0b0f1a','#ffd696');
+  R(40,0,250,H,'#0d1220');for(let y=-12+(off%14);y<H;y+=14)for(let x=46;x<284;x+=16){const row=Math.floor((y-off)/14),lit=hash(row*31+x)>.55;R(x,y,12,9,lit?'#2a3352':'#121a2e');if(lit)A(x,y,12,9,'#ffd696',.18);}
+  for(let x=44;x<290;x+=16)R(x,0,2,H,'#070912');}
+function newsFrame(t,cap,sub){
+  R(0,128,W,34,'#0b0e18');A(0,128,W,34,'#000000',.2);R(0,128,W,1,'#ff4656');
+  R(0,130,58,14,'#b3141b');txt('BREAKING',6,135,'#ffffff');txt(cap,64,132,'#ffffff',2);txt(sub,64,149,'#c9d1e0');
+  R(0,162,W,9,'#b3141b');ctx.save();ctx.beginPath();ctx.rect(0,162,W,9);ctx.clip();const s='THE CLEARPATH FILES  *  CLEARPATH SHUT DOWN  *  DR. VOSS ARRESTED  *  STOLEN DATA DELETED  *  ';txt(s+s,W-((t*50)%tw(s+'  ')),164,'#ffffff');ctx.restore();
+  R(286,12,28,9,'#05070c');txt('CH 9',291,14,'#ffffff');
+}
+function towerExterior(t,dark){R(0,0,W,H,'#070912');skyline(0,150,'#0b0f1a','#ffd696');
+  R(110,12,100,144,'#0d1220');for(let r=0;r<16;r++)for(let c=0;c<7;c++){const off=dark>0&&r<dark;R(116+c*13,32+r*7,9,4,off?'#0a0e18':hash(r*9+c)>.4?'#ffd696':'#1a2238');}
+  const logoOn=dark<16||(dark<18&&Math.floor(t*12)%2);logo(160,22,logoOn?'#3fd0c9':'#1a2a2c',2);A(140,12,40,20,'#3fd0c9',logoOn?.12:0);
+  R(0,150,W,30,'#15181f');R(96,136,128,4,'#f2c230');for(let x=100;x<220;x+=16)R(x,136,6,4,'#0b0b0e');txtC('POLICE LINE',160,130,'#f2c230');
+  A(0,0,W,H,Math.floor(t*6)%2?'#ff2e3e':'#3d7bff',.06);}
+// The talk show: a late-night studio, the host at her desk, Sam in the guest chair, Pip beside him.
+const HOST={skin:'#d9a27a',skinD:'#b07e5a',hair:'#20140e',blazer:'#b3263a',blazerD:'#7a1a28'};
+function hostAtDesk(cx,y,t,talking){
+  R(cx-6,y-16,12,16,HOST.blazer);R(cx-6,y-16,2,16,HOST.blazerD);R(cx-1,y-16,4,5,'#f2f2f2');
+  R(cx-2,y-18,4,2,HOST.skinD);R(cx-4,y-25,8,8,HOST.skin);R(cx-5,y-27,10,3,HOST.hair);R(cx-5,y-25,3,9,HOST.hair);
+  R(cx+2,y-22,1,2,'#1a1a1a');const m=talking&&Math.floor(t*8)%2;R(cx+2,y-19,2,m?2:1,m?'#5a2a2a':HOST.skinD);R(cx-2,y-20,1,1,'#f2c230');
+  R(cx+4,y-6,5,2,HOST.blazer);R(cx+8,y-7,4,4,'#f2f2f2');}
+function samSeated(cx,gy,t,talking){
+  const P=(x,y,w,h,c)=>R(cx-x-w,gy+y,w,h,c),B='#2b3550';
+  R(cx+2,gy-25,5,17,'#7a2a3a');R(cx-9,gy-11,16,5,'#8a3242');R(cx-8,gy-6,2,6,'#3a141c');R(cx+4,gy-6,2,6,'#3a141c');
+  P(6,-2,4,2,EMP.shoe);P(6,-8,3,6,EMP.pants);P(-1,-12,9,4,EMP.pants);
+  P(-3,-22,7,11,B);P(0,-22,2,8,EMP.shirt);P(1,-21,1,6,EMP.tie);P(0,-23,2,1,EMP.skinD);
+  P(-2,-30,7,7,EMP.skin);P(-2,-31,7,2,EMP.hair);P(-3,-30,3,4,EMP.hair);P(3,-27,1,2,'#1a1a1a');
+  const m=talking&&Math.floor(t*8)%2;P(3,-24,2,m?2:1,m?'#5a2a2a':'#8a4a3a');
+  const g=talking?Math.round(Math.sin(t*5)*2):0;P(0,-19,2,6,B);P(1,-13+Math.min(0,g),5,2,B);P(6,-13+Math.min(0,g),2,2,EMP.skin);
+}
+function studio(t){
+  R(0,0,W,120,'#120e2e');for(let y=0;y<120;y+=8)A(0,y,W,8,'#2a1d5a',y/400);
+  skyline(-30,118,'#231a52','#ffd696');for(let i=0;i<30;i++)R(hash(i)*W,hash(i*5)*60,1,1,'#c9c0ff');
+  txtO('TONIGHT',112,16,'#ff4fa3',2,'#120e2e');txtO('LIVE',178,16,'#ffd166',2,'#120e2e');A(104,10,116,18,'#ff4fa3',.08+.03*Math.sin(t*3));
+  for(const sx of[40,160,280]){ctx.fillStyle='#fff6d8';ctx.globalAlpha=.06;ctx.beginPath();ctx.moveTo(sx-4,0);ctx.lineTo(sx+4,0);ctx.lineTo(sx+40,124);ctx.lineTo(sx-40,124);ctx.fill();ctx.globalAlpha=1;}
+  R(0,120,W,44,'#2a1d3d');A(0,120,W,4,'#ff4fa3',.15);for(let x=0;x<W;x+=32)A(x,124,16,40,'#ffffff',.02);
+  R(10,12,30,10,'#b3141b');R(13,15,4,4,Math.floor(t*2)%2?'#ffffff':'#ff8a94');txt('LIVE',20,15,'#ffffff');
+}
+function studioDesk(){R(30,104,92,30,'#5a3a24');R(30,104,92,3,'#7a5234');R(36,110,80,20,'#4a2e1c');txtC('TONIGHT LIVE',76,117,'#ffd166');}
+function audience(t,clap){for(let x=-4,i=0;x<W;x+=14,i++){const b=clap?Math.round(Math.abs(Math.sin(t*9+i))*2):0;R(x,164-b-((i%2)*3),12,20,'#07060f');R(x+2,157-b-((i%2)*3),8,8,'#07060f');}}
+function samTalk(t,talking){
+  cam(0,0,4);
+  R(0,0,80,45,'#18123c');for(let i=0;i<14;i++)A(hash(i)*80,hash(i*3)*30,3,3,['#ff4fa3','#ffd166','#7f6bff'][i%3],.25);
+  R(24,0,32,6,EMP.hair);R(23,2,3,12,EMP.hair);R(54,2,3,12,EMP.hair);R(23,13,3,6,EMP.skinD);R(54,13,3,6,EMP.skinD);
+  R(26,4,28,26,EMP.skin);R(28,4,10,3,EMP.hair);R(44,4,8,2,EMP.hair);
+  R(34,30,12,4,EMP.skinD);R(14,33,52,12,'#2b3550');line(30,33,36,44,'#1c2438');line(50,33,44,44,'#1c2438');R(34,33,12,4,'#f2f2f2');R(38,34,4,11,EMP.tie);
+  R(29,10,8,2,EMP.hair);R(43,10,8,2,EMP.hair);
+  const bl=(t%4.3)<.12;if(bl){R(29,15,8,1,'#1a1a1a');R(43,15,8,1,'#1a1a1a');}else{R(29,13,8,5,'#f2f2f2');R(43,13,8,5,'#f2f2f2');R(32,14,3,3,'#3b2416');R(46,14,3,3,'#3b2416');R(32,14,1,1,'#ffffff');R(46,14,1,1,'#ffffff');}
+  R(39,17,3,5,EMP.skinD);
+  const m=talking&&Math.floor(t*7)%3;if(m){R(35,23,10,3,'#4a1f22');R(36,23,8,1,'#efe9e0');}else{R(35,24,10,1,'#7a3a2a');R(34,23,1,1,'#7a3a2a');R(45,23,1,1,'#7a3a2a');}
+  A(26,4,5,26,'#ffd696',.14);A(49,4,5,26,'#ff4fa3',.1);
+  home();
+}
+
+const FINALE_SHOTS=[
+{name:'Upload',note:'Close on the uplink terminal: the files go out to the world.',dur:6.8,fi:.5,music:t=>t<4.4?'rise2':'triumph',
+ ev:[[.3,'key'],[.6,'key'],[.9,'key'],...evEvery('data',1.2,4.3,.45),[4.4,'boom'],[4.5,'ding']],
+ lines:[[.3,2.8,'SAM','Come on... come on...'],[4.8,6.7,'SAM','It\'s out. Everyone can see it now.']],
+ draw(t){uplinkScreen(t,ease(seg(t,.6,4.4)));}},
+{name:'The world sees',note:'TV news, a phone feed and a city billboard all show the Clearpath Files.',dur:7.4,music:()=>'triumph',
+ ev:[[.2,'sting'],[1.6,'data'],[3,'data']],
+ lines:[[.5,3.6,'NEWS','Breaking tonight: leaked files show Clearpath trained its security robots on stolen private data.'],[3.8,7.2,'NEWS','The files are spreading around the world. No one whose data was used was ever asked.']],
+ draw(t){R(0,0,W,H,'#070912');skyline(0,170,'#0b0f1a','#ffd696');
+  const k=i=>ease(seg(t,i*1.3,i*1.3+.6));
+  ctx.save();ctx.translate(0,Math.round((1-k(0))*-140));tvNews(t,10,22,102,76);ctx.restore();
+  ctx.save();ctx.translate(0,Math.round((1-k(1))*160));phoneFeed(t,126,18);ctx.restore();
+  ctx.save();ctx.translate(Math.round((1-k(2))*160),0);billboard(t,210,24,104,44);crowd(204,320,166,t,3);ctx.restore();
+  if(t>4.4)txtO(typed('THE WHOLE WORLD IS WATCHING.',t,4.4,24),Math.round(160-tw('THE WHOLE WORLD IS WATCHING.',2)/2),124,'#ffd166',2);}},
+{name:'Cornered',note:'Back on the roof: three Wardens close in on Sam at the edge. Dr. Voss steps out of the stair door.',dur:9.4,top:true,music:()=>'trap',
+ ev:[...evEvery('stomp',.6,7.4,.45),[2,'slam'],[2.2,'wind']],
+ lines:[[.6,2.8,'SAM','It\'s already out there, Voss. Every file.'],[3.2,6.4,'DR. VOSS','Then you are the only thing left on this roof that I still control.'],[6.6,9.2,'DR. VOSS','Wardens. Contain him.']],
+ draw(t){rooftop(t,{door:seg(t,1.8,2.1)});roofEdge(t);hangingCables();
+  if(t>2.1){const vx=lerp(30,94,seg(t,2.3,4.4));doctor(Math.round(vx),150,{dir:1,pose:t>6.6?'point':'idle',glint:t>3&&t<3.3,grin:t>4.6});}
+  [[-20,186],[14,214],[46,242]].forEach(([a,b],i)=>{const x=lerp(a,b,ease(seg(t,.4,7.6)));warden(Math.round(x),150+(i%2)*3,{eye:1,t,look:1,step:Math.floor(t*3)+i});});
+  emp(Math.round(lerp(266,280,seg(t,.4,3))),150,{dir:-1,pose:'idle',shock:t>6.6});drive(Math.round(lerp(266,280,seg(t,.4,3)))-9,134,t);
+  A(0,0,W,H,'#ff1030',.04+.03*Math.sin(t*4));}},
+{name:'No way out',note:'Warden POV: no safe moves left. Capture in one move, 99% sure.',dur:5.6,music:()=>'trap',
+ ev:[[.1,'boot'],...evEvery('radar',.5,5,.5),[3.6,'sting']],lines:[],
+ draw(t){wardenPOV(t,[['SUBJECT: S.REYES  /  POSITION: ROOF EDGE',.2],['SAFE MOVES LEFT: 0',1],['CAPTURE IN: 1 MOVE',1.7],['CONFIDENCE: 99%',2.4,'#ffb347']],
+  {big:'NOWHERE LEFT TO GO.',bigAt:3.6,sub:(t)=>{const cx=236,cy=76;R(cx-1,cy-1,3,3,'#5ab0ff');[[-26,-14],[26,-14],[-26,14],[26,14]].forEach(([dx,dy],i)=>{if(t<.8+i*.25)return;line(cx,cy,cx+dx,cy+dy,'#8a1a24');const x=cx+dx,y=cy+dy;line(x-2,y-2,x+2,y+2,'#ff3b4a');line(x-2,y+2,x+2,y-2,'#ff3b4a');});}});}},
+{name:'Pip',note:'The window-cleaning gondola rises over the edge behind Sam. Pip, Clearpath\'s own mascot robot, is driving it.',dur:10.4,top:true,music:t=>t<1.4?'trap':'rise1',
+ ev:[[1.2,'motor'],[1.9,'motor'],[2.8,'clank'],[3,'ding'],[8,'clank']],
+ lines:[[2.9,5.4,'PIP','Hi, Sam! I saw the news. Need a lift?'],[5.5,6.8,'SAM','Pip?! You work for Clearpath!'],[6.9,10.2,'PIP','I clean the windows. And the Wardens have never studied me. Hop in!']],
+ draw(t){rooftop(t,{door:1});roofEdge(t);
+  doctor(94,150,{dir:1,pose:t<2.8?'point':'idle',glint:t>3.2&&t<3.5});
+  const stun=t>2.8;
+  [186,214,242].forEach((x,i)=>{const fwd=Math.round(seg(t,.2,1.2)*6);warden(x+fwd,150+(i%2)*3,{eye:stun?(Math.floor(t*7+i)%3?1:.2):1,t,look:stun?(Math.floor(t*2+i)%2?1:-1):1,step:0});
+    if(stun&&t<8)txt('?',x+fwd-1,108+(i%2)*3,'#ffb347');});
+  const gy=t<1.2?200:Math.round(lerp(200,150,ease(seg(t,1.2,2.8))))+(t>9.4?Math.round((t-9.4)*30):0);
+  if(t>1.2){ctx.fillStyle='#fff6c8';ctx.globalAlpha=.1;ctx.beginPath();ctx.moveTo(306,gy-20);ctx.lineTo(270,0);ctx.lineTo(320,0);ctx.fill();ctx.globalAlpha=1;}
+  const jump=seg(t,8,8.7),sx=Math.round(lerp(280,298,jump)),sy=Math.round(lerp(150,gy,jump)-Math.sin(jump*Math.PI)*12);
+  if(t<=1.2)hangingCables();
+  if(jump>=1){emp(sx,sy,{dir:-1,pose:'idle'});drive(sx-9,sy-16,t);}
+  if(t>1.2){pip(312,gy-18,{t,wave:t>2.8&&t<5.5});gondola(304,gy,95);}
+  if(jump<1){emp(sx,sy,{dir:jump>0?1:-1,pose:jump>0?'run':'idle',shock:t>2.8&&t<5.5,frame:Math.floor(t*14)});drive(jump>0?sx+2:sx-9,sy-16,t);}
+  R(286,140,6,10,'#3a4150');}},
+{name:'Unknown',note:'Warden POV: an unknown agent with no training data, on a route that isn\'t in their model. The prediction fails.',dur:6.2,music:()=>'rise1',
+ ev:[[.1,'glitch'],[1.2,'glitch'],[2.4,'glitch'],[4,'sting']],lines:[],
+ draw(t){wardenPOV(t,[['UNKNOWN AGENT: PIP-07 (WINDOW CLEANING)',.2,'#ffb347'],['TRAINING DATA ON AGENT: NONE',1],['ROUTE: OUTSIDE WALL  /  NOT IN MODEL',1.8],['PREDICTION: ???  ???  ???',2.6,'#ffb347']],
+  {big:'IT WAS NEVER IN OUR DATA.',bigAt:4,sub:(t)=>{const g=Math.floor(t*10)%3===0?2:0;pip(240+g,96,{t,red:Math.floor(t*4)%2===0});for(const[x,y,dx,dy]of[[218,74,1,1],[262,74,-1,1],[218,120,1,-1],[262,120,-1,-1]]){line(x,y,x+4*dx,y,'#ffb347');line(x,y,x,y+4*dy,'#ffb347');}txt('???',234,124,'#ffb347');
+   if(Math.floor(t*8)%4===0)A(0,hash(Math.floor(t*8))*H,W,6,'#ffffff',.2);}});}},
+{name:'Down the wall',note:'Pip lowers the gondola down the outside of the tower. Up top, Voss and the Wardens can only watch.',dur:8.6,music:()=>'rise2',
+ ev:[[.2,'motor'],[1.1,'motor'],[2,'motor'],[3,'motor'],[4,'motor'],[5,'motor'],[6,'motor'],[7,'motor']],
+ lines:[[.2,2.2,'DR. VOSS','No! Stop them!'],[2.4,5.6,'PIP','Wardens only predict what they\'ve seen before. Nobody ever showed them me!'],[5.8,8.4,'SAM','Remind me to thank whoever cleans your windows.']],
+ draw(t){const off=t*60;facade(off);
+  const ry=Math.round(26-t*60);if(ry>-30){R(30,ry-40,270,40,'#05060d');R(30,ry,270,6,'#3a4150');doctor(150,ry,{dir:1,pose:'point'});warden(110,ry,{eye:1,t,look:1,step:0});warden(200,ry,{eye:1,t,look:-1,step:1});}
+  emp(152,110,{dir:1,pose:'idle'});drive(154,94,t);pip(170,92,{t,wave:t>2.4&&t<5.6});gondola(160,110,-10);
+  const fl=Math.max(1,Math.round(lerp(88,1,seg(t,.6,8.4))));R(268,14,44,22,'#05060a');txt('FLOOR',274,17,'#8891a6');txt(String(fl).padStart(2,'0'),280,25,'#ffd166',1);}},
+{name:'Street',note:'The street below: police cars, news vans, a crowd with phones up. Sam hands the drives to an officer; police run into the building.',dur:8.4,top:true,music:()=>'triumph',
+ ev:[[.2,'siren'],[1.2,'clank'],[2.4,'siren'],[4.6,'siren'],[4.8,'flash'],[5.4,'flash'],[6.8,'siren']],
+ lines:[[1.6,4.4,'SAM','Officer! It\'s all on these drives. Every file.'],[4.6,8.2,'OFFICER','We saw it on the news, Sam. So did every officer in the city.']],
+ draw(t){R(0,0,W,H,'#070912');skyline(60,150,'#0b0f1a','#ffd696');
+  R(0,0,150,150,'#0d1220');for(let y=6;y<104;y+=12)for(let x=6;x<146;x+=16)R(x,y,12,8,hash(x*3+y)>.5?'#2a3352':'#121a2e');
+  R(94,108,44,42,'#1c2438');R(98,112,36,38,'#0a1020');A(98,112,36,38,'#ffd696',.1);R(115,112,2,38,'#1c2438');txtC('CLEARPATH',116,102,'#3fd0c9');
+  R(0,150,W,6,'#2a2e38');R(0,156,W,24,'#16181e');for(let x=0;x<W;x+=24)R(x,166,12,1,'#5d636e');
+  gondola(40,150,-10);pip(54,132,{t});
+  policeCar(200,174,t,-1);policeCar(276,176,t+.3,-1);newsVan(296,168,t);
+  const sx=t<1.2?36:Math.min(118,lerp(36,118,seg(t,1.2,3.2)));
+  const handed=t>5;
+  emp(Math.round(sx),150,{dir:1,pose:t>1.2&&t<3.2?'walk':handed?'idle':'reach',frame:Math.floor(t*8)});if(!handed)drive(Math.round(sx)+(t>3.2?8:2),t>3.2?130:134,t);
+  const cx=Math.round(lerp(176,140,seg(t,1,2.6)));cop(cx,150,{dir:-1,pose:t>1&&t<2.6?'walk':'idle',hold:handed,frame:Math.floor(t*8)});if(handed)drive(cx-10,131,t);
+  [[0,5.4],[1,5.8]].forEach(([i,at])=>{if(t<at)return;const x=Math.round(330-(t-at)*90);if(x>112)cop(x,150+i*2,{dir:-1,pose:'run',frame:Math.floor(t*14)+i});});
+  crowd(150,330,182,t,1);
+  A(0,0,W,H,Math.floor(t*6)%2?'#ff2e3e':'#3d7bff',.05);}},
+{name:'Lights out',note:'Montage: the Clearpath tower goes dark behind police tape.',dur:4.8,fi:.2,fo:.15,music:()=>'triumph',
+ ev:[[.1,'camclick'],[1.4,'powerdown'],[2.6,'powerdown']],lines:[],
+ draw(t){towerExterior(t,Math.floor(seg(t,1.2,2.6)*17)+(t>2.6?1:0));newsFrame(t,'CLEARPATH SHUT DOWN','REGULATORS CLOSE THE COMPANY OVER THE LEAKED FILES');}},
+{name:'Wardens off',note:'Montage: every Warden powers down, one by one.',dur:4.8,fi:.15,fo:.15,music:()=>'triumph',
+ ev:[[.1,'camclick'],...[0,1,2,3,4].map(i=>[.6+i*.45,'powerdown'])],lines:[],
+ draw(t){R(0,0,W,H,'#0e1117');R(0,0,W,16,'#15171c');for(let x=10;x<W;x+=70)R(x,14,34,2,'#e8f0ff');
+  for(let i=0;i<5;i++){const x=34+i*63;R(x-26,34,52,90,'#1b1e24');R(x-26,34,52,2,'#f2c230');warden(x,122,{eye:1-seg(t,.6+i*.45,.8+i*.45),t,look:0,step:0});}
+  R(0,122,W,10,'#262a30');newsFrame(t,'WARDENS SHUT OFF','EVERY WARDEN IS POWERED DOWN FOR GOOD');}},
+{name:'Arrest',note:'Montage: Dr. Voss is led out in handcuffs past the cameras.',dur:4.8,fi:.15,fo:.15,music:()=>'triumph',
+ ev:[[.1,'camclick'],[.8,'flash'],[1.5,'flash'],[2.1,'flash'],[2.9,'flash'],[3.6,'flash']],lines:[],
+ draw(t){R(0,0,W,H,'#0b0d14');R(0,0,W,120,'#141822');for(let x=20;x<W;x+=60){R(x,20,24,100,'#1c212c');R(x,20,24,2,'#3a4150');}
+  R(0,120,W,8,'#2a2e38');policeCar(276,128,t,-1);
+  const x=Math.round(lerp(40,196,t/4.8)),f=Math.floor(t*6);cop(x-14,124,{dir:1,pose:'walk',frame:f});vossCuffed(x,124,{dir:1,glint:t>2&&t<2.3});cop(x+15,124,{dir:1,pose:'walk',frame:f+2});
+  crowd(-4,330,136,t,5);for(const at of[.8,1.5,2.1,2.9,3.6])if(t>at&&t<at+.12)A(0,0,W,H,'#ffffff',.35);
+  newsFrame(t,'DR. VOSS ARRESTED','CHARGED WITH USING PRIVATE DATA WITHOUT CONSENT');}},
+{name:'Deleted',note:'Montage: a court orders every stolen file deleted. The counter runs to zero.',dur:4.8,fi:.15,fo:.25,music:()=>'triumph',
+ ev:[[.1,'camclick'],...evEvery('data',.6,3,.3),[3.1,'ding']],lines:[],
+ draw(t){R(0,0,W,H,'#05070c');R(40,16,240,104,'#0b111a');R(40,16,240,1,'#3fd0c9');
+  txt('PRIVATE RECORDS TAKEN WITHOUT CONSENT',50,24,'#3fd0c9');txt('4,812 PEOPLE  /  1.2M ROWS  /  88 GB',50,34,'#8fb5b0');
+  const p=ease(seg(t,.5,3));R(50,52,220,10,'#0b2b2a');R(50,52,Math.round(220*p),10,'#ff4656');txt(p<1?'DELETING...':'DONE',50,66,'#ffb347');
+  txt(`FILES REMAINING: ${Math.round((1-p)*4812).toLocaleString('en-US')}`,50,80,p<1?'#d9dfeb':'#7dffb0',2);
+  if(t>3.2)txt('EVERY PERSON IS TOLD WHAT WAS TAKEN.',50,100,'#d9dfeb');
+  newsFrame(t,'STOLEN DATA DELETED','A COURT ORDERS EVERY FILE ERASED');}},
+{name:'Talk show',note:'Months later: Sam (and Pip) on a live late-night talk show. Applause.',dur:15,fi:.8,music:()=>'talk',
+ ev:[[.2,'fanfare'],[.3,'applause'],[1.4,'applause'],[8.3,'applause'],[14.6,'applause']],
+ lines:[[1,4.2,'HOST','Please welcome the man who outsmarted the Wardens... Sam Reyes!'],[4.4,6.2,'SAM','Thanks! And this is Pip.'],[6.3,8.2,'PIP','Hi! I clean windows!'],
+        [8.6,11.2,'HOST','So how do you beat a machine that knows what you\'ll do next?'],[11.4,14.8,'SAM','You do the one thing it never saw coming. And it helps to have a friend it never saw coming.']],
+ draw(t){studio(t);studioDesk();
+  const hostTalk=(t>1&&t<4.2)||(t>8.6&&t<11.2),samTalkNow=(t>4.4&&t<6.2)||(t>11.4&&t<14.8);
+  R(146,126,96,6,'#3a2a52');R(146,126,96,1,'#ff4fa3');// the guest riser
+  hostAtDesk(66,104,t,hostTalk);samSeated(204,126,t,samTalkNow);pip(234,100,{t,wave:t>6.3&&t<8.2});
+  audience(t,t<2.6||(t>8.3&&t<9.8)||t>14.6);}},
+{name:'Close-up',note:'Sam, close, under the studio lights. His message, then a slow fade to black.',dur:17,fo:3.6,music:t=>t<13.4?'talk':null,
+ ev:[[13.6,'applause'],[14.6,'applause']],
+ lines:[[3.4,6.8,'SAM','The Wardens weren\'t magic. They were trained on my life: my badge swipes, my habits, even what I do when I\'m scared.'],
+        [6.9,9.2,'SAM','And nobody ever asked me if that was OK.'],[9.3,11.8,'SAM','If an AI is going to learn from you, you deserve to be asked first.'],[11.9,13.4,'SAM','Your data is yours. Make them ask.']],
+ draw(t){const talk=(t>3.4&&t<6.8)||(t>6.9&&t<9.2)||(t>9.3&&t<11.8)||(t>11.9&&t<13.4);samTalk(t,talk);
+  if(t>.3&&t<3.3){const k=ease(seg(t,.3,.8))*(1-seg(t,2.9,3.3));R(14,138,Math.round(220*k),26,'#120e2e');R(14,138,3,26,'#ff4fa3');if(k>.9){txt('SAM REYES',22,142,'#ffffff',2);txt('WHISTLEBLOWER  /  THE CLEARPATH FILES',22,155,'#c9c0ff');}}
+  R(10,12,30,10,'#b3141b');txt('LIVE',20,15,'#ffffff');R(13,15,4,4,'#ffffff');}},
+{name:'Black',note:'Fade to black.',dur:2.6,nobars:true,music:()=>null,ev:[],lines:[],draw(){R(0,0,W,H,'#000000');}},
+];
+
 /* ---------- Level cards: a short title card before each level ---------- */
 // Played between levels (and when a level is picked from the menu): the level's number and name, where
 // you are in the story, the new idea, and what's hunting you, over a small animated picture of the place.
@@ -949,6 +1200,7 @@ function cardScene(lv){
 /* ---------- the scenes ---------- */
 const SCENES={
   afterHours:{shots:SHOTS,label:'Opening cutscene',canvasLabel:'Pixel-art cutscene: an employee finds Clearpath\'s secret Warden lab',start:'Start the story',skip:'Skip intro ›',poster:2.9},
+  finale:{shots:FINALE_SHOTS,label:'Final cutscene: Broadcast',canvasLabel:'Pixel-art cutscene: Sam uploads the evidence, escapes the roof with help from Pip, Clearpath is shut down, Dr. Voss is arrested, and Sam tells his story on a live talk show',start:'Watch the ending',skip:'Skip ›',poster:5.5},
   decision:{shots:DECISION_SHOTS,label:'Cutscene: the choice before the Uplink',canvasLabel:'Pixel-art cutscene: Sam has the evidence and must choose between escaping to the street or climbing to the roof uplink',start:'Continue the story',skip:'Skip ›',poster:3.8},
   core:{shots:CORE_SHOTS,label:'Cutscene: Dr. Voss feeds the Wardens more data',canvasLabel:'Pixel-art cutscene: a security camera watches Sam climb out of a vent into the Core, while Dr. Voss feeds the Wardens his personal data and their prediction confidence rises',start:'Continue the story',skip:'Skip ›',poster:5.6},
 };
@@ -1001,6 +1253,15 @@ const SFX={
   rewind:()=>{tone(1800,.9,'sawtooth',.03,-1500);noise(.9,.05,3000,'bandpass');},
   wind:()=>noise(.95,.06,500,'bandpass'),
   boom:()=>{tone(70,1.2,'sine',.35,-40);noise(.5,.25,300);},
+  motor:()=>{tone(55,.9,'sawtooth',.035,8);noise(.9,.03,260);},
+  siren:()=>{tone(640,.55,'sine',.045,300);tone(940,.55,'sine',.045,-300,.55);tone(640,.55,'sine',.045,300,1.1);},
+  flash:()=>{noise(.05,.14,4000,'highpass');tone(3200,.25,'sine',.02,-1800,.03);},
+  powerdown:()=>{tone(420,.8,'sawtooth',.04,-360);tone(210,.9,'square',.025,-170);},
+  applause:()=>{if(!AC||!soundOn)return;const t=AC.currentTime;if(!NB)noise(.01,0,100); // a wash of hands plus individual claps on top
+    const w=AC.createBufferSource();w.buffer=NB;w.loop=true;const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=2200;bp.Q.value=.6;const g=AC.createGain();
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.16,t+.25);g.gain.setValueAtTime(.16,t+1.2);g.gain.linearRampToValueAtTime(0,t+2.8);w.connect(bp).connect(g).connect(bus);w.start(t);w.stop(t+2.9);
+    for(let i=0;i<120;i++){const at=Math.random()*2.5;noise(.07,.3*(1-at/3)*(.5+Math.random()*.5),1400+Math.random()*2200,'bandpass',at);}},
+  fanfare:()=>{for(const[d,ch]of[[0,[55,59,62,67]],[.28,[55,59,62,67]],[.56,[57,60,64,69]],[.84,[59,62,67,71]]])for(const n of ch)tone(mf(n),d<.8?.24:1.2,'sawtooth',.022,0,d);},
   cardchime:()=>{[69,76,81].forEach((n,i)=>tone(mf(n),1.4,'triangle',.05,0,i*.09));tone(mf(88),1.8,'sine',.025,0,.3);},
 };
 
@@ -1044,6 +1305,10 @@ const INS={
   // A creak / metal scrape: noise through a narrow sweeping bandpass.
   creak(v,dl=0){if(!AC||!soundOn)return;if(!NB)noise(.01,0,100);const t=AC.currentTime+dl,s=AC.createBufferSource();s.buffer=NB;s.loop=true;const bp=AC.createBiquadFilter();bp.type='bandpass';bp.Q.value=18;
     const f0=200+Math.random()*500;bp.frequency.setValueAtTime(f0,t);bp.frequency.exponentialRampToValueAtTime(f0*(1.6+Math.random()),t+.9);const g=envG(t,.2,v,.4,.5);s.connect(bp).connect(g);s.start(t);s.stop(t+1.3);out(g,{verb:.6,dub:.3});},
+  // Electric piano (Rhodes-like): a sine with a soft bell attack and a gentle tremolo.
+  keys(notes,dur,v,dl=0){if(!AC||!soundOn)return;const t=AC.currentTime+dl;for(const n of notes){const f=mf(n),c=osc('sine',f,t,t+dur+1.5),m=osc('sine',f,t,t+dur+1.5),d=AC.createGain();
+    d.gain.setValueAtTime(f*1.2,t);d.gain.exponentialRampToValueAtTime(f*.08,t+.5);m.connect(d).connect(c.frequency);
+    const g=AC.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.01);g.gain.exponentialRampToValueAtTime(v*.35,t+.6);g.gain.exponentialRampToValueAtTime(.0005,t+dur+1.2);c.connect(g);out(g,{verb:.35,dub:.1});}},
   heart(v,dl=0,n=43){INS.timp(n,v,dl);INS.timp(n,v*.6,dl+.2);},
 };
 
@@ -1110,6 +1375,22 @@ function rise(stage){return{rate:R8,global:true,play(i,fresh){const st=i%16,blk=
   if(stage===2)for(const[s0,n,len]of RISE_MEL[blk])if(st===s0)INS.str(n,len*SL,.04,0,{attack:.05,bright:2600});
   if(st===0||st===8)INS.timp(root,.2);if(stage===2&&st%4===2)INS.timp(root+7,.1);
   if(stage===2&&head&&blk===0)INS.boom(.3);}};}
+// The ending. "Triumph": the Wardens' five-note motif (in G major: D-C-B-G-A) as a full orchestral anthem
+// over G, D, Em, C, for the upload, the escape to the street and the news montage. "Talk": a warm,
+// laid-back electric-piano groove for the talk show (Fmaj7, Em7, Dm7, G7 with brushed hi-hats).
+const TRI_CH=[[43,[67,71,74]],[38,[66,69,74]],[40,[67,71,76]],[36,[67,72,76]]];
+const TRI_MEL=[[[0,74,4],[4,72,4],[8,71,4],[12,67,2],[14,69,2]],[[0,71,8],[8,74,8]],[[0,79,8],[8,78,4],[12,76,4]],[[0,76,4],[4,74,4],[8,72,4],[12,74,4]]];
+const triumph={rate:R8,global:true,play(i,fresh){const st=i%16,blk=Math.floor(i/16)%4,[root,ch]=TRI_CH[blk],head=st===0||fresh,rest=(16-st)*SL;
+  if(head){INS.drone(root,rest+.1,.025);INS.choir(ch,rest,.055,0,'a');if(blk===0)INS.boom(.2);}
+  INS.stac([root+12,root+19,root+24,root+19][st%4],.036);if(st%2===0)for(const n of ch)INS.stac(n-12,.015);
+  for(const[s0,n,len]of TRI_MEL[blk])if(st===s0){INS.str(n+12,len*SL,.05,0,{attack:.05,bright:3800});INS.str(n,len*SL,.034,0,{attack:.05,bright:2600});}
+  if(st===0||st===8)INS.timp(root,.16);if(st%4===2)INS.timp(root+7,.07);
+  if(st===12&&blk===3)INS.cluster([ch[2]+12],1.2,.012);}};
+const TALK_CH=[[41,[57,60,64,67]],[40,[55,59,62,67]],[38,[53,57,60,64]],[43,[53,57,59,64]]]; // Fmaj7 Em7 Dm7 G13
+const talk={rate:4,global:true,play(i,fresh){const st=i%8,blk=Math.floor(i/8)%4,[root,ch]=TALK_CH[blk];
+  if(st===0||fresh)INS.keys(ch,1.6,.05);if(st===3)INS.keys([ch[3]+12],.4,.035);if(st===5&&blk%2)INS.keys(ch.slice(1),.8,.03);
+  if(st===0)tone(mf(root),.9,'sine',.025);if(st===4)tone(mf(root+7),.6,'sine',.018);if(st===6&&blk===3)tone(mf(root+5),.4,'sine',.015);
+  noise(.03,st%2?.012:.02,7000,'highpass');if(st===2||st===6)noise(.12,.03,2600,'bandpass');}};
 const MUS={
   office:{rate:4,play(i){tone(mf([57,64,60,67,64,60,62,59][i%8]+12),.22,'triangle',.04);if(i%8===0)tone(mf(45),.6,'triangle',.05);}},
   muzak:{rate:3,play(i){tone(mf([72,76,79,83,81,79,76,74][i%8]),.3,'sine',.035);if(i%4===0)tone(mf(48+[0,5,7,5][(i/4|0)%4]),.6,'sine',.05);}},
@@ -1119,7 +1400,7 @@ const MUS={
     if(st%2===0)SFX[st%4?'tock':'tick']();
     if(head){INS.drone(40,rest+.1,.032);for(const n of blk?[48,55,59,62]:[52,57,59,64])INS.str(n,rest,.024,0,{attack:.9,bright:1400});}
     if(st%4===0)INS.heart(.1,0,40);if(blk===1&&st===8)INS.cluster([83,84],1.4,.014);}},
-  rise1:rise(1),rise2:rise(2),
+  rise1:rise(1),rise2:rise(2),triumph,talk,
   flee:pre(4),trap:creep(3),
 };
 let lastKey='';
