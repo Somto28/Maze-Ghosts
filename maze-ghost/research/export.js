@@ -129,7 +129,7 @@ console.log(`\n${key.length} students, ${sessions.length} sessions (${testSessio
 writeCsv("PRIVATE_participant_key.csv", key);
 
 writeCsv("sessions.csv", sessions.filter((s) => keep({ ...s, sessionId: s.id })).map((s) => ({
-  student: code(s.participantId), session: sessionNo.get(s.id), startedAt: s.createdAt, test: s.test,
+  student: code(s.participantId), session: sessionNo.get(s.id), group: s.group ?? "", startedAt: s.createdAt, test: s.test,
   screen: s.screen, viewport: s.viewport, touch: s.touch, urlFlags: s.urlFlags, gameVersion: s.gameVersion,
 })));
 
@@ -143,7 +143,7 @@ for (const a of attempts) {
 }
 
 writeCsv("attempts.csv", attempts.map((a) => ({
-  student: code(a.participantId), session: sessionNo.get(a.sessionId), level: a.level, levelName: a.levelInfo?.name,
+  student: code(a.participantId), session: sessionNo.get(a.sessionId), group: a.group ?? "", level: a.level, levelName: a.levelInfo?.name,
   attemptOnLevel: tryNo.get(a.id), result: a.result, caughtBy: a.caughtBy, moveCount: a.moveCount,
   wallBumps: a.wallBumps, lockedBumps: a.lockedBumps, glitchUses: a.glitchUses, dashUses: a.dashUses,
   glitchAvailable: a.levelInfo?.glitchAvailable, dashHeld: a.levelInfo?.dashHeld,
@@ -221,6 +221,7 @@ for (const { code: c } of key) {
   const avoidPct = (ms) => pct(ms.filter((m) => m.verdict === "caught" && m.safeOptions > 0).length, ms.filter((m) => m.verdict).length);
   studentRows.push({
     student: c,
+    group: [...new Set(sessions.filter((s) => code(s.participantId) === c).map((s) => s.group).filter(Boolean))].join(" "),
     sessions: sessionsByStudent[c] ?? 0,
     levelsCompleted: levelRows.filter((r) => r.student === c && r.completed).length,
     gameCompleted: myEvents.some((e) => e.type === "game_complete"),

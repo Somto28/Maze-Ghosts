@@ -16,6 +16,8 @@
 //     every 30 s and whenever the network comes back. Records have fixed IDs, so a retry never duplicates.
 //   • Ctrl+Shift+L downloads whatever is still unsent on this device as a JSON file (export.js can read it).
 //   • Ctrl+Shift+N starts a new player on this device (asks for the next student's name).
+//   • Ctrl+Shift+S shows whether this device is connected and how many records are waiting.
+//   • ?group=periodA tags everything from that tab with a class period (default "general").
 //   • ?nolog=1 turns logging off completely (for the team's own testing).
 //
 // The game calls (all safe to call before anything has loaded):
@@ -37,6 +39,26 @@ const MAX_MOVES = 2000; // must match firestore.rules
 const URL_TEST_FLAGS = ["level", "glitch", "intro", "title", "scene", "at", "res"];
 
 const id = () => (crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`);
+
+// Class period / playtest group from the link (?group=periodA), remembered for the tab. Default "general".
+const GROUP_KEY = "clearpath_group_v1";
+export const GROUP = (() => {
+  const fromUrl = (params.get("group") ?? "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32);
+  try {
+    if (fromUrl) sessionStorage.setItem(GROUP_KEY, fromUrl);
+    return fromUrl || sessionStorage.getItem(GROUP_KEY) || "general";
+  } catch { return fromUrl || "general"; }
+})();
+
+// Readable, time-ordered document IDs, so the Firestore console lists records in the order they happened:
+//   2026-10-26_09-14-03_periodA_attempt_L3_a2_k9x2b1q7
+// The random tail keeps every ID unique (two students on the same second can't collide).
+function docId(kind, extra = "") {
+  const d = new Date(), p = (n) => String(n).padStart(2, "0");
+  const stamp = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
+  const tail = id().replace(/-/g, "").slice(0, 8);
+  return [stamp, GROUP, kind, extra, tail].filter(Boolean).join("_");
+}
 const now = () => performance.now();
 
 // ---------------------------------------------------------------- the outbox (localStorage) + sink
@@ -97,10 +119,15 @@ async function flush() {
 
 if (LOGGING_ON) {
   import("./gameLogger.js")
-    .then((m) => { sink = m; flush(); })
+    .then((m) => {
+      // log.js needs gameLogger.js to export write(collection, id, data). If someone replaces that file
+      // with a different logger, say so loudly instead of silently never saving anything.
+      if (typeof m.write !== "function") throw new Error("gameLogger.js doesn't export write(): restore the study version of that file");
+      sink = m; flush();
+    })
     .catch((err) => {
       sinkFailed = true;
-      console.warn("Study log: Firebase didn't load; records are kept on this device (Ctrl+Shift+L downloads them).", err?.message ?? err);
+      console.error("Study log: NOT CONNECTED. Records are kept on this device (Ctrl+Shift+L downloads them).", err?.message ?? err);
     });
   setInterval(flush, 30_000);
   window.addEventListener("online", flush);
@@ -120,7 +147,7 @@ function downloadPending() {
 class StudyLogger {
   constructor() {
     this.player = this.#loadPlayer(); // { participantId } or null
-    this.sessionId = id();
+    this.sessionId = docId("session");
     this.sessionStart = now();
     this.sessionOpen = false;
     this.attemptCounts = {}; // level -> attempts so far this session
@@ -142,7 +169,7 @@ class StudyLogger {
   /** The name screen: the only place a name is stored, in its own collection. */
   beginSession({ firstName, lastName }) {
     if (!LOGGING_ON) return;
-    const participantId = id();
+    const participantId = docId("player");
     this.player = { participantId };
     try { sessionStorage.setItem(PLAYER_KEY, JSON.stringify(this.player)); } catch { /* private mode */ }
     enqueue("participants", participantId, {
@@ -159,6 +186,7 @@ class StudyLogger {
     this.sessionOpen = true;
     enqueue("sessions", this.sessionId, {
       participantId: this.player.participantId,
+      group: GROUP,
       gameVersion: GAME_VERSION,
       test: this.test,
       urlFlags: location.search.slice(0, 200),
@@ -170,13 +198,13 @@ class StudyLogger {
   }
 
   #base() {
-    return { participantId: this.player?.participantId ?? "none", sessionId: this.sessionId };
+    return { participantId: this.player?.participantId ?? "none", sessionId: this.sessionId, group: GROUP };
   }
 
   /** Anything that isn't a move: prologue answers, story decisions, skips, completions. */
   event(type, data = {}, level = 0) {
     if (!LOGGING_ON || !this.player) return;
-    enqueue("events", id(), { ...this.#base(), type: String(type), level, tMs: this.#t, data, clientTime: new Date().toISOString() });
+    enqueue("events", docId("event", type), { ...this.#base(), type: String(type), level, tMs: this.#t, data, clientTime: new Date().toISOString() });
   }
 
   /**
@@ -266,7 +294,7 @@ class StudyLogger {
     const end = now();
     const predicted = a.moves.filter((m) => m.aiPredicted);
     const judged = a.moves.filter((m) => m.verdict);
-    enqueue("attempts", id(), {
+    enqueue("attempts", docId("attempt", `L${a.level}_a${a.attemptNumber}`), {
       ...this.#base(),
       level: a.level,
       attemptNumber: a.attemptNumber,
@@ -314,6 +342,7 @@ window.addEventListener("keydown", (e) => {
   if (!e.ctrlKey || !e.shiftKey) return;
   const k = e.key.toLowerCase();
   if (k === "l") { e.preventDefault(); e.stopImmediatePropagation(); downloadPending(); }
+  if (k === "s") { e.preventDefault(); e.stopImmediatePropagation(); const st = logStatus(); alert(`Study log\n\nConnected to database: ${st.connected ? "yes" : st.failed ? "NO (Firebase didn't load)" : "connecting..."}\nRecords waiting to send: ${st.unsent}\nGroup: ${GROUP}\nPlayer entered: ${logger.hasPlayer ? "yes" : "no"}`); }
   if (k === "n") { e.preventDefault(); e.stopImmediatePropagation(); if (confirm("Start a new player on this device?")) logger.newPlayer(); }
 }, true);
 

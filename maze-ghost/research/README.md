@@ -13,6 +13,8 @@ When the team is just testing, add `?nolog=1` to the URL and nothing is saved. A
 ## On study day
 
 - Each student starts on the **name screen** (first + last name). A refresh keeps the same student; a new tab asks again.
+- **One link per class period:** add `?group=periodA` (letters, numbers, `-`, `_`). Every record from that tab is tagged with it, and the export has a `group` column. It doesn't mark the session as a test.
+- **Is this device saving?** Press **Ctrl+Shift+S**: it shows whether the database is connected and how many records are waiting.
 - **Next student on the same Chromebook:** close the tab and open a new one, or press **Ctrl+Shift+N**.
 - **If the school network blocks Firebase,** the game still runs and every record waits on the device. It sends them automatically once the network allows it. As a backup, press **Ctrl+Shift+L** on each device before you leave: it downloads the unsent records as a JSON file that the export script can read.
 
@@ -34,6 +36,10 @@ When the team is just testing, add `?nolog=1` to the URL and nothing is saved. A
    ```
 
 If a student typed their name in two tabs, both are merged into one code (same first + last name, ignoring capitals and accents).
+
+## Don't replace `gameLogger.js`
+
+`log.js` decides what's recorded and loads `gameLogger.js` only to send records to Firestore through its `write()` function. If that file is swapped for a different logger, nothing reaches the database (records pile up on each device instead). To change what's recorded, edit `log.js` and `clearpath/firestore.rules` together, then redeploy the rules.
 
 ## What's recorded
 
