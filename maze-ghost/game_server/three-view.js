@@ -7,7 +7,6 @@ import { canvasTexture, floorDecal } from "./art-kit.js";
 import { buildBasement } from "./basement.js";
 import { buildCore } from "./core.js";
 import { buildServerHalls } from "./server-halls.js";
-import { buildVault } from "./vault.js";
 import { buildExecutive } from "./executive.js";
 import { buildUplink } from "./uplink.js";
 import { createQuality } from "./quality.js";
@@ -24,11 +23,11 @@ const TILE = 1;
 const STEP_MS = 220; // pause between your move and the ghosts', so the turns are visible
 const PLAYER_Y = 0, WARDEN_Y = 0, DRONE_Y = 0.42; // the characters stand on the floor; drones hover
 // theme.style -> custom art for that level
-const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core: buildCore, vault: buildVault, executive: buildExecutive, uplink: buildUplink };
+const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core: buildCore, executive: buildExecutive, uplink: buildUplink };
 const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 // ?level=2 starts on Level 2, ?fps shows the frame rate, ?res=1 pins the render resolution (testing),
 // ?intro=0 skips the story cutscenes, ?title=0 skips the home screen, ?glitch=1 unlocks the glitch,
-// ?scene=core previews the Level 3 cutscene (?scene=decision the one before Level 6, ?scene=finale the ending; &at=30 starts 30 s in).
+// ?scene=core previews the Level 3 cutscene (?scene=decision the one before Level 5, ?scene=finale the ending; &at=30 starts 30 s in).
 const params = new URLSearchParams(location.search);
 
 const game = new MazeGame();
@@ -214,7 +213,7 @@ function buildScene() {
 
   scene = new THREE.Scene();
   const bg = new THREE.Color(t.floorColor).multiplyScalar(0.6);
-  // A look can paint its own backdrop (the vault hall, the executive suite's windows, the night skyline).
+  // A look can paint its own backdrop (the executive suite's windows, the night skyline).
   scene.background = look?.background ?? bg;
   scene.fog = new THREE.FogExp2(look?.fogColor ? new THREE.Color(look.fogColor) : bg, t.fog);
   scene.add(look ? look.group : defaultLights(t, c, span));
@@ -628,7 +627,7 @@ $("overlay-btn").addEventListener("click", () => overlayAction?.());
 function restart(message = "Restarted.") {
   game.restartLevel(); hideOverlay(); showLevel(message);
 }
-// Some levels open with a story scene (Level 3: Dr. Voss feeds the Wardens Sam's data; Level 6: the
+// Some levels open with a story scene (Level 3: Dr. Voss feeds the Wardens Sam's data; Level 5: the
 // choice between running and uploading). It plays between the "Escaped!" card and the next level, unless
 // ?intro=0. Then the level's briefing comes up.
 // Between levels: the next level's story scene if it has one, otherwise its title card.

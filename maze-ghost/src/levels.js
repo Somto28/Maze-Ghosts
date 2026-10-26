@@ -1,11 +1,14 @@
-// levels.js — the six levels. Each one adds ONE new idea about how the enemy AI predicts you.
+// levels.js — the five levels. Each one adds a new idea about how the enemy AI predicts you.
 //
 //   Level 1  The Basement      1 warden, lookahead 1        It only REACTS: chases where you are now. Lure it, then run.
 //   Level 2  The Server Halls  1 warden, lookahead 3, vent  It PREDICTS where you'll be. New: vents.
 //   Level 3  The Core          2 wardens, 2 vents           TEAMWORK: one guards, one hunts.
-//   Level 4  The Data Vault    2 wardens + 1 drone, vents   RULES vs SEARCH: the drone is fast but follows a fixed rule.
-//   Level 5  The Archive       2 wardens + drone, 2 drives  PREDICTABLE GOALS: they know what you need, so they guard it.
-//   Level 6  The Uplink        2 wardens + drone + drive    LEARNING: they study your caught attempts and wait on your old route.
+//   Level 4  The Archive       2 wardens + drone, 2 drives  PREDICTABLE GOALS: they know what you need, so they guard it.
+//                                                           Also meet the drone: fast, but it follows a fixed rule.
+//   Level 5  The Uplink        2 wardens + drone + drive    LEARNING: they study your caught attempts and wait on your old route.
+//
+// (There used to be a sixth level, "The Data Vault", between the Core and the Archive. It was cut to fit
+// the class's time; it's in the git history if you want it back.)
 //
 // Every enemy uses the same brain (src/ai.js): minimax search plus a judgment of positions that
 // treats "the player has a safe run to the goal" as nearly lost, so they cut you off instead of chasing.
@@ -127,39 +130,6 @@ export const LEVELS = Object.freeze([
   },
   {
     id: 4,
-    name: "The Data Vault",
-    enemy: "warden",
-    lookahead: 3,
-    dronePattern: [2, 0],
-    concept: "Fast rules vs. slow thinking",
-    briefing:
-      "Meet the Drone. It doesn't think at all: it dashes 2 tiles straight at where you are, then recharges for a turn. Fast, but 100% predictable. The two Wardens think 3 moves ahead and know exactly how the Drone will move. Drones can't use vents either.",
-    hints: [
-      "The Drone always flies the shortest way to where you are now: 2 tiles, then it rests. Count its turns.",
-      "When the HUD says the Drone is recharging, it can't move this turn. That's your window.",
-      "The Drone and the Wardens can't follow you into a vent. Which vent pops out closest to the vault door?",
-      "Speed isn't intelligence: the Drone gets there first, but only the Wardens plan. Lead the Drone, outthink the Wardens.",
-    ],
-    maze: [
-      "###############",
-      "#P.....#......#",
-      "#.#.#.##.#.#.##",
-      "#.#...####....#",
-      "#..#..#...###.#",
-      "#.......#..##.#",
-      "#.#.###.2#....#",
-      "#1#..G#..2#...#",
-      "#####.#.#D.####",
-      "#.#.....##.G.##",
-      "#.###.##1##..##",
-      "#.............E",
-      "###############",
-    ],
-    // style "vault": a sci-fi cold-storage data vault (game_server/vault.js + vault.css).
-    theme: { style: "vault", wallHeight: 1.5, wallColor: "#a7b7c3", floorColor: "#0a1219", ghostColor: "#ff3b6b", droneColor: "#ffb020", fog: 0.02, light: 1.0 },
-  },
-  {
-    id: 5,
     name: "The Archive",
     enemy: "warden",
     lookahead: 3,
@@ -169,19 +139,20 @@ export const LEVELS = Object.freeze([
     weights: { territory: 0 },
     concept: "When the AI knows your goal",
     briefing:
-      "You need proof. Grab both evidence drives (the glowing blue cases) before the exit unlocks. The Wardens know exactly what you need, so they wait where you HAVE to go: by the drives and on the way out. The Drone guards the door itself. When an AI knows your goal, your moves become easy to predict.",
+      "You need proof. Grab both evidence drives (the glowing blue cases) before the exit unlocks. The Wardens know exactly what you need, so they wait where you HAVE to go: by the drives and on the way out. And meet the Drone, guarding the door: it doesn't think at all, it just dashes 2 tiles at you, then recharges for a turn. Fast, but 100% predictable. When an AI knows your goal, your moves become easy to predict.",
     hints: [
       "They predict your route from your goal: drive, drive, exit. Grab the drives in the order they don't expect.",
       "Watch which drive their red dots head for. Go for the other one first.",
       "The Drone sits by the door. Lure it away first, or come out of a vent where it can't reach you in one dash.",
+      "The Drone always flies the shortest way to where you are now: 2 tiles, then it rests. When it's recharging, that's your window.",
       "The exit stays locked until you hold every drive, and they know it. Don't rush the door.",
     ],
     maze: [
       "###############",
       "#P#1........#2#",
       "#.###.#...###.#",
-      "#.....#1......#",
-      "#....###.G....#",
+      "#.....#1.G....#",
+      "#....###......#",
       "#.#....#..#.#.#",
       "#..##..K..#.#.#",
       "##.......##...#",
@@ -198,7 +169,7 @@ export const LEVELS = Object.freeze([
     theme: { style: "executive", wallHeight: 1.2, wallColor: "#4a2c1a", floorColor: "#151a2a", ghostColor: "#ff4d5e", droneColor: "#ffb020", fog: 0.016, light: 1.1 },
   },
   {
-    id: 6,
+    id: 5,
     name: "The Uplink",
     cutscene: "decision", // "The Choice": run for the street, or climb to the uplink? (game_server/cutscene.js)
     teaser: "You have the proof. Now Sam has to decide what to do with it...",

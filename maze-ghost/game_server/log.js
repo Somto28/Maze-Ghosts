@@ -29,7 +29,7 @@
 
 const params = new URLSearchParams(location.search);
 export const LOGGING_ON = params.get("nolog") !== "1";
-const GAME_VERSION = "study-2026-10";
+const GAME_VERSION = "study-2026-10-5levels"; // was "study-2026-10" while the game had 6 levels (Archive = 5, Uplink = 6 then)
 
 const PENDING_KEY = "clearpath_pending_v1";
 const PLAYER_KEY = "clearpath_player_v1"; // sessionStorage: survives a refresh, not a new tab
@@ -209,7 +209,7 @@ class StudyLogger {
   /**
    * One move. ctx (all optional):
    *   aiPredicted   the direction the enemy AI expected you to take ("up" | ... | null)
-   *   aiFromHabit   that prediction came from your past attempts (Level 6's learning wardens)
+   *   aiFromHabit   that prediction came from your past attempts (Level 5's learning wardens)
    *   verdict       what the "inside their heads" panel showed for this direction:
    *                 "escape" | "safe" | "risky" | "caught" | null (panel not ready yet)
    *   caughtIn      if verdict is "caught": how many turns until the catch

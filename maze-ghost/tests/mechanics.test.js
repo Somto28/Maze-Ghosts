@@ -123,7 +123,7 @@ test("only learning levels record your caught attempts, and they survive a resta
 });
 
 test("remembering scored positions changes the work, not the answer", () => {
-  for (const level of [LEVELS[2], LEVELS[3], LEVELS[5]]) {
+  for (const level of [LEVELS[2], LEVELS[3], LEVELS[4]]) {
     const s = { ...stateFromLevel(level), turn: "ghost" };
     const fast = chooseGhostMoves(s, level.lookahead);
     const slow = chooseGhostMoves(s, level.lookahead, { memo: false });
