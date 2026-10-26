@@ -52,3 +52,35 @@
 .cutscene button:focus-visible { outline: 2px solid var(--cs-amber); outline-offset: 2px; }
 
 @media (max-width: 520px) { .cs-hint { display: none; } .cs-bar { justify-content: space-between; } }
+
+/* Choices inside a cutscene ("The Choice" before Level 6): the frame holds, the options come up. */
+.cs-choice {
+  position: absolute; left: 6%; right: 6%; bottom: 8%;
+  display: grid; gap: 1.4cqw; justify-items: center;
+  animation: cs-choice-in 0.35s ease-out both;
+}
+.cs-choice[hidden] { display: none; }
+@keyframes cs-choice-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.cs-prompt {
+  margin: 0; padding: 0.6cqw 1.6cqw; background: rgba(5, 7, 12, 0.85); border: 2px solid var(--cs-amber); box-shadow: 0 0 0 2px #000;
+  font: max(10px, 2cqw)/1.2 "Silkscreen", ui-monospace, monospace; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cs-amber); text-align: center;
+}
+.cs-opts { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 1.6cqw; width: 100%; }
+.cs-opt {
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 1.2cqw; align-items: center; text-align: left;
+  padding: 1.2cqw 1.6cqw; cursor: pointer; color: #eef3ff;
+  background: rgba(5, 7, 12, 0.92); border: 2px solid var(--cs-teal); box-shadow: 0 0 0 2px #000, 0 0 2cqw rgba(63, 208, 201, 0.15);
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.cs-opt:hover, .cs-opt:focus-visible { transform: translateY(-3px); border-color: var(--cs-amber); background: rgba(24, 18, 6, 0.95); outline: none; }
+.cs-opt[data-key="escape"] { border-color: #7dffb0; }
+.cs-opt[data-key="upload"], .cs-opt[data-key="rewind"] { border-color: var(--cs-red); }
+.cs-opt[data-key]:hover, .cs-opt[data-key]:focus-visible { border-color: var(--cs-amber); }
+.cs-num {
+  grid-row: span 2; display: grid; place-items: center; width: 4.2cqw; min-width: 26px; aspect-ratio: 1;
+  font: max(12px, 2.4cqw)/1 "Silkscreen", ui-monospace, monospace; color: #050608; background: var(--cs-amber);
+}
+.cs-lab { font: max(13px, 2.9cqw)/1 "VT323", ui-monospace, "Courier New", monospace; letter-spacing: 0.02em; }
+.cs-opt small { font: max(11px, 1.7cqw)/1.25 "JetBrains Mono", ui-monospace, monospace; color: var(--cs-muted); }
+.cs-keys { margin: 0; font-size: max(10px, 1.3cqw); color: var(--cs-muted); }
+@media (max-width: 620px) { .cs-opts { grid-auto-flow: row; } .cs-choice { bottom: 4%; } }

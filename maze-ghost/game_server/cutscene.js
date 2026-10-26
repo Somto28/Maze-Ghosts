@@ -1,5 +1,6 @@
-// cutscene.js — the story cutscenes: "After Hours" (before Level 1) and "Watching" (between
-// Level 2 and Level 3, where Dr. Voss feeds the Wardens Sam's personal data).
+// cutscene.js — the story cutscenes: "After Hours" (before Level 1), "Watching" (between Level 2 and
+// Level 3, where Dr. Voss feeds the Wardens Sam's personal data) and "The Choice" (before Level 6: the
+// player decides whether Sam runs or uploads the evidence), plus the level title cards.
 //
 // Pixel art drawn in code on a 320×180 canvas and scaled up without smoothing, so there are no image
 // files to load. Music and sound effects are synthesized with the Web Audio API.
@@ -7,6 +8,7 @@
 //   import { playCutscene, cutsceneActive } from "./cutscene.js";
 //   await playCutscene();                    // "After Hours"; resolves when it ends or is skipped
 //   await playCutscene({ scene: "core" });   // "Watching", before Level 3
+//   const picks = await playCutscene({ scene: "decision" }); // e.g. ["escape", "rewind", "upload"]
 //
 // While it plays it covers the screen and swallows every key, so the maze underneath can't move.
 // Placeholder names to change: "Sam Reyes", "Dr. Voss", "Sub-Level 7" (search this file for them).
@@ -362,14 +364,14 @@ const SHOTS=[
   if(t>=7)drawElevator(470,132,{open,doorsOnly:true});
   home();
  }},
-{name:'The ride',note:'Interior at 2× zoom. Floors count down past the lobby and keep going.',dur:7.5,music:t=>t<5?'muzak':'tense',
+{name:'The ride',note:'Interior at 2× zoom. Floors count down past the lobby and keep going.',dur:7.5,music:t=>t<5?'muzak':'pre1',
  ev:[[5,'lurch'],[6.2,'lurch']],lines:[[5.3,7.5,'SAM','Huh? I pressed Lobby. Why are we still going down?']],
  draw(t){
   let disp=t<4.2?String(Math.max(1,14-Math.floor(t/.3))):t<5?'L':t<6.2?'B1':'B2';
   const expr=t>=5.2?'worried':(t>2&&t<3.4)?'sleepy':'neutral';
   drawCar(t,{disp,expr,shake:t>=5?.6:0,dark:t>=6.2&&t<6.4?.4:0});
  }},
-{name:'Shaft cutaway',note:'Vertical tracking shot down the shaft, past B1 and into floors that aren\'t on any plan.',dur:6,fi:.2,fo:.3,music:()=>'tense',
+{name:'Shaft cutaway',note:'Vertical tracking shot down the shaft, past B1 and into floors that aren\'t on any plan.',dur:6,fi:.2,fo:.3,music:()=>'pre1',
  ev:[...evEvery('rumble',0,5.6,.55)],lines:[],
  draw(t){
   const carY=lerp(150,548,ease(seg(t,.2,5.6))),camY=clamp(carY-70,0,460),[sx,sy]=shk(.5,t);cam(0,camY,1,sx,sy);
@@ -397,7 +399,7 @@ const SHOTS=[
   A(144,carY-46,1,40,'#ffffff',.08);A(176,carY-30,1,26,'#ffffff',.08);
   home();txt('DEPTH',270,14,'#8891a6');txt('-'+Math.max(0,Math.round((carY-150)/3.2))+'M',270,22,'#ffb347');
  }},
-{name:'Wrong floor',note:'Interior. Red glitch lighting, shake, the display settles on B7.',dur:5.5,fo:.3,music:()=>'tense',
+{name:'Wrong floor',note:'Interior. Red glitch lighting, shake, the display settles on B7.',dur:5.5,fo:.3,music:()=>'pre1',
  ev:[[0,'glitch'],[1.2,'glitch'],[2.4,'glitch'],[4,'lowding']],lines:[[.4,3.8,'SAM','B7?! This building only goes down to B1...']],
  draw(t){
   const G2=['B?','B#','B%','--','B7','8?','B/','??'];
@@ -405,7 +407,7 @@ const SHOTS=[
   const fl=hash(Math.floor(t*10))>.6;
   drawCar(t,{disp,dispCol:'#ff2e3e',expr:'shock',red:true,redA:.18+(fl?.12:0),shake:1.4*(1-seg(t,3.5,5)),lightOff:fl,dark:fl?.25:0});
  }},
-{name:'Sub-Level 7',top:true,note:'Slow tracking shot past server racks and five dormant Wardens. Dr. Voss works with his back turned.',dur:11.2,fi:.3,music:()=>'tense',
+{name:'Sub-Level 7',top:true,note:'Slow tracking shot past server racks and five dormant Wardens. Dr. Voss works with his back turned.',dur:11.2,fi:.3,music:()=>'pre1',
  ev:[[.2,'doors'],...evEvery('softstep',S4.t0,S4.tA,.36),...evEvery('key',0,11,.17)],
  lines:[[1.8,4.8,'SAM','Hello...? Is anyone down here?'],[6.2,10.4,'SAM','The Warden robots from the demo... why are there so many?']],
  draw(t){
@@ -419,7 +421,7 @@ const SHOTS=[
   home();const fx=Math.round(380-cx*1.4);R(fx,0,8,180,'#020305');R(fx+8,0,1,180,'#0f141c');
   A(0,0,24,180,'#000000',.35);A(296,0,24,180,'#000000',.35);
  }},
-{name:'The screen',note:'Full-frame insert of the training pipeline: private records going into the Wardens with no consent.',dur:8,music:()=>'tense',
+{name:'The screen',note:'Full-frame insert of the training pipeline: private records going into the Wardens with no consent.',dur:8,music:()=>'pre2',
  ev:(()=>{const e=[];LOG.forEach((l,i)=>{const at=.5+i*.75;for(let k=0;k<l[0].length;k+=3)e.push([+(at+k/40).toFixed(3),'key']);});e.push([4.8,'radar'],[5.6,'radar']);return e;})(),lines:[],
  draw(t){
   R(0,0,W,H,'#05070a');R(10,8,300,154,'#1a1f29');R(12,10,296,150,'#041512');
@@ -435,7 +437,7 @@ const SHOTS=[
   A(12,10,296,150,'#39f5c4',.03+.02*Math.sin(t*20));
   A(0,0,W,10,'#000000',.4);A(0,160,W,20,'#000000',.4);
  }},
-{name:'Reaction',note:'Extreme close-up. Monitor glow on Sam\'s face, data scrolling in his eyes.',dur:4.6,music:()=>null,
+{name:'Reaction',note:'Extreme close-up. Monitor glow on Sam\'s face, data scrolling in his eyes.',dur:4.6,music:()=>'pre2',
  ev:[[.15,'sting']],lines:[[.6,4.6,'SAM','That\'s private data. Our customers\'. Ours. Nobody agreed to this!']],
  draw(t){samFace(t);}},
 {name:'Clank',top:true,note:'Wide. Sam backs into a can and gives himself away. Voss stops typing and turns.',dur:6,music:()=>null,
@@ -454,11 +456,11 @@ const SHOTS=[
   if(t>1.5&&t<2.6){const p=seg(t,1.5,1.62);txtO('CLANK',cX-20,130-Math.round(p*6),'#ffb347',2);}
   home();
  }},
-{name:'Dr. Voss',note:'Extreme close-up, lit from below by the monitors. Glasses glint, then the smile.',dur:7.2,music:()=>'tense',
- ev:[[.9,'glint'],[4.4,'glint']],
+{name:'Dr. Voss',note:'Extreme close-up, lit from below by the monitors. Glasses glint, then the smile.',dur:7.2,music:t=>t<.15?null:'pre3',
+ ev:[[.15,'boom'],[.9,'glint'],[4.4,'glint']],
  lines:[[.3,3.5,'DR. VOSS','You weren\'t supposed to see that.'],[3.7,7.2,'DR. VOSS','My Wardens need real data to predict people. No one can ever know where it came from.']],
  draw(t){vossFace(t);}},
-{name:'Override',note:'Insert on the red button. Alarm, pods open, Wardens wake. Cut to Warden POV: minimax tree and predicted routes.',dur:10,music:t=>t<1.4?null:'chase',
+{name:'Override',note:'Insert on the red button. Alarm, pods open, Wardens wake. Cut to Warden POV: minimax tree and predicted routes.',dur:10,music:t=>t<1.4?null:'pre4',
  ev:[[.75,'slam'],...evEvery('alarm',1.4,5,.7),...[0,1,2,3,4].map(i=>[2.2+i*.3,'boot']),...evEvery('radar',5,10,.5),[5,'sting']],
  lines:[[0,1.4,'DR. VOSS','Wardens. Contain him.']],
  draw(t){
@@ -502,7 +504,7 @@ const SHOTS=[
     R(root[0]-1,root[1]-1,3,3,C);if(step>=3)txt('MAX .71',236,58,'#ffb347');}
   if(lt>2.8){const s=typed('PREDICT.  PURSUE.  CONTAIN.',lt,2.8,18);txtO(s,Math.round(160-tw('PREDICT.  PURSUE.  CONTAIN.',2)/2),160,C,2);}
  }},
-{name:'Run',note:'Tracking chase. Each Warden\'s eye follows Sam as he sprints past, then it steps out and gives chase.',dur:6.5,music:t=>t<4.6?'chase':null,
+{name:'Run',note:'Tracking chase. Each Warden\'s eye follows Sam as he sprints past, then it steps out and gives chase.',dur:6.5,music:t=>t<4.6?'pre4':null,
  ev:[...evEvery('runstep',RUN.t0,4.6,.12),...evEvery('stomp',1,4.6,.3),[5,'hit']],lines:[],
  draw(t){
   if(t>=5){const[sx,sy]=shk(2*(1-seg(t,5,5.6)),t);R(0,0,W,H,'#000000');ctx.setTransform(1,0,0,1,Math.round(sx),Math.round(sy));txtC('RUN.',160,72,'#ff3b4a',6);home();return;}
@@ -628,11 +630,11 @@ function profilePanel(lt){
   txt(`DATA POINTS ${pts.toLocaleString('en-US')}`,214,132,T);
 }
 const CORE_SHOTS=[
-{name:'Camera',note:'Security camera on the Wardens\' test floor: a vent grate pops off, Sam crawls out, glances at the camera, gets tagged.',dur:8,fi:.6,top:true,music:()=>'tense',
+{name:'Camera',note:'Security camera on the Wardens\' test floor: a vent grate pops off, Sam crawls out, glances at the camera, gets tagged.',dur:8,fi:.6,top:true,music:()=>'creep1',
  ev:[[0,'camclick'],[1,'clank'],...evEvery('softstep',4.3,5.4,.3),[4.6,'beep'],[5.4,'radar']],
  lines:[[5.5,7.9,'SAM','...Is that camera following me?']],
  draw(t){cctv(t,0,0,W,H,true);}},
-{name:'Pull back',note:'The feed shrinks onto a monitor in Dr. Voss\'s control room. The Warden console powers up.',dur:6,music:()=>'tense',
+{name:'Pull back',note:'The feed shrinks onto a monitor in Dr. Voss\'s control room. The Warden console powers up.',dur:6,music:()=>'creep2',
  ev:[[4.4,'boot']],
  lines:[[.8,5.6,'DR. VOSS','There you are, Sam. Right on schedule.']],
  draw(t){
@@ -642,7 +644,7 @@ const CORE_SHOTS=[
   cctv(8+t,lerp(0,10,k),lerp(0,16,k),lerp(W,108,k),lerp(H,62,k),k<.02);
   if(t>4.8){txt(typed('WARDEN TRAINING CONSOLE',t,4.8,30),130,19,'#3fd0c9');}
  }},
-{name:'Feeding the Wardens',note:'Voss types Sam\'s personal data into the Wardens. Each fact raises the prediction confidence and narrows where they expect Sam to go.',dur:20,music:()=>'tense',
+{name:'Feeding the Wardens',note:'Voss types Sam\'s personal data into the Wardens. Each fact raises the prediction confidence and narrows where they expect Sam to go.',dur:20,music:()=>'creep2',
  ev:[...evEvery('key',.3,19.5,.18),...PROFILE.map(([at])=>[at,'data']),[17.6,'sting']],
  lines:[[.2,2.3,'DR. VOSS','You keep slipping past my Wardens.'],[2.4,4.3,'DR. VOSS','They just don\'t know you well enough. Yet.'],
         [4.4,6.4,'DR. VOSS','Employee ID. Age.'],[6.5,8.6,'DR. VOSS','Height and weight: how fast you can run.'],
@@ -655,7 +657,7 @@ const CORE_SHOTS=[
   cctv(14+t,10,16,108,62,false);txt('CAM 14',12,18,'#e8ffe8');if(Math.floor(t*2)%2)R(40,18,3,3,'#ff3b4a');
   profilePanel(t);
  }},
-{name:'Upgrade',note:'Warden POV: the model updates; two Wardens wake up and deploy to the Core as a team.',dur:7.5,music:t=>t<1?null:'chase',
+{name:'Upgrade',note:'Warden POV: the model updates; two Wardens wake up and deploy to the Core as a team.',dur:7.5,music:t=>t<1?null:'creep3',
  ev:[[.4,'boot'],[.9,'boot'],[1.6,'sting'],...evEvery('radar',2,7,.5)],
  lines:[[.6,3.3,'DR. VOSS','Now they don\'t have to guess where you\'ll go.'],[3.4,5.4,'DR. VOSS','They\'ll already be there.']],
  draw(t){
@@ -675,6 +677,211 @@ const CORE_SHOTS=[
   ctx.globalAlpha=seg(t,1.3,2.1);txtC('THEY KNOW MORE ABOUT YOU NOW.',160,98,'#d9dfeb');txtC('TWO WARDENS. ONE PLAN. MAKE THEM GUESS WRONG.',160,108,'#ffb347');
   ctx.globalAlpha=1;
  }},
+];
+
+/* ---------- "The Choice": after the Archive, before Level 6 ---------- */
+// Sam has the proof. The building locks down, and Dr. Voss tells him he already knows what Sam will do.
+// The player chooses: save himself (run down to the street) or upload the evidence (climb to the roof).
+// Running is exactly what the Wardens predicted, so that branch ends with Sam caught and a rewind back to
+// the choice. Climbing is the move they didn't expect, and it builds up to Level 6, the Uplink.
+let CHOICE_T=0; // seconds the current choice has been on screen (keeps the frame alive while it waits)
+function arrow(x,y,up,c){if(up){for(let i=0;i<4;i++)R(x-i,y+i,1+i*2,1,c);R(x-1,y+4,3,6,c);}else{R(x-1,y,3,6,c);for(let i=0;i<4;i++)R(x-3+i,y+6+i,7-i*2,1,c);}}
+function drive(x,y,t){R(x,y,7,4,'#2a2f3a');R(x,y,7,1,'#4a5262');R(x+5,y+2,1,1,Math.floor(t*4)%2?'#3dff8a':'#1a6b3e');A(x-2,y-2,11,8,'#3dff8a',.12);}
+function rain(t,x0,y0,w,h,n=50,c='#9fb4d8'){for(let i=0;i<n;i++){const x=x0+hash(i)*w,y=y0+((hash(i*3)*h+t*160)%h);line(x,y,x-1,Math.min(y0+h-1,y+5),c);}}
+function alarmWash(t,k=1){A(0,0,W,H,'#ff1030',k*(.07+.07*Math.sin(t*7)));}
+// Floor 88 at night: the executive suite from Level 5, rain on the glass, the city below.
+function floor88(t,{alarm=0}={}){
+  R(0,0,W,H,'#070912');
+  ctx.save();ctx.beginPath();ctx.rect(16,12,288,112);ctx.clip();
+  for(let y=12;y<124;y+=4)R(16,y,288,4,y<60?'#0c1226':'#111a33');
+  skyline(-30,128,'#0e1424','#ffd696');rain(t,16,12,288,112,60);
+  ctx.restore();
+  for(let x=16;x<=304;x+=72)R(x-2,12,4,112,'#05060a');R(14,10,292,3,'#05060a');R(14,123,292,3,'#c9a85c');
+  R(0,126,W,54,'#14110d');R(0,126,W,2,'#c9a85c');for(let x=0;x<W;x+=40)A(x,128,20,52,'#ffffff',.015);
+  R(176,116,104,6,'#3b2b1d');R(176,116,104,1,'#5a4330');R(180,122,6,30,'#2a1f16');R(270,122,6,30,'#2a1f16'); // the desk
+  R(244,106,22,10,'#1a1d24');A(244,106,22,10,'#3fd0c9',.3);R(250,116,10,1,'#0b0c10'); // the terminal Sam used
+  R(192,104,2,12,'#c9a85c');R(188,102,10,3,'#c9a85c');A(176,104,30,14,'#ffd696',.1);  // a desk lamp
+  logo(48,146,'#2a2418',2);
+  if(alarm>0){alarmWash(t,alarm);const bx=W/2,on=Math.floor(t*3)%2;R(bx-4,2,8,4,on?'#ff3b4a':'#5a1018');if(on)A(bx-40,0,80,40,'#ff3b4a',.12*alarm);}
+}
+// A wall screen with Dr. Voss's face on it (drawn into the offscreen canvas, then shown with scanlines).
+function vossScreen(t,x,y,w,h){
+  drawOff(()=>vossFace(t));
+  R(x-4,y-4,w+8,h+8,'#0b0c10');R(x-4,y-4,w+8,1,'#3a4150');
+  ctx.save();ctx.imageSmoothingEnabled=false;ctx.drawImage(off,0,0,W,H,x,y,w,h);ctx.restore();
+  A(x,y,w,h,'#3fd0c9',.08);for(let yy=y;yy<y+h;yy+=2)A(x,yy,w,1,'#000000',.22);
+  if(hash(Math.floor(t*10))>.9)A(x,y+hash(Math.floor(t*10)+1)*h,w,3,'#ffffff',.25);
+}
+// The stairwell landing on 88: the street exit down to the left, the roof up to the right.
+function stairwell(t,{sam=true,expr='worried',rewind=0}={}){
+  R(0,0,W,H,'#25282f');for(let x=0;x<W;x+=32)R(x,0,1,H,'#2c3038');for(let y=6;y<H;y+=16)R(0,y,W,1,'#2c3038');
+  R(0,92,W,6,'#c9a227');R(0,94,W,2,'#7d6514'); // a painted safety stripe
+  txtO('88',140,30,'#3a3f48',5,'#1b1d22');
+  // Down-left flight (to the street) and up-right flight (to the roof).
+  for(let k=0;k<8;k++){const x=118-(k+1)*13,y=140+k*6;R(x,y,13,H-y,'#3e424b');R(x,y,13,1,'#6b717c');}
+  for(let k=0;k<9;k++){const x=202+k*13,y=134-k*6;R(x,y,13,H-y,'#454a54');R(x,y,13,1,'#767c88');}
+  R(118,140,84,40,'#3a3e47');R(118,140,84,1,'#6b717c'); // the landing
+  line(118,120,14,168,'#c9a227');line(202,114,320,60,'#c9a227');
+  for(let k=0;k<6;k++){R(112-k*17,123+k*8,1,17,'#8a7a3a');R(208+k*19,108-k*9,1,20,'#8a7a3a');}
+  // Signs.
+  R(20,40,72,26,'#0d3b22');R(20,40,72,1,'#1d6b40');txtC('STREET EXIT',56,45,'#7dffb0');arrow(56,52,false,'#7dffb0');
+  R(228,40,76,26,'#3b0d14');R(228,40,76,1,'#6b1d26');txtC('ROOF / UPLINK',266,45,'#ffb3ba');arrow(266,52,true,'#ffb3ba');
+  const tt=t+CHOICE_T,on=Math.floor(tt*2)%2;R(156,12,8,4,on?'#ff3b4a':'#4a1218');if(on)A(130,6,60,30,'#ff3b4a',.12);
+  A(0,0,W,H,'#ff1030',.05+.04*Math.sin(tt*6));
+  if(sam){empFront(160,140,{expr});drive(165,124,tt);}
+  if(rewind>0){for(let y=0;y<H;y+=3)A(0,y,W,1,'#ffffff',.06*rewind);const ty=(tt*200)%H;A(0,ty,W,6,'#ffffff',.25*rewind);A(0,(ty+70)%H,W,3,'#ffffff',.2*rewind);}
+}
+// Side view of the stairwell shaft, following Sam down (or up) the flights.
+const FH=34;
+function shaftRun(t,{up=false,rate=2.4,floor0=88,floorAt=null}){
+  const p=t*rate,k=Math.floor(p),f=p-k,dirY=up?-1:1;
+  const sx=k%2?lerp(232,88,f):lerp(88,232,f),sy=(k+f)*FH*dirY,cy=sy-104;
+  R(0,0,W,H,'#202329');for(let x=0;x<W;x+=32)R(x,0,1,H,'#272b32');
+  for(let j=k-4;j<=k+4;j++){
+    const y0=j*FH*dirY-cy,y1=(j+1)*FH*dirY-cy,a=j%2?232:88,b=j%2?88:232;
+    for(let s=0;s<12;s++){const x=lerp(a,b,s/12),y=lerp(y0,y1,s/12),xs=Math.min(x,lerp(a,b,(s+1)/12));R(xs,y,12,4,'#4a4f59');R(xs,y,12,1,'#7a808c');}
+    line(a,y0-14,b,y1-14,'#c9a227');
+    const ly=y0;R(a===88?60:232,ly,28,4,'#4a4f59');
+    if(j%2===0){const fl=floorAt?floorAt(j,k):floor0-(j/2)*dirY;txtO(String(fl),a===88?44:262,ly-24,'#5d636e',2,'#15171b');}
+  }
+  emp(sx,sy-cy+0,{dir:(k%2?-1:1),pose:'run',frame:Math.floor(t*14)});
+  drive(sx+(k%2?-8:2),sy-cy-16,t);
+}
+// The lobby: glass doors to the street on the right, pillars, the Clearpath logo.
+function lobby(t,{locked=0}){
+  R(0,0,W,H,'#0b0d12');R(0,0,W,24,'#07080b');for(let x=20;x<W;x+=60){R(x,22,30,2,'#e8f0ff');A(x-10,24,50,50,'#dfe9ff',.04);}
+  R(0,24,W,118,'#141821');logo(110,70,'#2a3240',4);txtC('CLEARPATH',110,98,'#2a3240',2);
+  for(const px of[52,170]){R(px,24,18,118,'#1c212c');R(px,24,2,118,'#262c38');}
+  // The doors and the street outside.
+  R(222,30,94,112,'#05070c');ctx.save();ctx.beginPath();ctx.rect(224,32,90,110);ctx.clip();
+  R(224,32,90,110,'#0a1020');skyline(150,120,'#101624','#ffd696');R(224,120,90,22,'#151a22');R(286,60,2,60,'#3a4150');A(270,60,34,60,'#ffd696',.12);rain(t,224,32,90,110,30,'#5d6e8c');
+  ctx.restore();R(268,30,2,112,'#0b0d12');R(222,30,94,2,'#0b0d12');
+  if(locked>0){A(222,30,94,112,'#ff1030',.18*locked);for(const x of[240,286]){R(x,82,14,8,'#3b0d14');R(x+5,84,4,4,Math.floor(t*4)%2?'#ff3b4a':'#6b1018');}txtC('LOCKED',269,70,'#ff4656');}
+  R(0,142,W,38,'#1a1e27');for(let x=0;x<W;x+=24){R(x,142,1,38,'#232836');}R(0,142,W,1,'#3a4150');A(0,150,W,30,'#5ab0ff',.03);
+}
+// The roof at night: rain, the city far below, the uplink tower with its terminal.
+function rooftop(t,{door=1}={}){
+  R(0,0,W,H,'#05060d');for(let y=0;y<120;y+=6)R(0,y,W,6,y<40?'#05060d':y<80?'#070a16':'#0a0e1e');
+  for(let i=0;i<50;i++){const x=hash(i)*W,y=hash(i*7)*90;if(hash(i+Math.floor(t*3))>.25)R(x,y,1,1,'#8891a6');}
+  skyline(-60,150,'#0b0f1a','#ffd696');A(0,120,W,30,'#5ab0ff',.05);
+  // The uplink tower.
+  const tx=252;R(tx-2,40,4,108,'#4a5262');for(let y=48;y<148;y+=12){line(tx-10,y,tx+10,y+12,'#3a4150');line(tx+10,y,tx-10,y+12,'#3a4150');}
+  R(tx-14,52,10,3,'#5d6678');ctx.fillStyle='#5d6678';ctx.beginPath();ctx.arc(tx-12,46,9,Math.PI*.6,Math.PI*1.6);ctx.fill();
+  if(Math.floor(t*1.5)%2){R(tx-3,35,6,5,'#ff3b4a');A(tx-8,30,16,15,'#ff3b4a',.3);}
+  R(tx+12,128,20,20,'#1c212c');R(tx+14,130,16,9,'#0b2b2a');A(tx+14,130,16,9,'#3fd0c9',.4+.2*Math.sin(t*4));txt('UP',tx+17,132,'#3fd0c9');
+  // Roof deck and parapet.
+  R(0,148,W,32,'#1a1d26');R(0,148,W,2,'#3a4150');for(let x=0;x<W;x+=40)A(x+6,160,22,3,'#5ab0ff',.08+.05*Math.sin(t*2+x));
+  // The stair door Sam comes out of.
+  R(8,96,44,52,'#2a2e38');R(8,96,44,3,'#3a4150');R(18,108,24,40,'#0b0c10');
+  R(18,108,Math.round(24*(1-door)),40,'#4a5262');if(door>0)A(18,108,24,40,'#ffd696',.18*door);
+  txtC('ROOF',30,100,'#8891a6');
+  rain(t,0,0,W,H,70,'#6b7da0');
+}
+function wardenPOV(t,lines,{big='',bigAt=99,col='#ff3b4a',sub=null}={}){
+  R(0,0,W,H,'#14040a');for(let y=0;y<H;y+=2)A(0,y,W,1,'#000000',.25);
+  const C=col,CD='#8a1a24';
+  for(const[x,y,dx,dy]of[[8,12,1,1],[311,12,-1,1],[8,167,1,-1],[311,167,-1,-1]]){line(x,y,x+10*dx,y,C);line(x,y,x,y+10*dy,C);}
+  lines.forEach(([s,at,c],i)=>{if(t>=at)txt(typed(s,t,at,40),18,22+i*10,c||C);});
+  if(sub)sub(t);
+  if(t>bigAt){txtO(typed(big,t,bigAt,22),Math.round(160-tw(big,2)/2),150,C,2);}
+  if(Math.floor(t*2)%2)R(298,16,5,5,C);
+}
+
+// The choice on the landing (and again after a rewind).
+function stairShot(again){return{name:again?'The stairwell, again':'The stairwell',note:'The landing on 88: STREET EXIT down, ROOF / UPLINK up. The player decides.',dur:again?6.6:7.2,music:()=>'decide',
+  ev:again?[[0,'radar']]:[[.2,'slam']],
+  lines:again?[[.2,3.2,'SAM','They knew I\'d run. They planned for it.'],[3.3,6.4,'SAM','So what\'s the one thing they don\'t expect?']]
+             :[[.3,3.4,'SAM','If I run now, I get out. But no one ever sees the proof.'],[3.5,7,'SAM','If I go up to the uplink... the Wardens will be waiting.']],
+  draw(t){stairwell(t,{expr:again?'neutral':'worried',rewind:again?1-seg(t,0,.8):0});},
+  choice:{prompt:'What should Sam do?',options:[
+    {key:'escape',label:'Save yourself',sub:'Run down to the street. You get out, but the proof stays hidden.',then:()=>escapeShots(again)},
+    {key:'upload',label:'Upload the evidence',sub:'Climb to the roof uplink and expose Clearpath. The Wardens will be waiting.',then:()=>uploadShots(again)}]}};}
+
+function escapeShots(again){const pct=again?97:94;return[
+{name:'Down',note:'Sam races down the stairwell, floors counting down.',dur:6,fi:.2,music:()=>'flee',
+ ev:[...evEvery('runstep',.2,5.8,.13)],
+ lines:[[.6,3.2,'SAM','Don\'t stop. Don\'t look back.']],
+ draw(t){const n=Math.round(lerp(88,1,ease(seg(t,.3,5.6))));shaftRun(t,{rate:2.6,floorAt:(j,k)=>Math.max(1,n-Math.round((j-k)/2))});
+  R(262,14,50,20,'#05060a');txt('FLOOR',268,17,'#8891a6');txt(String(n).padStart(2,'0'),286,24,'#7dffb0',1);}},
+{name:'Lobby',note:'The lobby doors lock as Sam reaches them. Wardens step out from behind the pillars. Dr. Voss was already waiting.',dur:7.4,top:true,music:t=>t<2.3?'flee':'trap',
+ ev:[...evEvery('runstep',0,2.2,.13),[2.3,'lock'],[2.4,'slam'],[3.4,'boot'],[3.7,'boot'],[4,'boot'],[4.6,'stomp']],
+ lines:[[2.6,3.8,'SAM','Locked?!'],[4.4,7.3,'DR. VOSS','Hello, Sam. Right on time.']],
+ draw(t){lobby(t,{locked:seg(t,2.3,2.6)});
+  const x=t<2.2?lerp(-12,214,t/2.2):214-Math.min(6,(t-2.2)*30);
+  const wo=[[61,3.4],[179,3.7],[128,4]];
+  wo.forEach(([wx,at])=>{if(t<at)return;const k=seg(t,at,at+.5);warden(Math.round(wx+(wx<120?-12:12)*(1-k)),160,{eye:1,t,look:wx<x?1:-1,step:Math.floor(t*4)});});
+  if(t>3.9){const vx=lerp(-14,26,seg(t,3.9,5.2));doctor(Math.round(vx),160,{dir:1,pose:t>5.4?'point':'idle',glint:t>5.6&&t<6,grin:t>5.8});}
+  emp(Math.round(x),160,{dir:t>4.2?-1:1,pose:t<2.2?'run':'recoil',frame:Math.floor(t*14),shock:t>2.2});
+  if(t<2.2)drive(Math.round(x)+2,144,t);
+  if(t>2.3)alarmWash(t,.8);}},
+{name:'Predicted',note:'Dr. Voss, close up: he never chased Sam. He only waited where the data said Sam would go.',dur:9.6,music:()=>'trap',
+ ev:[[.1,'boom'],[.9,'glint'],[4.4,'glint']],
+ lines:[[.3,3.6,'DR. VOSS','You always take the stairs. And when you\'re scared, you run.'],[3.8,6.8,'DR. VOSS','I didn\'t have to chase you. I only had to wait where you\'d go.'],
+        [6.9,9.5,'DR. VOSS',again?`Twice now. ${pct} percent. You're very easy to read.`:`${pct} percent, Sam. The data was right about you.`]],
+ draw(t){vossFace(t);}},
+{name:'Contained',note:'Warden POV: the prediction matches what Sam did. Subject contained, evidence recovered.',dur:7,music:()=>'trap',
+ ev:[[.2,'boot'],...evEvery('radar',.6,6,.6),[4.6,'sting']],lines:[],
+ draw(t){wardenPOV(t,[[`PREDICTION: SUBJECT FLEES DOWNSTAIRS   ${pct}%`,.3],['OBSERVED:   SUBJECT FLED DOWNSTAIRS',1.3],['RESULT:     CORRECT',2.2,'#ffb347'],['SUBJECT CONTAINED.  EVIDENCE RECOVERED.',3.1]],
+   {big:'HE DID WHAT WE PREDICTED.',bigAt:4.6,sub:(t)=>{const gx=160,gy=128;emp(gx,gy,{dir:1,pose:'recoil',shock:true});warden(gx-34,gy,{eye:1,t,look:1,step:0});warden(gx+34,gy,{eye:1,t,look:-1,step:1});
+     if(t>3.1){A(gx-50,gy-44,100,46,'#ff3b4a',.08);for(const[px,py,dx,dy]of[[gx-50,gy-44,1,1],[gx+50,gy-44,-1,1],[gx-50,gy+2,1,-1],[gx+50,gy+2,-1,-1]]){line(px,py,px+5*dx,py,'#ff3b4a');line(px,py,px,py+5*dy,'#ff3b4a');}}}});}},
+{name:'Caught',note:'Caught: the lesson, then the player can rewind to the stairwell and choose again.',dur:6.4,fi:.4,nobars:true,music:()=>'trap',
+ ev:[[.3,'hit']],lines:[],
+ draw(t){R(0,0,W,H,'#050608');
+  ctx.globalAlpha=seg(t,.2,.8);txtC('CAUGHT.',160,34,'#ff4656',4);
+  ctx.globalAlpha=seg(t,1.2,1.8);txtC('YOU DID EXACTLY WHAT THE DATA SAID YOU WOULD.',160,66,'#d9dfeb');
+  ctx.globalAlpha=seg(t,2.2,2.8);txtC('THE PROOF NEVER LEFT THE BUILDING.',160,78,'#8891a6');
+  ctx.globalAlpha=seg(t,3.2,3.8);txtC('A PREDICTABLE CHOICE IS EASY TO BEAT.',160,96,'#ffb347');
+  ctx.globalAlpha=1;},
+ choice:{prompt:'They predicted Sam would run. Go back and choose again?',options:[{key:'rewind',label:'Rewind',sub:'Back to the stairwell on Floor 88.',then:()=>[
+   {name:'Rewind',note:'VHS-style rewind back to the landing.',dur:1.8,nobars:false,music:()=>null,ev:[[0,'rewind']],lines:[],
+    draw(t){shaftRun(1.8-t,{rate:6,floor0:88});for(let y=0;y<H;y+=3)A(0,y,W,1,'#ffffff',.08);A(0,(t*400)%H,W,8,'#ffffff',.3);txtO('<< REWIND',16,16,'#ffffff',2);}},
+   stairShot(true)]}]}},
+];}
+
+function uploadShots(again){return[
+{name:'Up',note:'Sam climbs toward the roof. Over the PA, Voss is caught off guard; the Wardens\' prediction flips to WRONG.',dur:7.4,fi:.2,music:()=>'rise1',
+ ev:[...evEvery('runstep',.2,7,.15),[3.2,'glitch'],[3.3,'sting']],
+ lines:[[.6,2.8,'SAM','Up. They won\'t expect up.'],[3.4,7.2,'DR. VOSS','The roof? That\'s... not what you were supposed to do.']],
+ draw(t){shaftRun(t,{up:true,rate:1,floorAt:j=>j<0?'':j<6?88+j/2:j===6?'ROOF':''});
+  const k=seg(t,3.2,3.6);A(10,14,148,30,'#14040a',.85);R(10,14,148,1,'#ff3b4a');
+  txt(again?'PREDICTION: FLEES DOWNSTAIRS  97%':'PREDICTION: FLEES DOWNSTAIRS  94%',14,18,'#ff3b4a');
+  if(t>3.2){const s='RESULT: WRONG  ( SUBJECT WENT UP )';txt(typed(s,t,3.3,40),14,30,Math.floor(t*4)%2?'#ffb347':'#ff3b4a');if(k<1)A(10,14,148,30,'#ffffff',.5*(1-k));}}},
+{name:'Rooftop',note:'Rain on the roof. Sam bursts out of the stair door and sees the uplink. Wardens climb over the parapet.',dur:10,top:true,music:t=>t<5?'rise1':'rise2',
+ ev:[[.4,'slam'],[.5,'wind'],...evEvery('runstep',.6,3,.13),[5,'boot'],[5.3,'boot'],[5.6,'boot'],...evEvery('stomp',6,9.5,.5)],
+ lines:[[1.6,4.8,'SAM','There. The uplink. One upload and everyone sees the truth.'],[5.6,9.8,'DR. VOSS','Clever. But my Wardens learn, Sam. Every time they catch you, they get better.']],
+ draw(t){const door=seg(t,.3,.6);rooftop(t,{door});
+  const x=t<.6?30:Math.min(120,lerp(30,120,seg(t,.6,3)));
+  [[176,5],[214,5.3],[298,5.6]].forEach(([wx,at])=>{if(t<at)return;const k=ease(seg(t,at,at+1));warden(wx,Math.round(lerp(196,150,k)),{eye:1,t,look:-1,step:Math.floor(t*3)});});
+  emp(Math.round(x),150,{dir:1,pose:t<.6?'idle':t<3?'run':'idle',frame:Math.floor(t*14),shock:t>5.2&&t<6.4});
+  drive(Math.round(x)+3,134,t);
+  if(t>6.2&&t<9.8){const sp=Math.floor(t*2)%2;R(140,104,30,16,'#0b0c10');A(140,104,30,16,'#3fd0c9',.2);txtC('PA',155,108,sp?'#ff4656':'#8891a6');}
+ }},
+{name:'Learning',note:'Warden POV: the Wardens switch to learning mode. Every catch becomes training data.',dur:7,music:()=>'rise2',
+ ev:[[.2,'boot'],...evEvery('data',1,5,.4),[4.8,'sting']],lines:[],
+ draw(t){wardenPOV(t,[['SUBJECT BEHAVIOUR: UNEXPECTED',.3,'#ffb347'],['SWITCHING TO LEARNING MODE',1.2],['EVERY CATCH = NEW TRAINING DATA',2.1],['RECORD HIS ROUTE.  WAIT ON IT NEXT TIME.',3]],
+   {big:'WE LEARN FROM EVERY CATCH.',bigAt:4.8,sub:(t)=>{const n=Math.floor(seg(t,1,4.6)*24);for(let i=0;i<n;i++){const x=40+(i%12)*20,y=76+Math.floor(i/12)*16;R(x,y,12,10,'#3a0d14');R(x+1,y+1,10,8,i%3?'#ff3b4a':'#ffb347');}}});}},
+{name:'Level card',note:'Hand-off into Level 6.',dur:5.6,fi:.4,nobars:true,music:()=>null,
+ ev:[[.3,'end']],lines:[],
+ draw(t){R(0,0,W,H,'#050608');
+  ctx.globalAlpha=seg(t,.2,1);txtC('LEVEL 6',160,44,'#8891a6',2);txtC('THE UPLINK',160,60,'#ff4656',3);
+  ctx.globalAlpha=seg(t,1.3,2.1);txtC('GET THE EVIDENCE TO THE UPLINK.',160,96,'#d9dfeb');txtC('THEY LEARN FROM EVERY CATCH. DON\'T REPEAT YOURSELF.',160,106,'#ffb347');
+  ctx.globalAlpha=1;if(t>2.6){const on=Math.floor(t*2)%2;R(157,130,6,5,on?'#ff3b4a':'#3a1015');if(on)A(152,125,16,15,'#ff3b4a',.25);}}},
+];}
+
+const DECISION_SHOTS=[
+{name:'Floor 88',note:'The executive suite at night. Sam has both evidence drives. The lockdown alarm starts.',dur:7.6,fi:.6,music:t=>t<3.2?null:'decide',
+ ev:[[.6,'data'],...evEvery('alarm',3.2,7.4,.7),[3.2,'lock']],
+ lines:[[.6,3,'SAM','Got it. Both drives. Every file they stole.'],[3.6,7.4,'SAM','Lockdown. Now I just have to get it out of here.']],
+ draw(t){floor88(t,{alarm:seg(t,3.2,3.6)});
+  const reach=t<3.2;emp(150,150,{dir:1,pose:reach?'reach':'idle',shock:t>3.2&&t<4.2});
+  if(reach)drive(157,128,t);else drive(152,140,t);}},
+{name:'Wall screen',note:'Every screen on the floor switches to Dr. Voss.',dur:8.4,music:()=>'decide',
+ ev:[[.2,'glitch'],[.4,'boot']],
+ lines:[[.6,3.4,'DR. VOSS','Impressive, Sam. But the building is sealed.'],[3.5,8.3,'DR. VOSS','Down to the street, or up to the roof. Either way, I already know which you\'ll pick.']],
+ draw(t){floor88(t,{alarm:1});A(0,0,W,H,'#000000',.45);vossScreen(t+.2,70,20,180,101);
+  emp(40,150,{dir:1,pose:'idle',shock:true});drive(42,140,t);
+  R(70,121,180,10,'#3b0d14');txtC('LOCKDOWN  /  ALL EXITS MONITORED',160,124,'#ff4656');}},
+stairShot(false),
 ];
 
 /* ---------- Level cards: a short title card before each level ---------- */
@@ -742,16 +949,27 @@ function cardScene(lv){
 /* ---------- the scenes ---------- */
 const SCENES={
   afterHours:{shots:SHOTS,label:'Opening cutscene',canvasLabel:'Pixel-art cutscene: an employee finds Clearpath\'s secret Warden lab',start:'Start the story',skip:'Skip intro ›',poster:2.9},
+  decision:{shots:DECISION_SHOTS,label:'Cutscene: the choice before the Uplink',canvasLabel:'Pixel-art cutscene: Sam has the evidence and must choose between escaping to the street or climbing to the roof uplink',start:'Continue the story',skip:'Skip ›',poster:3.8},
   core:{shots:CORE_SHOTS,label:'Cutscene: Dr. Voss feeds the Wardens more data',canvasLabel:'Pixel-art cutscene: a security camera watches Sam climb out of a vent into the Core, while Dr. Voss feeds the Wardens his personal data and their prediction confidence rises',start:'Continue the story',skip:'Skip ›',poster:5.6},
 };
 
 /* ---------- audio ---------- */
-let AC=null,master=null,musicBus=null,sfxBus=null,bus=null,NB=null,soundOn=true,unfollow=[];
-const TRIM={music:9,effects:4.5}; // the cutscenes sit a little under the levels: easy on the ears (see sound-settings.js)
+let AC=null,master=null,musicBus=null,sfxBus=null,scoreBus=null,bus=null,rev=null,echoIn=null,NB=null,soundOn=true,unfollow=[];
+const TRIM={music:9,effects:4.5}; // levels against the rest of the game (see sound-settings.js)
+const SCORE=.36; // the orchestral score's level within the music (measured against the level music: a little louder at its peaks)
 const mf=m=>440*Math.pow(2,(m-69)/12);
-function ensureAudio(){try{if(!AC){AC=new(window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=.4;master.connect(AC.destination);
+function impulseResponse(sec,decay){const n=Math.floor(AC.sampleRate*sec),b=AC.createBuffer(2,n,AC.sampleRate);for(let c=0;c<2;c++){const d=b.getChannelData(c);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,decay);}return b;}
+function ensureAudio(){try{if(!AC){AC=new(window.AudioContext||window.webkitAudioContext)();
+  // A soft clipper as a safety net for the biggest hits: tanh leaves normal levels alone (no makeup gain).
+  const pre=AC.createGain();pre.gain.value=.5;const clip=AC.createWaveShaper(),cv=new Float32Array(1024);for(let i=0;i<1024;i++)cv[i]=Math.tanh((i/511.5-1)*2);clip.curve=cv;
+  master=AC.createGain();master.gain.value=.4;master.connect(pre).connect(clip).connect(AC.destination);
   // Music and effects on their own buses, so the player's music and effects volumes apply.
   musicBus=AC.createGain();musicBus.connect(master);sfxBus=AC.createGain();sfxBus.connect(master);bus=sfxBus;
+  scoreBus=AC.createGain();scoreBus.gain.value=SCORE;scoreBus.connect(musicBus);
+  // A hall reverb and a dark echo for the score (the orchestra needs a room).
+  rev=AC.createConvolver();rev.buffer=impulseResponse(3,2.4);const rv=AC.createGain();rv.gain.value=.5;rev.connect(rv).connect(scoreBus);
+  echoIn=AC.createDelay(2);echoIn.delayTime.value=.375;const fb=AC.createGain();fb.gain.value=.42;const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2200;
+  echoIn.connect(lp).connect(fb).connect(echoIn);const eo=AC.createGain();eo.gain.value=.5;lp.connect(eo).connect(scoreBus);eo.connect(rev);
   unfollow=[followVolume(AC,musicBus,'music',TRIM.music),followVolume(AC,sfxBus,'effects',TRIM.effects)];}if(AC.state==='suspended')AC.resume();}catch(e){AC=null;}}
 function tone(f,d,type,v,slide=0,delay=0){if(!AC||!soundOn)return;const t=AC.currentTime+delay,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,t);
   if(slide)o.frequency.linearRampToValueAtTime(Math.max(20,f+slide),t+d);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+d);
@@ -778,29 +996,140 @@ const SFX={
   data:()=>{tone(1568,.06,'square',.06);tone(2093,.08,'square',.05,0,.07);},
   camclick:()=>{noise(.04,.12,2500,'highpass');tone(1200,.03,'square',.04);},
   end:()=>[57,60,64].forEach((n,i)=>tone(mf(n),2.4,'triangle',.06,0,i*.12)),
+  tick:()=>noise(.015,.06,5200,'highpass'),tock:()=>noise(.015,.04,3200,'highpass'),
+  lock:()=>{tone(150,.35,'square',.06,-30);noise(.1,.15,1200,'bandpass');},
+  rewind:()=>{tone(1800,.9,'sawtooth',.03,-1500);noise(.9,.05,3000,'bandpass');},
+  wind:()=>noise(.95,.06,500,'bandpass'),
+  boom:()=>{tone(70,1.2,'sine',.35,-40);noise(.5,.25,300);},
   cardchime:()=>{[69,76,81].forEach((n,i)=>tone(mf(n),1.4,'triangle',.05,0,i*.09));tone(mf(88),1.8,'sine',.025,0,.3);},
 };
+
+// ---------- The score's instruments (all synthesized) ----------
+// Each takes a delay in seconds, so a theme can place notes between its steps. They play into the
+// music bus, with optional sends to the hall reverb and the echo.
+function out(node,{verb=.3,dub=0}={}){node.connect(bus===musicBus?scoreBus:bus);if(verb){const g=AC.createGain();g.gain.value=verb;node.connect(g).connect(rev);}if(dub){const g=AC.createGain();g.gain.value=dub;node.connect(g).connect(echoIn);}}
+function envG(t,a,v,hold,rel){const g=AC.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+a);g.gain.setValueAtTime(v,t+a+hold);g.gain.linearRampToValueAtTime(0,t+a+hold+rel);return g;}
+function osc(type,f,t,end,det=0){const o=AC.createOscillator();o.type=type;o.frequency.value=f;o.detune.value=det;o.start(t);o.stop(end);return o;}
+const INS={
+  // Staccato strings: three detuned saws, bright attack, short. The ostinato.
+  stac(n,v,dl=0){if(!AC||!soundOn)return;const t=AC.currentTime+dl,f=mf(n),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(3200,t);lp.frequency.exponentialRampToValueAtTime(900,t+.14);
+    const g=envG(t,.006,v,.04,.12);for(const d of[-9,0,9])osc('sawtooth',f,t,t+.3,d).connect(lp);lp.connect(g);out(g,{verb:.35});},
+  // Sustained strings / brass-like section: slow attack, gentle vibrato.
+  str(n,dur,v,dl=0,{attack=.25,bright=1800}={}){if(!AC||!soundOn)return;const t=AC.currentTime+dl,f=mf(n),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=bright;
+    const vib=AC.createOscillator();vib.frequency.value=5.2;const vd=AC.createGain();vd.gain.value=9;vib.connect(vd);vib.start(t);vib.stop(t+dur+1);
+    const g=envG(t,attack,v,Math.max(0,dur-attack),.6);for(const d of[-7,7]){const o=osc('sawtooth',f,t,t+dur+1,d);vd.connect(o.detune);o.connect(lp);}lp.connect(g);out(g,{verb:.5});},
+  // Choir "aah": saws through vowel formants, slow swell.
+  choir(notes,dur,v,dl=0,vowel='a'){if(!AC||!soundOn)return;const t=AC.currentTime+dl,F=vowel==='o'?[[450,1],[800,.6],[2830,.15]]:[[730,1],[1090,.55],[2440,.2]];
+    const sum=AC.createGain();for(const n of notes)for(const d of[-12,0,12]){const o=osc('sawtooth',mf(n),t,t+dur+1.5,d);const lv=AC.createGain();lv.gain.value=.33;o.connect(lv).connect(sum);}
+    const g=envG(t,Math.min(.8,dur*.4),v,Math.max(0,dur*.6),.9);for(const[fq,a]of F){const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=fq;bp.Q.value=6;const ag=AC.createGain();ag.gain.value=a*2.2;sum.connect(bp).connect(ag).connect(g);}
+    out(g,{verb:.7});},
+  // Timpani: a pitched thud with a falling skin and a short noise attack.
+  timp(n,v,dl=0){if(!AC||!soundOn)return;const t=AC.currentTime+dl,f=mf(n),o=osc('sine',f*1.5,t,t+1.4);o.frequency.exponentialRampToValueAtTime(f,t+.06);
+    const g=AC.createGain();g.gain.setValueAtTime(v*.6,t);g.gain.exponentialRampToValueAtTime(.0005,t+.7);o.connect(g);out(g,{verb:.45});
+    const s=AC.createBufferSource();if(!NB)noise(.01,0,100);s.buffer=NB;const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=1400;const ng=AC.createGain();ng.gain.setValueAtTime(v*.9,t);ng.gain.exponentialRampToValueAtTime(.0005,t+.12);s.connect(lp).connect(ng);s.start(t);s.stop(t+.2);out(ng,{verb:.3});},
+  // A huge low impact (for big reveals).
+  boom(v,dl=0){if(!AC||!soundOn)return;const t=AC.currentTime+dl,o=osc('sine',90,t,t+2.6);o.frequency.exponentialRampToValueAtTime(32,t+.5);const g=AC.createGain();g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0005,t+2.4);o.connect(g);out(g,{verb:.6});},
+  // Distorted power chord (root, fifth, octave): the "rock" hits.
+  power(root,dur,v,dl=0){if(!AC||!soundOn)return;const t=AC.currentTime+dl,ws=AC.createWaveShaper(),cv=new Float32Array(512);for(let i=0;i<512;i++){const x=i/256-1;cv[i]=Math.tanh(x*6);}ws.curve=cv;
+    const pre=AC.createGain();pre.gain.value=.6;const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2400;const g=envG(t,.005,v,dur*.6,dur*.4);
+    for(const[k,d]of[[0,-6],[7,6],[12,0]])osc('sawtooth',mf(root+k),t,t+dur+.2,d).connect(pre);pre.connect(ws).connect(lp).connect(g);out(g,{verb:.25});},
+  // Low drone: detuned saws under a slowly breathing filter, plus a sub.
+  drone(n,dur,v,dl=0){if(!AC||!soundOn)return;const t=AC.currentTime+dl,lp=AC.createBiquadFilter();lp.type='lowpass';lp.Q.value=4;lp.frequency.setValueAtTime(260,t);lp.frequency.linearRampToValueAtTime(700,t+dur*.5);lp.frequency.linearRampToValueAtTime(300,t+dur);
+    const g=envG(t,dur*.3,v,dur*.4,dur*.3+.5);for(const d of[-14,14])osc('sawtooth',mf(n),t,t+dur+1,d).connect(lp);lp.connect(g);out(g,{verb:.3});},
+  // A high, dissonant string cluster swelling out of nothing.
+  cluster(notes,dur,v,dl=0){if(!AC||!soundOn)return;const t=AC.currentTime+dl;for(const n of notes){const g=envG(t,dur*.6,v,dur*.1,dur*.3+.6);const o=osc('triangle',mf(n),t,t+dur+1);const o2=osc('sine',mf(n),t,t+dur+1,8);o.connect(g);o2.connect(g);out(g,{verb:.8,dub:.2});}},
+  // Music-box bell: a bright FM ping, into the echo.
+  bell(n,v,dl=0){if(!AC||!soundOn)return;const t=AC.currentTime+dl,f=mf(n),c=osc('sine',f,t,t+2.5),m=osc('sine',f*3.5,t,t+2.5),d=AC.createGain();d.gain.setValueAtTime(f*1.8,t);d.gain.exponentialRampToValueAtTime(f*.05,t+1.2);m.connect(d).connect(c.frequency);
+    const g=AC.createGain();g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0005,t+2.2);c.connect(g);out(g,{verb:.6,dub:.45});},
+  // A creak / metal scrape: noise through a narrow sweeping bandpass.
+  creak(v,dl=0){if(!AC||!soundOn)return;if(!NB)noise(.01,0,100);const t=AC.currentTime+dl,s=AC.createBufferSource();s.buffer=NB;s.loop=true;const bp=AC.createBiquadFilter();bp.type='bandpass';bp.Q.value=18;
+    const f0=200+Math.random()*500;bp.frequency.setValueAtTime(f0,t);bp.frequency.exponentialRampToValueAtTime(f0*(1.6+Math.random()),t+.9);const g=envG(t,.2,v,.4,.5);s.connect(bp).connect(g);s.start(t);s.stop(t+1.3);out(g,{verb:.6,dub:.3});},
+  heart(v,dl=0,n=43){INS.timp(n,v,dl);INS.timp(n,v*.6,dl+.2);},
+};
+
+// ---------- The cutscene score ----------
+// Both themes run at 152 BPM in eighth notes (one step = one eighth; 16 steps = a two-bar block), so a
+// theme can hand over to the next without a seam. Everything is original and synthesized.
+//
+// "Precipice" (the discovery, before Level 1): E minor, rocking between Em and Am in two-bar blocks with
+// C, D and B for lift. It starts as low pulsing chords as the lift drops (pre1), the string ostinato and
+// a choir come in at the screen (pre2), Dr. Voss's turn lands on a boom and a soaring high string line
+// over full choir (pre3), and the override is everything at once: sixteenth-note strings, timpani in
+// eighths and distorted power-chord hits (pre4).
+// "Creeping" (Dr. Voss feeds the Wardens, before Level 3): G minor, the bass swinging G to E-flat, a
+// relentless low ostinato that creeps a semitone up and back, a music-box line on a tritone, high
+// strings sliding into clusters, creaks, a heartbeat, and a G major chord where it should be minor so
+// the floor never feels steady. It stays loud and never lets up; the stages only add layers.
+const BPM=152,R8=BPM/30,SL=1/R8; // eighth notes per second; seconds per eighth
+function chordThird(root,chord){for(const n of chord){const iv=(((n-root)%12)+12)%12;if(iv===3||iv===4)return iv;}return 3;}
+const PRE_CH=[[40,[64,67,71]],[45,[64,69,72]],[40,[64,67,71]],[45,[64,69,72]],[36,[64,67,72]],[38,[66,69,74]],[40,[64,67,71]],[35,[63,66,71]]]; // Em Am Em Am C D Em B
+const PRE_PAT=[0,1,2,1,0,1,3,1,0,1,2,1,0,2,3,2];
+const PRE_MEL=[[[0,76,6],[6,74,2],[8,71,8]],[[0,72,6],[6,74,2],[8,76,8]],[[0,79,8],[8,78,4],[12,76,4]],[[0,81,12],[12,79,4]],
+               [[0,79,6],[6,76,2],[8,84,8]],[[0,86,8],[8,83,4],[12,81,4]],[[0,83,16]],[[0,78,8],[8,75,8]]];
+function pre(stage){return{rate:R8,global:true,play(i,fresh){
+  const st=i%16,blk=Math.floor(i/16)%8,[root,ch]=PRE_CH[blk],head=st===0||fresh,rest=(16-st)*SL;
+  const tones=[root+12,root+19,root+24,root+24+chordThird(root,ch)];
+  if(head){INS.drone(root,rest+.1,stage>=3?.032:.028);INS.choir(ch,rest,stage===1?.03:stage===2?.05:.07,0,stage>=3?'a':'o');}
+  // Pulsing low chords on every beat: the whole of stage 1, under everything after.
+  if(st%2===0)for(const n of ch)INS.stac(n-12,stage===1?.03:.022);
+  if(stage>=2)INS.stac(tones[PRE_PAT[st]],stage===2?.04:.05);
+  if(stage>=4)INS.stac(tones[PRE_PAT[(st+1)%16]],.035,SL/2);
+  if(st===0||(stage>=2&&st===8))INS.timp(root,stage===1?.14:.2);
+  if(stage===1&&blk%2===1&&st===8)INS.cluster([ch[2]+12],1.6,.012);
+  if(stage>=3){if(head&&blk%2===0)INS.boom(.34);
+    for(const[s0,n,len]of PRE_MEL[blk])if(st===s0)INS.str(n,len*SL,.06,0,{attack:.08,bright:3600});}
+  if(stage>=4){if([0,3,6,10,12].includes(st))INS.power(root+12,st===12?.5:.24,.045);
+    if(st%2===1)INS.timp(root+7,.09);
+    for(const[s0,n,len]of PRE_MEL[blk])if(st===s0)INS.str(n-12,len*SL,.04,0,{attack:.08,bright:2600});}
+}};}
+const CREEP_CH=[[31,[62,67,70]],[31,[62,67,70]],[27,[63,67,70]],[27,[63,67,70]],[31,[62,67,70]],[34,[62,65,70]],[27,[63,67,70]],[31,[62,67,71]]]; // Gm Gm Eb Eb Gm Bb Eb G(major!)
+const CREEP_OST=[0,0,1,0,0,0,1,0,0,0,1,0,3,1,0,-1];
+const CREEP_BELL=[[0,86],[3,80],[6,85],[10,79]];
+function creep(stage){return{rate:R8,global:true,play(i,fresh){
+  const st=i%16,blk=Math.floor(i/16)%8,[root,ch]=CREEP_CH[blk],head=st===0||fresh,rest=(16-st)*SL;
+  if(head){INS.drone(root+12,rest+.1,.032);INS.choir(ch.map(n=>n-12),rest,stage===1?.035:stage===2?.05:.065,0,stage===3?'a':'o');}
+  // The creeping low ostinato: G G A-flat G ... then B-flat A-flat G F-sharp, under every stage.
+  INS.stac(55+CREEP_OST[st]+(root===27?-4:root===34?3:0),stage===1?.045:.052);
+  if(st%4===2)INS.stac(67+CREEP_OST[(st+4)%16],.026);
+  if(stage>=2){INS.stac(ch[2]+12,.012);INS.stac(ch[2]+12,.01,SL/2);} // high tremolo strings
+  if(blk%2===0){const b=CREEP_BELL.find(([s0])=>s0===st);if(b)INS.bell(b[1]-(blk===4?1:0),.034);}
+  if(head&&blk%2===1)INS.cluster(blk===7?[ch[2]+12,ch[2]+13]:[ch[1]+12,ch[1]+13],rest,stage===1?.014:.02);
+  if(Math.random()<(stage===1?.06:.1))INS.creak(.06,Math.random()*SL);
+  const beat=stage===3?2:4;if(st%beat===0)INS.heart(stage===1?.09:.11);
+  if(stage===3){if(head&&blk%2===0)INS.boom(.3);if(st===0||st===6||st===8||st===14)INS.timp(root+12,.18);
+    if(head)INS.str(root+12,rest,.05,0,{attack:.04,bright:1600});}
+}};}
+// The decision (before Level 6), in the Precipice key: a clock on every beat over a suspended chord and a
+// heartbeat ("decide"), and the climb to the roof as an anthem on the Wardens' E-D-C-A-B motif ("rise").
+const RISE_CH=[[40,[64,67,71]],[36,[64,67,72]],[43,[67,71,74]],[38,[66,69,74]]]; // Em C G D
+const RISE_MEL=[[[0,76,4],[4,74,4],[8,72,4],[12,69,2],[14,71,2]],[[0,72,8],[8,79,8]],[[0,79,8],[8,74,8]],[[0,78,4],[4,79,4],[8,81,8]]];
+function rise(stage){return{rate:R8,global:true,play(i,fresh){const st=i%16,blk=Math.floor(i/16)%4,[root,ch]=RISE_CH[blk],head=st===0||fresh,rest=(16-st)*SL;
+  if(head){INS.drone(root,rest+.1,.028);INS.choir(ch,rest,stage===2?.065:.05,0,'a');}
+  INS.stac([root+12,root+19,root+24,root+19][st%4],.04);
+  for(const[s0,n,len]of RISE_MEL[blk])if(st===s0)INS.str(n+(stage===2?12:0),len*SL,.06,0,{attack:.05,bright:3600});
+  if(stage===2)for(const[s0,n,len]of RISE_MEL[blk])if(st===s0)INS.str(n,len*SL,.04,0,{attack:.05,bright:2600});
+  if(st===0||st===8)INS.timp(root,.2);if(stage===2&&st%4===2)INS.timp(root+7,.1);
+  if(stage===2&&head&&blk===0)INS.boom(.3);}};}
 const MUS={
   office:{rate:4,play(i){tone(mf([57,64,60,67,64,60,62,59][i%8]+12),.22,'triangle',.04);if(i%8===0)tone(mf(45),.6,'triangle',.05);}},
   muzak:{rate:3,play(i){tone(mf([72,76,79,83,81,79,76,74][i%8]),.3,'sine',.035);if(i%4===0)tone(mf(48+[0,5,7,5][(i/4|0)%4]),.6,'sine',.05);}},
-  // "tense": Dr. Voss's theme. Mysterious rather than menacing, and it keeps moving so it never drones:
-  // a slow Dm9 - Bbmaj7 - Gm9 - A7sus walk with a soft sine bass, a warm triangle pad, a gentle plucked
-  // figure that changes every other pass, and a high bell at the top of each cycle. 4 steps a second.
-  tense:{rate:4,play(i){
-    const bar=Math.floor(i/8)%4,st=i%8,pass=Math.floor(i/32)%2;
-    const ch=[[50,53,57,60,64],[46,50,53,57,62],[43,46,50,53,57],[45,50,52,55,59]][bar];
-    if(st===0){tone(mf(ch[0]-12),1.9,'sine',.05);for(const n of ch.slice(1,4))tone(mf(n),2.1,'triangle',.012);}
-    const fig=pass?[[1,4],[3,3],[5,2],[6,4]]:[[2,2],[4,4],[6,3]];
-    for(const[s0,k]of fig)if(st===s0)tone(mf(ch[k]+12),.5,'sine',.022);
-    if(st===0&&bar===0)tone(mf(ch[4]+24),1.6,'sine',.012);
-  }},
-  // "chase": the run. Urgent but not harsh: a triangle bass in 8ths, a soft pulse on top, a light hat.
-  chase:{rate:8,play(i){tone(mf([33,33,45,33,36,33,45,38][i%8]),.12,'triangle',.06);if(i%4===2)tone(mf([69,72,76,72][(i>>2)%4]),.12,'sine',.018);if(i%2===0)noise(.025,.018,7000,'highpass');}},
+  pre1:pre(1),pre2:pre(2),pre3:pre(3),pre4:pre(4),
+  creep1:creep(1),creep2:creep(2),creep3:creep(3),
+  decide:{rate:R8,global:true,play(i,fresh){const st=i%16,blk=Math.floor(i/16)%2,head=st===0||fresh,rest=(16-st)*SL;
+    if(st%2===0)SFX[st%4?'tock':'tick']();
+    if(head){INS.drone(40,rest+.1,.032);for(const n of blk?[48,55,59,62]:[52,57,59,64])INS.str(n,rest,.024,0,{attack:.9,bright:1400});}
+    if(st%4===0)INS.heart(.1,0,40);if(blk===1&&st===8)INS.cluster([83,84],1.4,.014);}},
+  rise1:rise(1),rise2:rise(2),
+  flee:pre(4),trap:creep(3),
 };
 let lastKey='';
 function fireEvents(a,b){if(b-a>.5)return;SH.forEach(s=>{if(s.start>b||s.start+s.dur<a)return;for(const[at,n]of s.ev){const g=s.start+at;if(g>a&&g<=b&&SFX[n])SFX[n]();}});}
-// Voss's theme ("tense") keeps its place across shot changes; the others restart with each shot.
-function music(i,lt,T=lt){const s=SH[i],m=s.music&&s.music(lt);if(!m||!MUS[m])return;const idx=Math.floor((m==='tense'?T:lt)*MUS[m].rate),k=(m==='tense'?'':i)+m+idx;if(k!==lastKey){lastKey=k;bus=musicBus;MUS[m].play(idx);bus=sfxBus;}}
+// The score's themes ("global") keep their place across shot changes, so a theme flows from shot to
+// shot; the older ambient themes restart with each shot. T is the cutscene's clock (it keeps running
+// while a choice is on screen, so the music does too).
+let lastTheme='';
+function music(i,lt,T=lt){const s=SH[i],m=s.music&&s.music(lt);if(!m||!MUS[m]){lastTheme='';return;}const g=MUS[m].global,idx=Math.floor((g?T:lt)*MUS[m].rate),k=(g?'':i)+m+idx;
+  if(k!==lastKey){lastKey=k;const fresh=m!==lastTheme;lastTheme=m;bus=musicBus;MUS[m].play(idx,fresh);bus=sfxBus;}}
 
 function closeAudio() {
   unfollow.forEach((stop) => stop()); unfollow = [];
@@ -808,7 +1137,7 @@ function closeAudio() {
   const ac = AC;
   try { master.gain.setTargetAtTime(0.0001, ac.currentTime, 0.08); } catch {}
   setTimeout(() => { try { ac.close(); } catch {} }, 500);
-  AC = null; master = musicBus = sfxBus = bus = null; NB = null;
+  AC = null; master = musicBus = sfxBus = scoreBus = bus = rev = echoIn = null; NB = null;
 }
 
 /* ---------- player ---------- */
@@ -825,8 +1154,8 @@ export const cutsceneActive = () => active;
  *   scene: "afterHours" (default, before Level 1), "core" (before Level 3), or "card": a level's title card,
  *   with level = { id, of, name, concept, enemies, style } (see playLevelCard).
  */
-export function playCutscene({ autoStart = false, scene = "afterHours", level = null } = {}) {
-  if (active) return Promise.resolve();
+export function playCutscene({ autoStart = false, scene = "afterHours", level = null, at = 0 } = {}) {
+  if (active) return Promise.resolve([]);
   const sc = scene === "card" && level ? cardScene(level) : SCENES[scene] ?? SCENES.afterHours;
   SH = sc.shots;
   TOTAL = timeline(SH);
@@ -840,6 +1169,7 @@ export function playCutscene({ autoStart = false, scene = "afterHours", level = 
       <div class="cs-stage">
         <canvas width="320" height="180" aria-label="${sc.canvasLabel}"></canvas>
         <div class="cs-dlg" hidden><span class="cs-who"></span><span class="cs-line"></span></div>
+        <div class="cs-choice" role="group" aria-label="Make a choice" hidden><p class="cs-prompt"></p><div class="cs-opts"></div><p class="cs-keys">Click a choice or press its number</p></div>
         <button class="cs-start" type="button"><span class="cs-tri" aria-hidden="true"></span><span>${sc.start}</span><small>Click or press any key · sound on</small></button>
       </div>
       <div class="cs-bar">
@@ -854,8 +1184,15 @@ export function playCutscene({ autoStart = false, scene = "afterHours", level = 
     ctx = canvas.getContext("2d");
     ctx.imageSmoothingEnabled = false;
 
-    let T = 0, playing = false, started = false, last = null, raf = 0, dlgKey = "", curShot = -1;
-    lastKey = "";
+    let T = Math.max(0, Math.min(Number(at) || 0, TOTAL - 0.5)), playing = false, started = false, last = null, raf = 0, dlgKey = "", curShot = -1;
+    // The music's clock: it keeps running while a choice waits on screen (T stops), so the score does too.
+    let MT = T;
+    // Choices: the shot waiting for an answer, the shots already answered, and what was picked (resolved
+    // at the end so the game can log it).
+    let choosing = -1;
+    const answered = new Set(), picks = [];
+    const choiceEl = q(".cs-choice"), promptEl = q(".cs-prompt"), optsEl = q(".cs-opts");
+    lastKey = ""; lastTheme = ""; CHOICE_T = 0;
     // Mute follows the game-wide switch; the Sound button shows it.
     const showSound = () => { soundOn = sound.on; const b = q(".cs-sound"); if (b) { b.textContent = soundOn ? "Sound on" : "Sound off"; b.setAttribute("aria-pressed", String(soundOn)); } };
     const unsubSound = sound.subscribe(showSound);
@@ -871,8 +1208,9 @@ export function playCutscene({ autoStart = false, scene = "afterHours", level = 
       if (s.fo) f = Math.max(f, 1 - (s.dur - lt) / s.fo);
       if (f > 0) A(0, 0, W, H, "#000000", f);
       if (!s.nobars) { R(0, 0, W, 9, "#000000"); R(0, 171, W, 9, "#000000"); }
-      if (started && !playing) { A(0, 0, W, H, "#000000", 0.45); txtC("PAUSED", 160, 86, "#d9dfeb", 2); }
-      const ln = started ? s.lines.find((l) => lt >= l[0] && lt < l[1]) : null;
+      if (started && !playing && choosing < 0) { A(0, 0, W, H, "#000000", 0.45); txtC("PAUSED", 160, 86, "#d9dfeb", 2); }
+      if (choosing >= 0) A(0, 0, W, H, "#000000", Math.min(0.5, CHOICE_T * 1.5));
+      const ln = started && choosing < 0 ? s.lines.find((l) => lt >= l[0] && lt < l[1]) : null;
       const text = ln ? typed(ln[3], lt, ln[0], 38) : "";
       const key = ln ? `${i}|${ln[2]}|${text}` : "";
       if (key !== dlgKey) {
@@ -893,6 +1231,35 @@ export function playCutscene({ autoStart = false, scene = "afterHours", level = 
       last = null;
     }
 
+    function openChoice(i) {
+      choosing = i; CHOICE_T = 0;
+      const c = SH[i].choice;
+      promptEl.textContent = c.prompt;
+      optsEl.innerHTML = "";
+      c.options.forEach((o, k) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "cs-opt"; b.dataset.key = o.key;
+        b.innerHTML = `<span class="cs-num">${k + 1}</span><span class="cs-lab"></span><small></small>`;
+        b.querySelector(".cs-lab").textContent = o.label; b.querySelector("small").textContent = o.sub ?? "";
+        b.addEventListener("click", () => choose(k));
+        optsEl.appendChild(b);
+      });
+      choiceEl.hidden = false; dlg.hidden = true; dlgKey = "";
+      setTimeout(() => optsEl.firstElementChild?.focus(), 0);
+    }
+    function choose(k) {
+      if (choosing < 0) return;
+      const i = choosing, o = SH[i].choice.options[k];
+      if (!o) return;
+      choosing = -1; answered.add(i); picks.push(o.key);
+      // The rest of the scene is whatever this answer leads to.
+      SH = SH.slice(0, i + 1).concat((o.then?.() ?? []).map((s) => ({ ...s })));
+      TOTAL = timeline(SH);
+      T = SH[i].start + SH[i].dur;
+      choiceEl.hidden = true; document.activeElement?.blur?.();
+      if (T >= TOTAL) finish();
+    }
+
     function finish() {
       if (!active) return;
       active = false;
@@ -902,7 +1269,7 @@ export function playCutscene({ autoStart = false, scene = "afterHours", level = 
       closeAudio();
       root.classList.add("cs-out");
       setTimeout(() => root.remove(), 350);
-      resolve();
+      resolve(picks);
     }
 
     // Capture phase on window runs before the game's own keydown listener, so stopping the event here
@@ -911,6 +1278,16 @@ export function playCutscene({ autoStart = false, scene = "afterHours", level = 
       e.stopImmediatePropagation();
       if (e.key === "Escape") { e.preventDefault(); finish(); return; }
       if (!started) { e.preventDefault(); begin(); return; }
+      if (choosing >= 0) {
+        const n = Number(e.key);
+        if (n >= 1 && n <= SH[choosing].choice.options.length) { e.preventDefault(); choose(n - 1); }
+        else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+          e.preventDefault();
+          const bs = [...optsEl.children], at = bs.indexOf(document.activeElement), d = e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 1;
+          bs[(at + d + bs.length) % bs.length]?.focus();
+        }
+        return; // Enter and Space press the focused option (the button's own default action)
+      }
       if (scene === "card") { e.preventDefault(); if (T > 0.5 && !e.repeat) finish(); return; } // any key moves on (not the key that opened it)
       if (e.key === " ") { e.preventDefault(); playing = !playing; last = null; }
       else if (e.key === "Enter" && T >= TOTAL - SH[SH.length - 1].dur) { e.preventDefault(); finish(); }
@@ -931,13 +1308,20 @@ export function playCutscene({ autoStart = false, scene = "afterHours", level = 
       if (playing) {
         const dt = last == null ? 0 : Math.min(0.1, (nowMs - last) / 1000);
         last = nowMs;
-        const prev = T;
-        T = Math.min(TOTAL, T + dt);
-        fireEvents(prev, T);
-        if (T >= TOTAL) { render(TOTAL); finish(); return; }
+        MT += dt;
+        if (choosing >= 0) CHOICE_T += dt;
+        else {
+          const prev = T;
+          T = Math.min(TOTAL, T + dt);
+          // A shot with a choice holds on its last frame until the player answers.
+          const c = SH.findIndex((s, k) => s.choice && !answered.has(k) && s.start + s.dur > prev - 1e-6 && s.start + s.dur <= T + 1e-6);
+          if (c >= 0) { T = SH[c].start + SH[c].dur - 1e-4; fireEvents(prev, T); openChoice(c); }
+          else fireEvents(prev, T);
+          if (T >= TOTAL) { render(TOTAL); finish(); return; }
+        }
       }
       const lt = render(started ? T : sc.poster); // before starting, show a still as a poster
-      if (playing && soundOn) music(curShot, lt, T);
+      if (playing && soundOn) music(curShot, lt, MT);
       raf = requestAnimationFrame(frame);
     }
     raf = requestAnimationFrame(frame);
