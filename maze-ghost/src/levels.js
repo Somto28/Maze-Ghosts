@@ -96,6 +96,7 @@ export const LEVELS = Object.freeze([
     id: 3,
     name: "The Core",
     cutscene: "core", // story scene before this level (game_server/cutscene.js): Dr. Voss feeds the Wardens Sam's data
+    teaser: "But someone was watching...", // the line on the "Escaped!" card before that scene
     enemy: "warden",
     lookahead: 3,
     concept: "Teamwork: searching together",
@@ -199,6 +200,8 @@ export const LEVELS = Object.freeze([
   {
     id: 6,
     name: "The Uplink",
+    cutscene: "decision", // "The Choice": run for the street, or climb to the uplink? (game_server/cutscene.js)
+    teaser: "You have the proof. Now Sam has to decide what to do with it...",
     enemy: "warden",
     lookahead: 3,
     dronePattern: [2, 0],

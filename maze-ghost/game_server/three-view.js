@@ -27,7 +27,7 @@ const LOOKS = { basement: buildBasement, "server-halls": buildServerHalls, core:
 const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 // ?level=2 starts on Level 2, ?fps shows the frame rate, ?res=1 pins the render resolution (testing),
 // ?intro=0 skips the story cutscenes, ?title=0 skips the home screen, ?glitch=1 unlocks the glitch,
-// ?scene=core previews the Level 3 cutscene.
+// ?scene=core previews the Level 3 cutscene (?scene=decision the one before Level 6; &at=30 starts 30 s in).
 const params = new URLSearchParams(location.search);
 
 const game = new MazeGame();
@@ -580,19 +580,26 @@ $("overlay-btn").addEventListener("click", () => overlayAction?.());
 function restart(message = "Restarted.") {
   game.restartLevel(); hideOverlay(); showLevel(message);
 }
-// Some levels open with a story scene (Level 3: Dr. Voss feeds the Wardens Sam's data). It plays between
-// the "Escaped!" card and the next level, unless ?intro=0. Then the level's briefing comes up.
-// Between levels: the next level's story scene if it has one (Level 3), otherwise its title card.
+// Some levels open with a story scene (Level 3: Dr. Voss feeds the Wardens Sam's data; Level 6: the
+// choice between running and uploading). It plays between the "Escaped!" card and the next level, unless
+// ?intro=0. Then the level's briefing comes up.
+// Between levels: the next level's story scene if it has one, otherwise its title card.
 // The level is built first, behind the scene, so the maze is ready the moment it ends. ?intro=0 skips both.
 async function goToNextLevel() {
   const next = game.levels[game.levelIndex + 1];
   hideOverlay();
   game.nextLevel(); showLevel(startMessage());
   if (params.get("intro") !== "0") {
-    if (next.cutscene) await playCutscene({ autoStart: true, scene: next.cutscene });
+    if (next.cutscene) logChoices(next.cutscene, await playCutscene({ autoStart: true, scene: next.cutscene }));
     else await playLevelCard(cardInfo(next));
   }
   showBriefing();
+}
+
+// A story scene with choices resolves with what was picked, in order (e.g. ["escape", "rewind", "upload"]).
+// Each real decision is logged like a quiz answer; "upload" is the choice the Wardens didn't predict.
+function logChoices(scene, picks) {
+  (Array.isArray(picks) ? picks : []).filter((p) => p !== "rewind").forEach((p, i) => logger.recordAnswer(`${scene}-choice-${i + 1}`, p, p === "upload"));
 }
 
 // What a level's title card shows (cutscene.js draws it).
@@ -629,7 +636,7 @@ async function openMenu(skipPress = true) {
   if (choice.mode === "story") {
     game.startLevel(0);
     showLevel(startMessage());
-    if (params.get("intro") !== "0") { await playStory(true); await playLevelCard(cardInfo(game.level)); }
+    if (params.get("intro") !== "0") await playStory(true); // the opening cutscene ends on Level 1's own card
   } else {
     game.startLevel(choice.index);
     showLevel(startMessage());
@@ -768,7 +775,7 @@ function finish() {
     const next = game.levels[game.levelIndex + 1];
     const { title, note } = dashNews();
     const tries = `You did it in ${game.wonInTries} ${game.wonInTries === 1 ? "try" : "tries"}. `;
-    if (next.cutscene && params.get("intro") !== "0") showOverlay("win", title, `${tries}You made it out. Next: Level ${next.id} · ${next.name}. But someone was watching...`, "Continue", goToNextLevel, note);
+    if (next.cutscene && params.get("intro") !== "0") showOverlay("win", title, `${tries}You made it out. Next: Level ${next.id} · ${next.name}. ${next.teaser ?? "But someone was watching..."}`, "Continue", goToNextLevel, note);
     else showOverlay("win", title, `${tries}Next: Level ${next.id} · ${next.name}.`, "Continue", goToNextLevel, note);
   } else if (game.status === "gameComplete") {
     music.escaped();
@@ -895,7 +902,7 @@ if (params.has("level") || params.get("title") === "0") showBriefing();
 // before Level 1 unless ?intro=0).
 if (params.get("scene")) {
   // ?scene=core previews a story scene; ?scene=card&level=4 previews a level's title card.
-  (params.get("scene") === "card" ? playLevelCard(cardInfo(game.level)) : playCutscene({ scene: params.get("scene") })).then(showBriefing);
+  (params.get("scene") === "card" ? playLevelCard(cardInfo(game.level)) : playCutscene({ scene: params.get("scene"), at: Number(params.get("at")) || 0 })).then(showBriefing);
 } else if (params.has("level") || params.get("title") === "0") {
   if (game.levelIndex === 0 && params.get("intro") !== "0") playStory(false);
 } else {

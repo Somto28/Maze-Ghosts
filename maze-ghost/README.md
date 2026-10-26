@@ -128,7 +128,7 @@ A look can also paint a full-screen `background` (the vault hall, the executive 
 
 Keys while playing: arrows or WASD move, **R** restarts, **M** opens the menu, **G** arms the glitch (once unlocked), **F** arms the dash (once earned), **N** mutes and unmutes. The speaker button in the top-right corner opens the volume sliders.
 
-Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance), `?intro=0` skips the story cutscenes, `?title=0` skips the home screen, `?glitch=1` unlocks the glitch on every level, `?scene=core` previews the Level 3 cutscene, `?scene=card&level=4` previews a level's title card.
+Handy URL options for the 3D example: `?level=3` starts on Level 3, `?fps` shows the frame rate and resolution, `?res=1` pins the resolution (for comparing performance), `?intro=0` skips the story cutscenes, `?title=0` skips the home screen, `?glitch=1` unlocks the glitch on every level, `?scene=core` previews the Level 3 cutscene and `?scene=decision` the one before Level 6 (`&at=23` starts 23 s in), `?scene=card&level=4` previews a level's title card.
 
 ### The characters (`game_server/sprites.js`)
 
@@ -164,9 +164,9 @@ Each track is 32 bars: an intro, a groove, the lead melody, a breakdown with a n
 
 ## Sound settings and levels (`game_server/sound-settings.js`)
 
-A speaker button sits in the top-right corner on every screen (the home screen, the prologue, the cutscenes and the levels; bottom-left on phones). It opens three sliders, **Volume** (everything), **Music** and **Effects**, and a **Mute all** switch. The settings are remembered on that device and apply everywhere at once: the level music and effects (`music.js`), the home screen, the prologue and both cutscenes all multiply their own levels by them. The home screen's "Sound: on/off" item, the cutscenes' Sound button and **N** in a level are the same mute switch. Keys pressed on the panel (arrows on a slider, Enter, Escape) stay on the panel, so adjusting the volume never moves Sam or skips a scene.
+A speaker button sits in the top-right corner on every screen (the home screen, the prologue, the cutscenes and the levels; bottom-left on phones). It opens three sliders, **Volume** (everything), **Music** and **Effects**, and a **Mute all** switch. The settings are remembered on that device and apply everywhere at once: the level music and effects (`music.js`), the home screen, the prologue and the cutscenes all multiply their own levels by them. The home screen's "Sound: on/off" item, the cutscenes' Sound button and **N** in a level are the same mute switch. Keys pressed on the panel (arrows on a slider, Enter, Escape) stay on the panel, so adjusting the volume never moves Sam or skips a scene.
 
-The game's sound is evened out so nothing jumps out: every part was measured at the default settings (the average loudness of what reaches the speakers) and trimmed (the `TRIM` values in `title-screen.js`, `prologue.js` and `cutscene.js`, and each track's `gain` in `music.js`). The six level tracks sit within about 1.5 dB of each other, and the home screen and story scenes sit a couple of dB under the levels (before, the story scenes were about 25 dB quieter than the level music). Level music and effects also go through a gentle compressor.
+The game's sound is evened out so nothing jumps out: every part was measured at the default settings (the average loudness of what reaches the speakers) and trimmed (the `TRIM` values in `title-screen.js`, `prologue.js` and `cutscene.js`, and each track's `gain` in `music.js`). The six level tracks sit within about 1.5 dB of each other, the home screen and prologue sit a couple of dB under the levels, and the cutscene score sits about level with the level music in its build-ups and a few dB over it at its peaks. Level music and effects also go through a gentle compressor.
 
 ## Inside the Wardens' heads (the HUD panel, `src/insight.js`)
 
@@ -180,7 +180,7 @@ It's worked out in the same Web Worker as their moves (`ghost-worker.js`, messag
 
 ## Level title cards (`playLevelCard` in `game_server/cutscene.js`)
 
-Every level opens with a 5-second pixel-art title card, like the one at the end of the Level 3 cutscene: "LEVEL 4 OF 6", the level's name, two lines on where you are in the story, the new idea, and what's hunting you, over a small animated picture of the place (the swinging bulb in the basement, blinking server racks, Wardens on test stands, the vault door, rain on the Floor 88 windows, the antenna on the roof). They play between levels (Level 3 gets its cutscene instead), when a level is picked from the menu, and after the opening story. Any key or click moves on; `?intro=0` skips them. The level is built behind the card, so the maze is ready the moment it ends, and then the level's briefing comes up.
+Every level opens with a 5-second pixel-art title card, like the one at the end of the Level 3 cutscene: "LEVEL 4 OF 6", the level's name, two lines on where you are in the story, the new idea, and what's hunting you, over a small animated picture of the place (the swinging bulb in the basement, blinking server racks, Wardens on test stands, the vault door, rain on the Floor 88 windows, the antenna on the roof). They play between levels (Levels 3 and 6 get their cutscenes instead, which end on their own cards) and when a level is picked from the menu; the opening story ends on Level 1's card. Any key or click moves on; `?intro=0` skips them. The level is built behind the card, so the maze is ready the moment it ends, and then the level's briefing comes up.
 
 ## Home screen (`game_server/title-screen.js`)
 
@@ -212,7 +212,7 @@ Before Level 1, a 1:44 pixel-art cutscene ("After Hours") tells the story: a Cle
 - `playCutscene()` returns a promise that resolves when it ends or is skipped. While it's on screen it swallows every key, and `three-view.js` pauses the 3D rendering.
 - Players can pause (Space), skip (Esc or the Skip button) and mute it. It waits for a click or key press first because browsers only allow sound after one.
 - Each shot in `SHOTS` has its length, dialogue lines, sound cues and a `draw(t)` function. Character and place names are placeholders.
-- The music under Dr. Voss's scenes ("tense" in `MUS`) is mysterious rather than menacing: a slow Dm9, Bbmaj7, Gm9, A7sus walk on a soft sine bass and triangle pad with a gentle plucked figure that changes every other pass, so it doesn't drone. The cutscenes play a few dB under the levels (`TRIM`).
+- From the moment the lift drops past the lobby, the scene is scored like a film (see **The cutscene score** below): the "Precipice" theme builds in four stages as Sam finds the lab, is seen, and runs.
 
 ## Level 3 cutscene: "Watching" (`CORE_SHOTS` in `game_server/cutscene.js`)
 
@@ -224,7 +224,33 @@ After escaping Level 2, the "Escaped!" card says someone was watching and a 46-s
 4. **Upgrade.** A Warden's-eye view: model updated, confidence 23% → 94%, data points 3 → 4,861, two Wardens deployed to the Core as a team.
 5. **Level card.** "Level 3 · The Core. They know more about you now."
 
-The lesson for students: more data about a person makes predictions stronger and more confident, and that data can be collected without asking. It sets up Level 3, where two wardens plan together. `playCutscene({ scene: "core" })` plays it; the `SCENES` table at the bottom of the shot lists is where to register another one.
+The lesson for students: more data about a person makes predictions stronger and more confident, and that data can be collected without asking. It sets up Level 3, where two wardens plan together. `playCutscene({ scene: "core" })` plays it; the `SCENES` table at the bottom of the shot lists is where to register another one. It's scored with the "Creeping" theme (below).
+
+## Level 6 cutscene: "The Choice" (`DECISION_SHOTS` in `game_server/cutscene.js`)
+
+After escaping the Archive (Level 5), the "Escaped!" card says "You have the proof. Now Sam has to decide what to do with it..." and an interactive scene plays before Level 6 (the level's `cutscene: "decision"` field; skipped by `?intro=0`):
+
+1. **Floor 88.** Night in the executive suite, rain on the glass. Sam holds up both evidence drives: "Every file they stole." The lockdown alarm goes off.
+2. **Wall screen.** Every screen on the floor switches to Dr. Voss: "Down to the street, or up to the roof. Either way, I already know which you'll pick."
+3. **The stairwell.** The landing on 88: STREET EXIT down to the left, ROOF / UPLINK up to the right. The frame holds and the player chooses: **1 · Save yourself** (run down to the street; you get out, but the proof stays hidden) or **2 · Upload the evidence** (climb to the roof uplink and expose Clearpath, with the Wardens waiting). Click, or press 1 or 2.
+
+**If Sam runs**, it's exactly what the Wardens predicted: he races down the stairwell (the floor counter dropping from 88), the lobby doors lock as he reaches them, Wardens step out from behind the pillars and Dr. Voss is already there. Close-up: "You always take the stairs. And when you're scared, you run. I didn't have to chase you. I only had to wait where you'd go. 94 percent, Sam." A Warden's view shows *PREDICTION: SUBJECT FLEES DOWNSTAIRS 94% · RESULT: CORRECT · SUBJECT CONTAINED*, then a **CAUGHT** card ("You did exactly what the data said you would. A predictable choice is easy to beat.") offers **Rewind**: a tape-rewind back to the landing, where Sam realises "They knew I'd run. So what's the one thing they don't expect?" and the choice comes up again (run again, and Voss is 97% sure).
+
+**If Sam climbs**, the Wardens' prediction flips to *RESULT: WRONG (subject went up)* and Voss is caught off guard over the PA ("The roof? That's... not what you were supposed to do."). Sam bursts onto the rain-soaked roof and sees the uplink tower; Wardens climb over the parapet and Voss warns that his Wardens learn: every catch makes them better. A Warden's view switches to *LEARNING MODE: every catch = new training data*, and the scene ends on Level 6's card: "They learn from every catch. Don't repeat yourself."
+
+The lesson: a system trained on your past behaviour predicts what you'll *usually* do; the way to beat it is to do what it doesn't expect (exactly what minimax players do against a predictable opponent), and it sets up Level 6's learning Wardens. The answers are logged with the quiz answers (`logger.recordAnswer("decision-choice-1", "escape" | "upload", picked === "upload")`, one entry per decision, rewinds left out); `playCutscene` resolves with the picks in order, e.g. `["escape", "rewind", "upload"]`. Skipping the scene goes straight to Level 6. Preview it with `?scene=decision` (add `&at=23` to start at the stairwell).
+
+A shot becomes a choice by adding `choice: { prompt, options: [{ key, label, sub, then }] }`: the frame holds on its last moment (the music keeps playing), and the chosen option's `then()` returns the shots that follow.
+
+## The cutscene score
+
+The story scenes are scored with orchestral-style themes synthesized live (no audio files): staccato and sustained string sections (detuned saws), a formant-filtered choir, timpani, deep booms, distorted power-chord hits, a breathing low drone, FM music-box bells, dissonant high clusters, creaks and a heartbeat, all in a hall reverb with a dark echo. The two main themes were written after studying the two reference tracks the team chose for the mood: their tempo (both 152 BPM), key, harmony, density, loudness curve and frequency balance were measured, and the new themes match those (the melodies and parts are original).
+
+- **"Precipice"** (Sam discovers Dr. Voss's lab, before Level 1): E minor at 152 BPM, rocking between Em and Am in two-bar blocks, with C, D and B for lift. It builds the way the reference does, from quiet pulsing low string chords as the lift drops past the lobby, to the eighth-note string ostinato and choir at the screen, to a boom and a soaring high string line over full choir when Voss turns, to everything at once for the override and the run (sixteenth-note strings, timpani on every eighth and power-chord hits). The theme keeps its place across cuts, so it flows from shot to shot; it stops dead for the can "clank".
+- **"Creeping"** (Dr. Voss feeds the Wardens, before Level 3): G minor at 152 BPM, the bass swinging G to E-flat. A low ostinato creeps up a semitone and back without stopping, a music-box line leans on a tritone into the echo, high strings tremble and slide into clusters, creaks and scrapes sit in the reverb, a heartbeat quickens, and a G major chord turns up where G minor should be. Like the reference it stays loud and never lets up; the stages only add layers (choir, then booms and timpani for the upgrade).
+- **"The Choice"**: a clock ticking on every beat over a suspended chord and a heartbeat while Sam decides; the Precipice music for the run downstairs, Creeping for the trap; and for the climb, **"Rise"**, the Wardens' E-D-C-A-B motif from the level music turned into an anthem over Em, C, G, D.
+
+The score is louder and more intense than before: at its peaks (Voss's turn, the override, the trap) it plays a few dB over the level music, and the quieter build-up sits about level with it (the effects and music sliders still apply). A soft clipper on the cutscene output keeps the biggest hits from distorting.
 
 ## Level guarantees and difficulty (`tests/levels.test.js`, `src/playtest.js`, `demo/classroom.js`)
 
@@ -252,7 +278,7 @@ The two feel checks, which matched the team's playtesting (the levels that felt 
 
 Players who don't read the plan almost never escape from Level 2 on. Level 1's warden only reacts, so quick reflexes can beat it (strong players 91%): that's the point of Level 1, and the contrast with Level 2. The expert escapes Level 1 every time, about a quarter of the time on Level 3, almost never on Levels 4 and 6, and usually on Level 5 (a careful adult who reads every plan finds Level 5's dodges; kids rarely do).
 
-**The 10-minute class** (`npm run classroom`): 40 simulated thinkers play the levels in order on a 10-minute clock, retrying each level and remembering what got them caught (1.3 s per move, 4 s per "Caught!" screen, 15 s per briefing; the story is extra). Median tries per level: 1, 2, 2, 3, 7, 6. By the end, 18 of 40 have reached Level 5, 6 have reached Level 6, and none have beaten it. Level 2 is where a class spends the most time: you can circle its warden safely for a long while before you find the vent trick. The story (prologue about 3¾ minutes, opening cutscene 1:44, Level 3 cutscene 46 s) comes on top of the 10 minutes; `?intro=0` skips it.
+**The 10-minute class** (`npm run classroom`): 40 simulated thinkers play the levels in order on a 10-minute clock, retrying each level and remembering what got them caught (1.3 s per move, 4 s per "Caught!" screen, 15 s per briefing; the story is extra). Median tries per level: 1, 2, 2, 3, 7, 6. By the end, 18 of 40 have reached Level 5, 6 have reached Level 6, and none have beaten it. Level 2 is where a class spends the most time: you can circle its warden safely for a long while before you find the vent trick. The story (prologue about 3¾ minutes, opening cutscene 1:44, Level 3 cutscene 46 s, Level 6 cutscene about 1 minute) comes on top of the 10 minutes; `?intro=0` skips it.
 
 How the mazes were made: each new layout was generated or adapted (random mazes with loops, then enemies, drives and vents placed by distance), then tuned move by move (moving a wall, an enemy or a drive) against target numbers for every measure above, and finally checked by replaying the winning route. Small changes matter a lot: moving Level 5's drone a few tiles swings kids from 3% to 13%. Always run `npm run check-levels` after editing a maze (`npm run check-levels -- 5` checks just one).
 
