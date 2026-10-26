@@ -551,6 +551,7 @@ export function playPrologue({ autoStart = false } = {}) {
     main.imageSmoothingEnabled = false;
 
     let si = 0, lt = 0, clock = 0, playing = false, started = false, last = null, raf = 0;
+    let answered = 0; // questions answered, for the study log
     let ask = null; // { phase: "q" | "choose" | "reply", choice, replyAt, readFor }
     let dlgKey = "", prevTyped = 0;
 
@@ -582,7 +583,7 @@ export function playPrologue({ autoStart = false } = {}) {
     const qTyped = () => STEPS[si].q.length / 45 + 0.2;
 
     function showChoices() {
-      ask.phase = "choose"; qEl.textContent = STEPS[si].q;
+      ask.phase = "choose"; ask.shownAt = performance.now(); qEl.textContent = STEPS[si].q;
       [...choicesEl.children].forEach((b, k) => { b.hidden = false; b.style.animationDelay = `${k * 0.08}s`; });
       choicesEl.firstChild?.focus({ preventScroll: true });
     }
@@ -591,7 +592,17 @@ export function playPrologue({ autoStart = false } = {}) {
       const s = STEPS[si], c = s.choices[k];
       // q1-q4 are the comprehension questions, q5-q6 the ethics ones (no wrong answer, so correct = true).
       const qNum = STEPS.slice(0, si + 1).filter((x) => x.kind === "ask").length;
-      logger.recordAnswer(`q${qNum}`, "ABC"[k] ?? String(k), s.ethics ? true : !!c.right);
+      answered++;
+      logger.event("prologue_answer", {
+        questionId: `q${qNum}`,
+        question: s.q,
+        kind: s.ethics ? "ethics" : "comprehension",
+        choiceIndex: k,
+        choiceLetter: "ABC"[k] ?? String(k),
+        choiceText: c.text,
+        correct: s.ethics ? null : !!c.right, // ethics questions have no right answer
+        responseMs: Math.round(performance.now() - (ask.shownAt ?? performance.now())),
+      }, 0);
       ask.phase = "reply"; ask.choice = k; ask.replyAt = lt; ask.readFor = 2.2 + c.reply.length / 16;
       [...choicesEl.children].forEach((b, j) => {
         b.disabled = true;
@@ -622,6 +633,8 @@ export function playPrologue({ autoStart = false } = {}) {
     }
     function finish() {
       if (!active) return;
+      const totalQuestions = STEPS.filter((x) => x.kind === "ask").length;
+      logger.event("prologue_end", { answered, totalQuestions, skipped: si < STEPS.length, skippedAtStep: si < STEPS.length ? si : null }, 0);
       active = false; cancelAnimationFrame(raf);
       unsubSound();
       window.removeEventListener("keydown", onKey, true);

@@ -3,3 +3,5 @@ firebase-debug.log
 *.csv
 serviceAccount.json
 node_modules/
+maze-ghost/research/output/
+clearpath-unsent-*.json
