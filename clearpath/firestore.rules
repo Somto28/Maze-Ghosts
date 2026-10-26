@@ -12,27 +12,22 @@ service cloud.firestore {
 
     function shortString(v, max) { return v is string && v.size() > 0 && v.size() <= max; }
     function stamped(d) { return d.createdAt == request.time && d.clientTime is string && d.clientTime.size() <= 40; }
-    function ids(d) { return shortString(d.participantId, 128) && shortString(d.sessionId, 128); }
-    // Optional class period / playtest group from ?group=... in the link.
-    function okGroup(d) { return !('group' in d) || (d.group is string && d.group.matches('^[A-Za-z0-9_-]{1,32}$')); }
+    function ids(d) { return shortString(d.participantId, 64) && shortString(d.sessionId, 64); }
 
     // Names live here and ONLY here.
     match /participants/{participantId} {
       allow create: if request.resource.data.keys().hasOnly(['firstName', 'lastName', 'firstSessionId', 'clientTime', 'createdAt'])
         && shortString(request.resource.data.firstName, 60)
         && shortString(request.resource.data.lastName, 60)
-        && shortString(request.resource.data.firstSessionId, 128)
-        && participantId.size() <= 128
+        && shortString(request.resource.data.firstSessionId, 64)
         && stamped(request.resource.data);
       allow read, update, delete: if false;
     }
 
     match /sessions/{sessionId} {
-      allow create: if request.resource.data.keys().hasOnly(['participantId', 'group', 'gameVersion', 'test', 'urlFlags',
+      allow create: if request.resource.data.keys().hasOnly(['participantId', 'gameVersion', 'test', 'urlFlags',
                                                              'screen', 'viewport', 'touch', 'clientTime', 'createdAt'])
-        && shortString(request.resource.data.participantId, 128)
-        && sessionId.size() <= 128
-        && okGroup(request.resource.data)
+        && shortString(request.resource.data.participantId, 64)
         && request.resource.data.test is bool
         && request.resource.data.urlFlags is string && request.resource.data.urlFlags.size() <= 200
         && stamped(request.resource.data);
@@ -40,13 +35,12 @@ service cloud.firestore {
     }
 
     match /attempts/{attemptId} {
-      allow create: if request.resource.data.keys().hasOnly(['participantId', 'sessionId', 'group', 'level', 'attemptNumber', 'result',
+      allow create: if request.resource.data.keys().hasOnly(['participantId', 'sessionId', 'level', 'attemptNumber', 'result',
                        'caughtBy', 'moveCount', 'moves', 'wallBumps', 'lockedBumps', 'glitchUses', 'dashUses',
                        'predictedMoves', 'matchedPredictions', 'judgedMoves', 'movesIntoCatch', 'avoidableCatchMoves',
                        'evidenceHeld', 'endPosition', 'levelInfo', 'durationSec', 'activeSec', 'startedAtMs',
                        'clientTime', 'createdAt'])
-        && attemptId.size() <= 128
-        && ids(request.resource.data) && okGroup(request.resource.data)
+        && ids(request.resource.data)
         && request.resource.data.level is int && request.resource.data.level >= 1 && request.resource.data.level <= 6
         && request.resource.data.attemptNumber is int && request.resource.data.attemptNumber >= 1
         && request.resource.data.result in ['win', 'death', 'restart', 'menu', 'abandoned']
@@ -58,10 +52,9 @@ service cloud.firestore {
     }
 
     match /events/{eventId} {
-      allow create: if request.resource.data.keys().hasOnly(['participantId', 'sessionId', 'group', 'type', 'level', 'tMs', 'data',
+      allow create: if request.resource.data.keys().hasOnly(['participantId', 'sessionId', 'type', 'level', 'tMs', 'data',
                                                              'clientTime', 'createdAt'])
-        && eventId.size() <= 128
-        && ids(request.resource.data) && okGroup(request.resource.data)
+        && ids(request.resource.data)
         && request.resource.data.type in ['prologue_answer', 'prologue_end', 'story_decision', 'menu_choice',
                                           'level_complete', 'game_complete']
         && request.resource.data.level is int && request.resource.data.level >= 0 && request.resource.data.level <= 6
