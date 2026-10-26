@@ -1,29 +1,65 @@
 rules_version = '2';
+
+// Clearpath study data. The game can only ADD records; nobody can read, change or delete them from a
+// browser. The research team reads everything with the Admin SDK (maze-ghost/research/export.js), which
+// bypasses these rules.
+//
+// Records are written under IDs chosen in the browser, so a retried write hits an existing document,
+// counts as an update, and is refused. That's what stops duplicates.
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isValidAttempt(d) {
-      return d.keys().hasAll(['sessionId', 'level', 'attemptNumber', 'result',
-                              'answerChoices', 'moves', 'moveCount',
-                              'durationSec', 'createdAt'])
-        && d.keys().hasOnly(['sessionId', 'level', 'attemptNumber', 'result',
-                             'answerChoices', 'moves', 'moveCount',
-                             'durationSec', 'createdAt', 'deathPosition'])
-        && d.sessionId is string && d.sessionId.size() <= 64
-        && d.level is int && d.level >= 1 && d.level <= 6
-        && d.attemptNumber is int && d.attemptNumber >= 1
-        && d.result in ['win', 'death']
-        && d.answerChoices is list && d.answerChoices.size() <= 100
-        && d.moves is list && d.moves.size() <= 2000
-        && d.moveCount is int
-        && d.durationSec is int && d.durationSec >= 0
-        && d.createdAt == request.time
-        && (!('deathPosition' in d) || d.deathPosition is map);
+    function shortString(v, max) { return v is string && v.size() > 0 && v.size() <= max; }
+    function stamped(d) { return d.createdAt == request.time && d.clientTime is string && d.clientTime.size() <= 40; }
+    function ids(d) { return shortString(d.participantId, 64) && shortString(d.sessionId, 64); }
+
+    // Names live here and ONLY here.
+    match /participants/{participantId} {
+      allow create: if request.resource.data.keys().hasOnly(['firstName', 'lastName', 'firstSessionId', 'clientTime', 'createdAt'])
+        && shortString(request.resource.data.firstName, 60)
+        && shortString(request.resource.data.lastName, 60)
+        && shortString(request.resource.data.firstSessionId, 64)
+        && stamped(request.resource.data);
+      allow read, update, delete: if false;
     }
 
-    // Players can only ADD attempt records.
+    match /sessions/{sessionId} {
+      allow create: if request.resource.data.keys().hasOnly(['participantId', 'gameVersion', 'test', 'urlFlags',
+                                                             'screen', 'viewport', 'touch', 'clientTime', 'createdAt'])
+        && shortString(request.resource.data.participantId, 64)
+        && request.resource.data.test is bool
+        && request.resource.data.urlFlags is string && request.resource.data.urlFlags.size() <= 200
+        && stamped(request.resource.data);
+      allow read, update, delete: if false;
+    }
+
     match /attempts/{attemptId} {
-      allow create: if isValidAttempt(request.resource.data);
+      allow create: if request.resource.data.keys().hasOnly(['participantId', 'sessionId', 'level', 'attemptNumber', 'result',
+                       'caughtBy', 'moveCount', 'moves', 'wallBumps', 'lockedBumps', 'glitchUses', 'dashUses',
+                       'predictedMoves', 'matchedPredictions', 'judgedMoves', 'movesIntoCatch', 'avoidableCatchMoves',
+                       'evidenceHeld', 'endPosition', 'levelInfo', 'durationSec', 'activeSec', 'startedAtMs',
+                       'clientTime', 'createdAt'])
+        && ids(request.resource.data)
+        && request.resource.data.level is int && request.resource.data.level >= 1 && request.resource.data.level <= 6
+        && request.resource.data.attemptNumber is int && request.resource.data.attemptNumber >= 1
+        && request.resource.data.result in ['win', 'death', 'restart', 'menu', 'abandoned']
+        && request.resource.data.moves is list && request.resource.data.moves.size() <= 2000
+        && request.resource.data.moveCount is int
+        && request.resource.data.durationSec is int && request.resource.data.durationSec >= 0
+        && stamped(request.resource.data);
+      allow read, update, delete: if false;
+    }
+
+    match /events/{eventId} {
+      allow create: if request.resource.data.keys().hasOnly(['participantId', 'sessionId', 'type', 'level', 'tMs', 'data',
+                                                             'clientTime', 'createdAt'])
+        && ids(request.resource.data)
+        && request.resource.data.type in ['prologue_answer', 'prologue_end', 'story_decision', 'menu_choice',
+                                          'level_complete', 'game_complete']
+        && request.resource.data.level is int && request.resource.data.level >= 0 && request.resource.data.level <= 6
+        && request.resource.data.data is map
+        && stamped(request.resource.data);
       allow read, update, delete: if false;
     }
 

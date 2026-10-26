@@ -1,26 +1,23 @@
-// gameLogger.js — Maze Ghosts gameplay logging to Firestore
-// No npm or build tool needed: Firebase loads straight from Google's CDN.
+// gameLogger.js — the Firestore "sink" for the study logger.
 //
-// Add to your HTML, BEFORE your game scripts:
-//   <script type="module" src="gameLogger.js"></script>
+// This file only knows how to save one finished record to Firestore. Everything about WHAT gets recorded
+// lives in log.js, which loads this file in the background. If Firebase can't load (offline, or a school
+// network that blocks gstatic.com), log.js keeps the records in the browser and retries later, so the
+// game never breaks and no data is silently lost.
 //
-// Then anywhere in your game code (works in regular <script> files too):
-//   logger.startAttempt(1);                       // when a level (re)starts
-//   logger.recordAnswer("q4", "B", false);        // when a player answers a question
-//   logger.recordMove("up");                      // each move in the gameplay loop
-//   logger.endAttempt("death", { x: 4, y: 7 });   // on death
-//   logger.endAttempt("win");                     // on level clear
+// Every record is written with setDoc() under an ID chosen in the browser, so sending the same record
+// twice (after a retry) can never create a duplicate: the second write is refused by the rules.
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 import {
   getFirestore,
-  collection,
-  addDoc,
+  doc,
+  setDoc,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
-// Paste YOUR config from Firebase console → Project settings → General → Your apps.
-// These values are safe to ship in front-end code; security rules protect the data.
+// Firebase console → Project settings → General → Your apps.
+// These values are safe to ship in front-end code; firestore.rules protects the data.
 const firebaseConfig = {
   apiKey: "AIzaSyBmRWXcOMt_OFFiXA_QhYtlRUc7xBOmD6E",
   authDomain: "clearpath-3fb96.firebaseapp.com",
@@ -28,95 +25,25 @@ const firebaseConfig = {
   storageBucket: "clearpath-3fb96.firebasestorage.app",
   messagingSenderId: "708316665515",
   appId: "1:708316665515:web:51cf517455b77f03e2c9ee",
-  measurementId: "G-ZMT6L7C8JS"
+  measurementId: "G-ZMT6L7C8JS",
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Anonymous player ID: random, no names or emails. Persists for the browser tab
-// so all levels in one play session share the same ID.
-function getSessionId() {
+/**
+ * Save one record. Resolves "saved", or "rejected" when the rules refuse it (it already exists or is
+ * malformed: retrying won't help). Throws on network trouble, so the caller keeps it and tries again.
+ */
+export async function write(collectionName, id, data) {
   try {
-    let id = sessionStorage.getItem("mg_session");
-    if (!id) {
-      id = crypto.randomUUID();
-      sessionStorage.setItem("mg_session", id);
+    await setDoc(doc(db, collectionName, id), { ...data, createdAt: serverTimestamp() });
+    return "saved";
+  } catch (err) {
+    if (err?.code === "permission-denied" || err?.code === "invalid-argument") {
+      console.warn(`Study log: ${collectionName}/${id} was refused (already saved, or invalid).`, err.message);
+      return "rejected";
     }
-    return id;
-  } catch {
-    return crypto.randomUUID();
+    throw err;
   }
 }
-
-const MAX_MOVES = 2000; // matches the limit in firestore.rules
-const MAX_ANSWERS = 100;
-
-class GameLogger {
-  constructor() {
-    this.sessionId = getSessionId();
-    this.attemptsPerLevel = {}; // { 1: 3, 2: 1, ... }
-    this.current = null;
-  }
-
-  // Call when a level starts or restarts after a death.
-  startAttempt(level) {
-    this.attemptsPerLevel[level] = (this.attemptsPerLevel[level] || 0) + 1;
-    this.current = {
-      level,
-      attemptNumber: this.attemptsPerLevel[level],
-      answerChoices: [],
-      moves: [],
-      startedAt: performance.now(),
-    };
-  }
-
-  // questionId: your own label, e.g. "q4"; choice: what they picked; correct: true/false
-  recordAnswer(questionId, choice, correct) {
-    if (!this.current || this.current.answerChoices.length >= MAX_ANSWERS) return;
-    this.current.answerChoices.push({
-      questionId: String(questionId),
-      choice: String(choice),
-      correct: Boolean(correct),
-    });
-  }
-
-  // direction: "up" | "down" | "left" | "right" (or whatever your game uses)
-  recordMove(direction) {
-    if (!this.current || this.current.moves.length >= MAX_MOVES) return;
-    this.current.moves.push(String(direction));
-  }
-
-  // result: "win" or "death". deathPosition optional: { x, y } (add z if your maze is 3D)
-  async endAttempt(result, deathPosition = null) {
-    if (!this.current) return;
-    const a = this.current;
-    this.current = null;
-
-    const record = {
-      sessionId: this.sessionId,
-      level: a.level,
-      attemptNumber: a.attemptNumber,
-      result,
-      answerChoices: a.answerChoices,
-      moves: a.moves,
-      moveCount: a.moves.length,
-      durationSec: Math.round((performance.now() - a.startedAt) / 1000),
-      createdAt: serverTimestamp(),
-    };
-    if (deathPosition) record.deathPosition = deathPosition;
-
-    try {
-      await addDoc(collection(db, "attempts"), record);
-    } catch (err) {
-      // Never let logging crash the game.
-      console.warn("Could not save attempt:", err);
-    }
-  }
-}
-
-export const logger = new GameLogger();
-
-// Make it available to regular (non-module) game scripts as `logger`.
-window.logger = logger;
-window.dispatchEvent(new Event("logger-ready"));

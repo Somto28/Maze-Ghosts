@@ -18,6 +18,7 @@ import { cutsceneActive, playCutscene, playLevelCard } from "./cutscene.js";
 import { showTitleScreen, titleActive } from "./title-screen.js";
 import { playPrologue, prologueActive } from "./prologue.js";
 import { logger } from "./log.js";
+import { askForName, nameEntryActive } from "./name-entry.js";
 
 const TILE = 1;
 const STEP_MS = 220; // pause between your move and the ghosts', so the turns are visible
@@ -340,9 +341,55 @@ function resetActors() {
   renderer.shadowMap.needsUpdate = true;
 }
 
+// ---------- Study logging (log.js): what the level was like, and what the player could see at each move ----------
+function levelInfo() {
+  const about = describeLevel(game.level);
+  return {
+    name: game.level.name,
+    lookahead: game.level.lookahead,
+    learns: !!game.level.learns,
+    attemptsStudied: game.attemptsStudied,
+    glitchAvailable: game.glitchUnlocked,
+    dashHeld: game.hasDash,
+    evidenceTotal: game.evidence.total,
+    enemies: game.state.ghosts.length,
+    drones: about.drones ?? 0,
+    vents: about.vents ?? 0,
+    triesOnLevel: game.tries[game.levelIndex],
+  };
+}
+
+// Taken just before a move: the AI's prediction for it, and the verdict the "inside their heads" compass showed.
+function moveContext(dir) {
+  const chosen = game.lastThinking?.options.find((o) => o.chosen);
+  const ctx = {
+    aiPredicted: chosen?.predictedPlayerReply ?? null,
+    aiFromHabit: !!chosen?.fromHabit,
+    verdict: null, caughtIn: null, safeOptions: null,
+    nearestEnemy: nearestEnemy(),
+    ability: game.glitchArmed ? "glitch" : game.dashArmed ? "dash" : null,
+  };
+  if (insight) {
+    const o = insight.find((x) => x.dir === dir);
+    const safeCount = insight.filter((x) => x.verdict === "safe").length;
+    ctx.safeOptions = insight.filter((x) => x.verdict !== "caught").length;
+    if (o) {
+      // Same wording as the compass (renderThinking): escape / caught / safe-but-riskier / safe.
+      ctx.verdict = o.verdict === "escape" ? "escape" : o.verdict === "caught" ? "caught" : o.risk > 0.66 && safeCount > 1 ? "risky" : "safe";
+      if (o.verdict === "caught") ctx.caughtIn = o.moves;
+    }
+  }
+  return ctx;
+}
+
+function nearestEnemy() {
+  const { r, c } = game.state.player;
+  return Math.min(...game.state.ghosts.map((g) => Math.abs(g.r - r) + Math.abs(g.c - c)));
+}
+
 // Builds the scene only when the level changes; restarting the same level just resets the actors.
 function showLevel(message) {
-  logger.startAttempt(game.level.id); // every start, restart and next level is a new attempt
+  logger.startAttempt(game.level.id, levelInfo()); // every start, restart and next level is a new attempt
   music.setLevel(game.levelIndex); // a new level switches track; a retry keeps the music going
   if (game.levelIndex === builtLevel) resetActors();
   else buildScene();
@@ -572,6 +619,7 @@ function showOverlay(kind, title, text, button, action, hint = "") {
 }
 function hideOverlay() {
   overlayAction = null;
+  logger.ready(); // the player's "thinking time" for the next move starts now
   $("overlay").classList.remove("show");
 }
 $("overlay-btn").addEventListener("click", () => overlayAction?.());
@@ -599,7 +647,16 @@ async function goToNextLevel() {
 // A story scene with choices resolves with what was picked, in order (e.g. ["escape", "rewind", "upload"]).
 // Each real decision is logged like a quiz answer; "upload" is the choice the Wardens didn't predict.
 function logChoices(scene, picks) {
-  (Array.isArray(picks) ? picks : []).filter((p) => p !== "rewind").forEach((p, i) => logger.recordAnswer(`${scene}-choice-${i + 1}`, p, p === "upload"));
+  const all = Array.isArray(picks) ? picks : [];
+  const real = all.filter((p) => p !== "rewind");
+  logger.event("story_decision", {
+    scene,
+    picks: all.slice(0, 20),
+    firstChoice: real[0] ?? null, // the decision they made before seeing any consequence
+    finalChoice: real[real.length - 1] ?? null,
+    rewound: all.includes("rewind"),
+    skipped: real.length === 0,
+  }, game.level.id);
 }
 
 // What a level's title card shows (cutscene.js draws it).
@@ -630,9 +687,11 @@ async function playStory(autoStart) {
 // Opens the home screen, then starts whatever the player picked: the story (cutscene, then Level 1) or a level.
 // skipPress opens it straight on the menu, for when the player opened it with a key or button.
 async function openMenu(skipPress = true) {
-  if (titleActive() || cutsceneActive() || prologueActive()) return;
+  if (titleActive() || cutsceneActive() || prologueActive() || nameEntryActive()) return;
+  logger.endAttempt("menu", attemptDetails());
   hideOverlay();
   const choice = await showTitleScreen({ levels: game.levels, skipPress });
+  logger.event("menu_choice", { mode: choice.mode, level: choice.mode === "level" ? game.levels[choice.index].id : 1 });
   if (choice.mode === "story") {
     game.startLevel(0);
     showLevel(startMessage());
@@ -648,13 +707,14 @@ async function openMenu(skipPress = true) {
 async function takeTurn(dir) {
   if (busy || game.status !== "playing") return;
   const dashing = game.dashArmed;
+  const ctx = moveContext(dir);
   const result = game.playerMove(dir);
-  if (result.event === "blocked") return updateHud("That's a wall.");
+  if (result.event === "blocked") { logger.recordBump("wall"); return updateHud("That's a wall."); }
+  if (result.event === "locked") logger.recordBump("locked");
   if (result.event === "locked") return updateHud(`The exit is locked: you still need ${game.evidence.total - game.evidence.held} evidence drive${game.evidence.total - game.evidence.held === 1 ? "" : "s"}.`);
   const glitching = game.glitchArmed; // this move gets no reply: the enemies lose their turn
-  if (glitching) logger.recordMove("glitch");
-  if (result.dashed) logger.recordMove("dash");
-  logger.recordMove(dir);
+  if (ctx.ability === "dash" && !result.dashed) ctx.ability = null; // only one tile was clear: dash kept
+  logger.recordMove(dir, { ...ctx, vent: result.vent ?? null, pickedUp: !!result.pickedUp });
   insight = null; // they'll foresee again once they've moved
   if (result.dashed && !result.vent) placeAlong(player, result.path, PLAYER_Y); // run through both tiles
   else placeAt(player, game.state.player, PLAYER_Y, !!result.vent); // a vent crawl pops you out of the other grate
@@ -677,6 +737,7 @@ async function takeTurn(dir) {
     const their = enemy().plural ? "their" : "its";
     updateHud(`${picked(result)}GLITCH! The ${enemy().name} froze and lost ${their} turn. Your move.`);
     busy = false;
+    logger.ready();
     refreshInsight();
     return;
   }
@@ -685,6 +746,7 @@ async function takeTurn(dir) {
   updateTension();
   updateHud(g.event === "caught" ? "" : `${dashText(result, dashing)}${picked(result)}${enemy().Name} moved ${g.dir}.`);
   busy = false;
+  logger.ready();
   if (g.event === "caught") finish(); else refreshInsight();
 }
 
@@ -747,10 +809,10 @@ function finish() {
   const e = enemy();
   if (game.status === "caught") {
     music.caught();
-    logger.endAttempt("death", { x: game.state.player.c, y: game.state.player.r });
     const hints = game.level.hints ?? [];
     const hint = hints.length ? hints[catches++ % hints.length] : "";
     const byDrone = game.state.ghosts.some((g, i) => isDrone(i) && g.r === game.state.player.r && g.c === game.state.player.c);
+    logger.endAttempt("death", attemptDetails(byDrone ? "drone" : "warden"));
     const reactive = game.level.weights?.cutoff === 0; // Level 1's warden only chases, it doesn't predict
     let text = byDrone
       ? "The drone dashed straight at you. It never plans, but it's fast."
@@ -770,7 +832,8 @@ function finish() {
     showOverlay("lose", "Caught!", text, "Try again", () => restart("Try again!"), hint);
   } else if (game.status === "levelComplete") {
     music.escaped();
-    logger.endAttempt("win", { x: game.state.player.c, y: game.state.player.r });
+    logger.endAttempt("win", attemptDetails());
+    logger.event("level_complete", { tries: game.wonInTries, dashEarned: game.dashEarned }, game.level.id);
     catches = 0;
     const next = game.levels[game.levelIndex + 1];
     const { title, note } = dashNews();
@@ -779,9 +842,15 @@ function finish() {
     else showOverlay("win", title, `${tries}Next: Level ${next.id} · ${next.name}.`, "Continue", goToNextLevel, note);
   } else if (game.status === "gameComplete") {
     music.escaped();
-    logger.endAttempt("win", { x: game.state.player.c, y: game.state.player.r });
+    logger.endAttempt("win", attemptDetails());
+    logger.event("level_complete", { tries: game.wonInTries, dashEarned: game.dashEarned }, game.level.id);
+    logger.event("game_complete", {}, game.level.id);
     showOverlay("win", "Evidence uploaded!", `You outthought every ${e.one} and the world can finally see what Clearpath was doing. Every Warden was only ever as good as its predictions, and you learned to read them.`, "Main menu", () => openMenu());
   }
+}
+
+function attemptDetails(caughtBy = null) {
+  return { caughtBy, evidenceHeld: game.evidence.held, endPosition: { x: game.state.player.c, y: game.state.player.r } };
 }
 
 // After a win: did it earn a dash? (Beat a level in DASH_WITHIN tries or fewer; you hold at most one.)
@@ -809,6 +878,7 @@ function toggleMusic() {
 
 window.addEventListener("keydown", (e) => {
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (nameEntryActive()) return;
   if (key === "n" && !titleActive() && !cutsceneActive() && !prologueActive()) return toggleMusic();
   if (overlayAction) {
     if (key === "Enter" || key === " ") { e.preventDefault(); overlayAction(); }
@@ -835,7 +905,7 @@ if (fpsLabel) fpsLabel.hidden = false;
 let frame = 0;
 
 renderer.setAnimationLoop((now) => {
-  const storyUp = cutsceneActive() || titleActive() || prologueActive();
+  const storyUp = cutsceneActive() || titleActive() || prologueActive() || nameEntryActive();
   music.setActive(!storyUp); // the cutscenes and the home screen play their own music
   if (storyUp) return; // a full-screen scene is up; give the device's time to it instead of the maze
   quality.frame(now);
@@ -895,11 +965,12 @@ renderer.setAnimationLoop((now) => {
 buildScene();
 updateHud(startMessage());
 music.setLevel(game.levelIndex);
-logger.startAttempt(game.level.id);
-if (params.has("level") || params.get("title") === "0") showBriefing();
+logger.startAttempt(game.level.id, levelInfo());
 
-// The home screen opens first. ?level= or ?title=0 go straight into the game (the story still plays
-// before Level 1 unless ?intro=0).
+// The name screen comes first (once per tab; see name-entry.js). Then the home screen. ?level= or
+// ?title=0 go straight into the game (the story still plays before Level 1 unless ?intro=0).
+await askForName();
+if (params.has("level") || params.get("title") === "0") showBriefing();
 if (params.get("scene")) {
   // ?scene=core previews a story scene; ?scene=card&level=4 previews a level's title card.
   (params.get("scene") === "card" ? playLevelCard(cardInfo(game.level)) : playCutscene({ scene: params.get("scene"), at: Number(params.get("at")) || 0 })).then(showBriefing);
