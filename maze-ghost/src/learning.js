@@ -1,4 +1,4 @@
-// learning.js — how the Level 6 wardens learn from you.
+// learning.js — how the Level 5 wardens learn from you.
 //
 // Clearpath's pitch is "our AI knows what people will do." On a level with `learns: true`, every
 // attempt where you get caught is recorded: on each tile you stood on, which way you went next.

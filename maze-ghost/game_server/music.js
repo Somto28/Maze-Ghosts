@@ -15,14 +15,11 @@
 //                                           whose filter keeps opening, gated supersaw stabs, metallic
 //                                           percussion, a robotic formant lead, scanner sweeps and machine
 //                                           rumble. Dr. Voss has just fed them your data.
-//   4 The Data Vault   "Cold Storage"     F# minor, 88 BPM. Chillwave: glassy FM bells, a shimmering
-//                                           high pad, a slow reese bass, a half-time beat and cold air.
-//                                           A careful heist.
-//   5 The Archive      "Floor 88"         D minor, 90 BPM, swung. Nu jazz on synths: FM electric piano,
+//   4 The Archive      "Floor 88"         D minor, 90 BPM, swung. Nu jazz on synths: FM electric piano,
 //                                           a juno-style chorus pad, a plucked synth bass walking between
 //                                           ninth chords, dub skanks, and the woozy, detuned lead of a
 //                                           casino lounge. You're sneaking through the bosses' floor.
-//   6 The Uplink       "Broadcast"        G minor, 116 BPM. Synthwave finale: huge sidechained supersaws,
+//   5 The Uplink       "Broadcast"        G minor, 116 BPM. Synthwave finale: huge sidechained supersaws,
 //                                           a filtered arpeggio, punchy drums and tom fills, a soaring saw
 //                                           lead with the motif as an anthem, radio static and morse beeps.
 //
@@ -35,7 +32,7 @@
 // Volume: everything follows the player's settings in sound-settings.js (master, music, effects, mute).
 //
 //   music.start()              after the first click or key press (browsers block sound before that)
-//   music.setLevel(i)          0-5: picks the track
+//   music.setLevel(i)          0-4: picks the track
 //   music.setActive(on)        fade out while a cutscene or the menu has its own sound
 //   music.setTension(0..1)     how close the nearest enemy is
 //   music.caught()             the "caught" sting; the music dips for a moment and keeps going
@@ -481,32 +478,7 @@ const TRACKS = [
       if (x.lead) x.melodyNote((note, len) => I.lead(note, t, Math.min(len, 3) * x.stepLen, { kind: "robot", vol: 0.05, dub: 0.3 }), true);
     },
   },
-  { // ---- 4. The Data Vault: "Cold Storage" ----
-    name: "Cold Storage", tonic: 54, tempo: 88, swing: 0.08, echo: 0.75, gain: 1.8,
-    ambience: [{ type: "highpass", freq: 5000, vol: 0.02, lfo: 0.05 }, { type: "bandpass", freq: 1200, q: 0.4, vol: 0.008, rate: 0.6 }],
-    form: [["F#m9", 0, [3, 7, 10, 14]], ["F#m9", 0, [3, 7, 10, 14]], ["Dmaj9", -4, [0, 3, 7, 10]], ["Dmaj9", -4, [0, 3, 7, 10]],
-      ["Bm9", 5, [8, 12, 15, 19]], ["Bm9", 5, [8, 12, 15, 19]], ["C#7sus", 7, [12, 14, 17, 19]], ["C#7b9", 7, [11, 14, 17, 20]]],
-    melody: [[[0, 7, 6], [6, 5, 2], [8, 3, 6], [14, 0, 2]], [[0, 2, 8], [8, 3, 8]], [[0, 7, 6], [6, 10, 2], [8, 12, 8]], [[0, 10, 16]],
-      [[0, 15, 6], [6, 14, 2], [8, 12, 6], [14, 10, 2]], [[0, 12, 8], [8, 7, 8]], [[0, 14, 4], [4, 12, 4], [8, 10, 4], [12, 7, 4]], [[0, 11, 8], [8, 7, 8]]],
-    play(x) {
-      const { st, ch, sec, t, n } = x;
-      if (st === 0) I.supersaw(ch.tones.map((s) => n(s + 12)), t, x.barLen, { vol: 0.03, cut: 3500, attack: 0.8, release: 1.2, verb: 0.8, pumped: false });
-      if (st === 0 && sec !== "intro") I.reese(n(ch.root - 12), t, x.barLen, { vol: 0.055, cut: 340 });
-      // Glass bells: a slow arpeggio, every dotted 8th.
-      if (st % 3 === 0 && st < 15) I.bell(n(ch.tones[(st / 3 + x.bar) % 4] + 12), t, { vol: sec === "intro" ? 0.03 : 0.04, decay: 1.4 });
-      // Crystal arp in the full section.
-      if (sec === "C" && st % 2 === 1) I.pluck(n(ch.tones[(st >> 1) % 4] + 24), t, { type: "triangle", vol: 0.025, cut: 3000, peak: 8000, decay: 0.08, dub: 0.3 });
-      if (sec !== "intro" && sec !== "break") {
-        if (st === 0 || st === 10) D.kick(t, { vol: 0.85, decay: 0.45 });
-        if (st === 8) D.snare(t, { vol: 0.8, verb: 0.7 });
-        if (st % 2 === 0) D.hat(t, { vol: st % 4 === 2 ? 0.6 : 0.3 });
-        if (st >= 13 && x.bar % 4 === 3) D.hat(t + x.stepLen / 2, { vol: 0.3 });
-      }
-      if (sec === "break" && x.secBar === 3 && st === 0) FX.riser(t, x.barLen, { vol: 0.04 });
-      if (x.lead) x.melodyNote((note, len) => I.lead(note, t, len, { kind: "glass", vol: 0.06, verb: 0.7, dub: 0.4 }));
-    },
-  },
-  { // ---- 5. The Archive (Floor 88): "Floor 88" ----
+  { // ---- 4. The Archive (Floor 88): "Floor 88" ----
     name: "Floor 88", tonic: 50, tempo: 90, swing: 0.28, echo: 0.75, gain: 1.05,
     ambience: [{ type: "bandpass", freq: 3000, q: 0.5, vol: 0.014, rate: 0.8, lfo: 0.09 }, { type: "lowpass", freq: 600, vol: 0.02, rate: 0.4 }],
     form: [["Dm9", 0, [15, 19, 22, 26]], ["Bbmaj9", -4, [12, 15, 19, 22]], ["Gm9", 5, [8, 12, 15, 19]], ["A7b13", 7, [5, 11, 15, 19]],
@@ -536,7 +508,7 @@ const TRACKS = [
       if (x.lead) x.melodyNote((note, len, from) => I.lead(note, t, len, { kind: "woozy", vol: 0.08, from }));
     },
   },
-  { // ---- 6. The Uplink: "Broadcast" ----
+  { // ---- 5. The Uplink: "Broadcast" ----
     name: "Broadcast", tonic: 55, tempo: 116, swing: 0, echo: 0.75, gain: 1.5,
     ambience: [{ type: "bandpass", freq: 300, q: 0.4, vol: 0.05, rate: 0.6, lfo: 0.13 }, { type: "bandpass", freq: 3500, q: 2, vol: 0.006 }],
     form: [["Gm", 0, [3, 7, 12, 15]], ["Eb", -4, [0, 3, 8, 12]], ["Bb", 3, [7, 10, 15, 19]], ["F", -2, [2, 5, 10, 14]],

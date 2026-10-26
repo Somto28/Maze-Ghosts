@@ -1,9 +1,14 @@
 // gameLogger.js — the Firestore "sink" for the study logger.
 //
-// This file only knows how to save one finished record to Firestore. Everything about WHAT gets recorded
-// lives in log.js, which loads this file in the background. If Firebase can't load (offline, or a school
-// network that blocks gstatic.com), log.js keeps the records in the browser and retries later, so the
-// game never breaks and no data is silently lost.
+// Load it from game.js (first line):
+//   import { logger } from "/game_server/gameLogger.js";
+//
+// Calls from your game code:
+//   logger.startAttempt(1);                       // when a level (re)starts
+//   logger.recordAnswer("q4", "B", false);        // when a player answers a question
+//   logger.recordMove("up");                      // each move in the gameplay loop
+//   logger.endAttempt("death", { x: 4, y: 7 });   // on death
+//   logger.endAttempt("win");                     // on level clear
 //
 // Every record is written with setDoc() under an ID chosen in the browser, so sending the same record
 // twice (after a retry) can never create a duplicate: the second write is refused by the rules.

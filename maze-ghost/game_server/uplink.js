@@ -1,4 +1,4 @@
-// uplink.js — Level 6's look: the Uplink, the roof of Clearpath's tower at night, where the evidence
+// uplink.js — Level 5's look: the Uplink, the roof of Clearpath's tower at night, where the evidence
 // gets broadcast to the world. Rooftop equipment (HVAC units, electrical cabinets, solar panels) forms
 // the maze; antenna masts with blinking red aviation lights rise between them; the floor is wet roofing
 // with painted walkway lines and puddles catching the city's glow; a satellite dish waits beside the way

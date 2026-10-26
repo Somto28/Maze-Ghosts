@@ -13,6 +13,8 @@ When the team is just testing, add `?nolog=1` to the URL and nothing is saved. A
 ## On study day
 
 - Each student starts on the **name screen** (first + last name). A refresh keeps the same student; a new tab asks again.
+- **One link per class period:** add `?group=periodA` (letters, numbers, `-`, `_`). Every record from that tab is tagged with it, and the export has a `group` column. It doesn't mark the session as a test.
+- **Is this device saving?** Press **Ctrl+Shift+S**: it shows whether the database is connected and how many records are waiting.
 - **Next student on the same Chromebook:** close the tab and open a new one, or press **Ctrl+Shift+N**.
 - **If the school network blocks Firebase,** the game still runs and every record waits on the device. It sends them automatically once the network allows it. As a backup, press **Ctrl+Shift+L** on each device before you leave: it downloads the unsent records as a JSON file that the export script can read.
 
@@ -35,6 +37,10 @@ When the team is just testing, add `?nolog=1` to the URL and nothing is saved. A
 
 If a student typed their name in two tabs, both are merged into one code (same first + last name, ignoring capitals and accents).
 
+## Don't replace `gameLogger.js`
+
+`log.js` decides what's recorded and loads `gameLogger.js` only to send records to Firestore through its `write()` function. If that file is swapped for a different logger, nothing reaches the database (records pile up on each device instead). To change what's recorded, edit `log.js` and `clearpath/firestore.rules` together, then redeploy the rules.
+
 ## What's recorded
 
 | Collection | One record per | What's in it |
@@ -43,6 +49,8 @@ If a student typed their name in two tabs, both are merged into one code (same f
 | `sessions` | page load | participant ID, test flag, screen size, touch or not |
 | `attempts` | try at a level | result, every move (below), wall bumps, Glitch/Dash uses, timing |
 | `events` | everything else | prologue answers, prologue skipped, final decision, menu choice, level/game completed |
+
+**Level numbers changed on 26 Oct 2026.** The game went from six levels to five when the Data Vault was cut, so the Archive is now Level 4 and the Uplink Level 5. Sessions saved before that have `gameVersion` `study-2026-10` (Archive = 5, Uplink = 6); later ones have `study-2026-10-5levels`. If both are in the data, compare levels by `levelName` (in `attempts.csv`), not by number.
 
 ### Each attempt
 
@@ -56,7 +64,7 @@ If a student typed their name in two tabs, both are merged into one code (same f
 | `thinkMs` | time since the player could move: how long they deliberated |
 | `aiPredicted` | the move the Warden AI expected them to make (the "expected" tag on the compass) |
 | `matchedPrediction` | did they do what the AI predicted? |
-| `aiFromHabit` | the prediction came from their earlier attempts (Level 6) |
+| `aiFromHabit` | the prediction came from their earlier attempts (Level 5, the Uplink) |
 | `verdict` | what the compass showed for that direction: `escape`, `safe`, `risky`, `caught`, or empty if it hadn't loaded yet |
 | `safeOptions` | how many directions were not `caught` at that moment |
 | `nearestEnemy` | tiles to the closest enemy before the move |
