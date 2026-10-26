@@ -969,9 +969,12 @@ function billboard(t,x,y,w,h){R(x-4,y-4,w+8,h+60,'#0d1220');for(let k=0;k<5;k++)
   R(x,y,w,h,'#05070c');A(x,y,w,h,'#ff4656',.08+.04*Math.sin(t*5));
   txt('> LOAD PRIVATE_MESSAGES',x+4,y+6,'#39f5c4');txt('> LOAD HOME ADDRESSES',x+4,y+14,'#39f5c4');txt('> CONSENT ON FILE: NONE',x+4,y+24,'#ff4656');
   if(Math.floor(t*2)%2)txtO('#CLEARPATHFILES',x+4,y+h-12,'#ffffff',1,'#000');}
-function facade(off){R(0,0,W,H,'#070912');skyline(-80+off*.05,190,'#0b0f1a','#ffd696');
-  R(40,0,250,H,'#0d1220');for(let y=-12+(off%14);y<H;y+=14)for(let x=46;x<284;x+=16){const row=Math.floor((y-off)/14),lit=hash(row*31+x)>.55;R(x,y,12,9,lit?'#2a3352':'#121a2e');if(lit)A(x,y,12,9,'#ffd696',.18);}
-  for(let x=44;x<290;x+=16)R(x,0,2,H,'#070912');}
+// The tower's outside wall with the camera riding down it: `off` is how far down we've come, so the
+// windows (and the neighbouring buildings) slide UP the screen as the gondola drops.
+function facade(off){R(0,0,W,H,'#070912');skyline(-80,250-off*.14,'#0b0f1a','#ffd696');
+  R(40,0,250,H,'#0d1220');for(let row=Math.floor(off/14);row*14-off<H;row++){const y=row*14-off;for(let x=46;x<284;x+=16){const lit=hash(row*31+x)>.55;R(x,y,12,9,lit?'#2a3352':'#121a2e');if(lit)A(x,y,12,9,'#ffd696',.18);}}
+  for(let x=44;x<290;x+=16)R(x,0,2,H,'#070912');
+  for(let i=0;i<10;i++){const x=20+hash(i)*280,y=H-((off*1.6+hash(i*5)*H*3)%(H+40));A(x,y,1,22,'#c9d6ff',.18);}} // wind streaks rushing past, upward
 function newsFrame(t,cap,sub){
   R(0,128,W,34,'#0b0e18');A(0,128,W,34,'#000000',.2);R(0,128,W,1,'#ff4656');
   R(0,130,58,14,'#b3141b');txt('BREAKING',6,135,'#ffffff');txt(cap,64,132,'#ffffff',2);txt(sub,64,149,'#c9d1e0');
@@ -1074,7 +1077,9 @@ const FINALE_SHOTS=[
  ev:[[.2,'motor'],[1.1,'motor'],[2,'motor'],[3,'motor'],[4,'motor'],[5,'motor'],[6,'motor'],[7,'motor']],
  lines:[[.2,2.2,'DR. VOSS','No! Stop them!'],[2.4,5.6,'PIP','Wardens only predict what they\'ve seen before. Nobody ever showed them me!'],[5.8,8.4,'SAM','Remind me to thank whoever cleans your windows.']],
  draw(t){const off=t*60;facade(off);
-  const ry=Math.round(26-t*60);if(ry>-30){R(30,ry-40,270,40,'#05060d');R(30,ry,270,6,'#3a4150');doctor(150,ry,{dir:1,pose:'point'});warden(110,ry,{eye:1,t,look:1,step:0});warden(200,ry,{eye:1,t,look:-1,step:1});}
+  // The roof edge they just left, with Voss and two Wardens looking down, sliding up and out of frame.
+  const ry=Math.round(66-off);if(ry>-10){R(30,0,270,Math.max(0,ry),'#05060d');R(30,ry,270,6,'#3a4150');doctor(150,ry,{dir:1,pose:'point'});warden(110,ry,{eye:1,t,look:1,step:0});warden(200,ry,{eye:1,t,look:-1,step:1});}
+  if(t>7){const gy=Math.round(lerp(H+30,124,seg(t,7,8.6)));R(0,gy,W,H,'#16181e');R(0,gy,W,3,'#2a2e38');A(0,gy-30,W,30,Math.floor(t*6)%2?'#ff2e3e':'#3d7bff',.12);} // the street coming up to meet them
   emp(152,110,{dir:1,pose:'idle'});drive(154,94,t);pip(170,92,{t,wave:t>2.4&&t<5.6});gondola(160,110,-10);
   const fl=Math.max(1,Math.round(lerp(88,1,seg(t,.6,8.4))));R(268,14,44,22,'#05060a');txt('FLOOR',274,17,'#8891a6');txt(String(fl).padStart(2,'0'),280,25,'#ffd166',1);}},
 {name:'Street',note:'The street below: police cars, news vans, a crowd with phones up. Sam hands the drives to an officer; police run into the building.',dur:8.4,top:true,music:()=>'triumph',
@@ -1117,7 +1122,7 @@ const FINALE_SHOTS=[
   if(t>3.2)txt('EVERY PERSON IS TOLD WHAT WAS TAKEN.',50,100,'#d9dfeb');
   newsFrame(t,'STOLEN DATA DELETED','A COURT ORDERS EVERY FILE ERASED');}},
 {name:'Talk show',note:'Months later: Sam (and Pip) on a live late-night talk show. Applause.',dur:15,fi:.8,music:()=>'talk',
- ev:[[.2,'fanfare'],[.3,'applause'],[1.4,'applause'],[8.3,'applause'],[14.6,'applause']],
+ ev:[[.2,'fanfare'],[.3,'applauseLong'],[8.3,'applause'],[14.5,'applause']],
  lines:[[1,4.2,'HOST','Please welcome the man who outsmarted the Wardens... Sam Reyes!'],[4.4,6.2,'SAM','Thanks! And this is Pip.'],[6.3,8.2,'PIP','Hi! I clean windows!'],
         [8.6,11.2,'HOST','So how do you beat a machine that knows what you\'ll do next?'],[11.4,14.8,'SAM','You do the one thing it never saw coming. And it helps to have a friend it never saw coming.']],
  draw(t){studio(t);studioDesk();
@@ -1126,7 +1131,7 @@ const FINALE_SHOTS=[
   hostAtDesk(66,104,t,hostTalk);samSeated(204,126,t,samTalkNow);pip(234,100,{t,wave:t>6.3&&t<8.2});
   audience(t,t<2.6||(t>8.3&&t<9.8)||t>14.6);}},
 {name:'Close-up',note:'Sam, close, under the studio lights. His message, then a slow fade to black.',dur:17,fo:3.6,music:t=>t<13.4?'talk':null,
- ev:[[13.6,'applause'],[14.6,'applause']],
+ ev:[[13.5,'applauseLong']],
  lines:[[3.4,6.8,'SAM','The Wardens weren\'t magic. They were trained on my life: my badge swipes, my habits, even what I do when I\'m scared.'],
         [6.9,9.2,'SAM','And nobody ever asked me if that was OK.'],[9.3,11.8,'SAM','If an AI is going to learn from you, you deserve to be asked first.'],[11.9,13.4,'SAM','Your data is yours. Make them ask.']],
  draw(t){const talk=(t>3.4&&t<6.8)||(t>6.9&&t<9.2)||(t>9.3&&t<11.8)||(t>11.9&&t<13.4);samTalk(t,talk);
@@ -1229,6 +1234,37 @@ function tone(f,d,type,v,slide=0,delay=0){if(!AC||!soundOn)return;const t=AC.cur
 function noise(d,v,ff,ft='lowpass',delay=0){if(!AC||!soundOn)return;if(!NB){NB=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const a=NB.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=Math.random()*2-1;}
   const t=AC.currentTime+delay,s=AC.createBufferSource(),fl=AC.createBiquadFilter(),g=AC.createGain();s.buffer=NB;fl.type=ft;fl.frequency.value=ff;
   g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+Math.min(d,.95));s.connect(fl).connect(g).connect(bus);s.start(t,Math.random()*.02);s.stop(t+Math.min(d,.95)+.03);}
+// A studio audience, modelled on the team's reference recording: a dense wash of hundreds of hands (most
+// of the energy between 400 Hz and 4 kHz, nothing deep, little above 8 kHz) that swells in over half a
+// second and holds, with cheering on top: falsetto "woo"s around 600-1000 Hz that slide up and fall away,
+// and the odd whistle. The clapping is rendered once into a looping buffer (each clap a few milliseconds of
+// band-limited noise), so it costs almost nothing to play.
+let CLAPS=null;
+function clapBuffer(){
+  if(CLAPS)return CLAPS;const sr=AC.sampleRate,n=Math.floor(sr*3),b=AC.createBuffer(2,n,sr);
+  for(let c=0;c<2;c++){const d=b.getChannelData(c);
+    for(let k=0;k<1100;k++){const len=Math.floor(sr*(.006+Math.random()*.01)),at=Math.floor(Math.random()*(n-len)),amp=.3+Math.random()*.5,f=.035+Math.random()*.11;
+      let lp=0,prev=0;for(let i=0;i<len;i++){lp+=f*((Math.random()*2-1)-lp);const v=lp-prev;prev=lp;d[at+i]+=v*amp*Math.exp(-i/(len*.3))*Math.min(1,i/8);}}}
+  return CLAPS=b;}
+function crowdCheer(dur,cheers){
+  if(!AC||!soundOn)return;const t=AC.currentTime;
+  const src=AC.createBufferSource();src.buffer=clapBuffer();src.loop=true;
+  const hp=AC.createBiquadFilter();hp.type='highpass';hp.frequency.value=300;const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2400;const lp2=AC.createBiquadFilter();lp2.type='lowpass';lp2.frequency.value=4200;
+  const pk=AC.createBiquadFilter();pk.type='peaking';pk.frequency.value=1100;pk.Q.value=.7;pk.gain.value=6;
+  const g=AC.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(3,t+.5);g.gain.setValueAtTime(3,t+dur-1.1);g.gain.linearRampToValueAtTime(0,t+dur);
+  src.connect(hp).connect(lp).connect(lp2).connect(pk).connect(g).connect(bus);src.start(t,Math.random()*2);src.stop(t+dur+.05);
+  for(let i=0;i<cheers;i++){const at=t+.2+Math.random()*Math.max(.3,dur-1.6);
+    if(Math.random()<.22){ // a whistle
+      const o=AC.createOscillator(),wg=AC.createGain(),f=2300+Math.random()*700;o.type='sine';o.frequency.setValueAtTime(f,at);o.frequency.linearRampToValueAtTime(f*1.25,at+.15);o.frequency.linearRampToValueAtTime(f*1.18,at+.5);o.frequency.linearRampToValueAtTime(f*.9,at+.7);
+      wg.gain.setValueAtTime(0,at);wg.gain.linearRampToValueAtTime(.035,at+.05);wg.gain.setValueAtTime(.035,at+.55);wg.gain.linearRampToValueAtTime(0,at+.72);o.connect(wg).connect(bus);o.start(at);o.stop(at+.75);continue;}
+    // a "woo": a falsetto voice that rises, wavers and falls off
+    const f=560+Math.random()*420,len=.7+Math.random()*.9,o=AC.createOscillator(),vib=AC.createOscillator(),vd=AC.createGain();
+    o.type='sawtooth';o.frequency.setValueAtTime(f*.8,at);o.frequency.linearRampToValueAtTime(f*1.08,at+len*.3);o.frequency.linearRampToValueAtTime(f,at+len*.7);o.frequency.linearRampToValueAtTime(f*.72,at+len);
+    vib.frequency.value=5+Math.random()*2;vd.gain.value=f*.012;vib.connect(vd).connect(o.frequency);
+    const v1=AC.createBiquadFilter();v1.type='lowpass';v1.frequency.value=f*2.2;v1.Q.value=1.5;const v2=AC.createBiquadFilter();v2.type='bandpass';v2.frequency.value=f*1.05;v2.Q.value=1.2;
+    const vg=AC.createGain(),pk2=.04+Math.random()*.028;vg.gain.setValueAtTime(0,at);vg.gain.linearRampToValueAtTime(pk2,at+.08);vg.gain.setValueAtTime(pk2,at+len*.6);vg.gain.linearRampToValueAtTime(0,at+len);
+    o.connect(v1).connect(v2).connect(vg).connect(bus);vib.start(at);o.start(at);vib.stop(at+len+.05);o.stop(at+len+.05);}
+}
 const SFX={
   step:()=>noise(.035,.12,700),softstep:()=>noise(.03,.05,450),runstep:()=>noise(.03,.14,900),
   beep:()=>tone(988,.09,'square',.1),ding:()=>{tone(1319,.6,'sine',.18);tone(1047,.8,'sine',.14,0,.18);},
@@ -1257,10 +1293,7 @@ const SFX={
   siren:()=>{tone(640,.55,'sine',.045,300);tone(940,.55,'sine',.045,-300,.55);tone(640,.55,'sine',.045,300,1.1);},
   flash:()=>{noise(.05,.14,4000,'highpass');tone(3200,.25,'sine',.02,-1800,.03);},
   powerdown:()=>{tone(420,.8,'sawtooth',.04,-360);tone(210,.9,'square',.025,-170);},
-  applause:()=>{if(!AC||!soundOn)return;const t=AC.currentTime;if(!NB)noise(.01,0,100); // a wash of hands plus individual claps on top
-    const w=AC.createBufferSource();w.buffer=NB;w.loop=true;const bp=AC.createBiquadFilter();bp.type='bandpass';bp.frequency.value=2200;bp.Q.value=.6;const g=AC.createGain();
-    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.16,t+.25);g.gain.setValueAtTime(.16,t+1.2);g.gain.linearRampToValueAtTime(0,t+2.8);w.connect(bp).connect(g).connect(bus);w.start(t);w.stop(t+2.9);
-    for(let i=0;i<120;i++){const at=Math.random()*2.5;noise(.07,.3*(1-at/3)*(.5+Math.random()*.5),1400+Math.random()*2200,'bandpass',at);}},
+  applause:()=>crowdCheer(2.8,2),applauseLong:()=>crowdCheer(4.8,5),
   fanfare:()=>{for(const[d,ch]of[[0,[55,59,62,67]],[.28,[55,59,62,67]],[.56,[57,60,64,69]],[.84,[59,62,67,71]]])for(const n of ch)tone(mf(n),d<.8?.24:1.2,'sawtooth',.022,0,d);},
   cardchime:()=>{[69,76,81].forEach((n,i)=>tone(mf(n),1.4,'triangle',.05,0,i*.09));tone(mf(88),1.8,'sine',.025,0,.3);},
 };
@@ -1418,7 +1451,7 @@ function closeAudio() {
   const ac = AC;
   try { master.gain.setTargetAtTime(0.0001, ac.currentTime, 0.08); } catch {}
   setTimeout(() => { try { ac.close(); } catch {} }, 500);
-  AC = null; master = musicBus = sfxBus = scoreBus = bus = rev = echoIn = null; NB = null;
+  AC = null; master = musicBus = sfxBus = scoreBus = bus = rev = echoIn = null; NB = null; CLAPS = null;
 }
 
 /* ---------- player ---------- */
